@@ -37,7 +37,8 @@ class Program
                     stopwatch.Stop();
                     
                     double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
-                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {i + 1}/{totalLinks}");
+                    double percent = (i + 1) * 100.0 / totalLinks;
+                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {i + 1}/{totalLinks} ({percent:F2}%)");
                     
                     if ((int)response.StatusCode == 404)
                         continue;
