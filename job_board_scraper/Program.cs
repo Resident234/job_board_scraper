@@ -73,6 +73,7 @@ class Program
                         {
                             response = await client.GetAsync(link);
                             html = await response.Content.ReadAsStringAsync();
+                            responseStats.AddOrUpdate((int)response.StatusCode, 1, (k, v) => v + 1);
                             if ((int)response.StatusCode != 503)
                                 break;
                             attempt++;
@@ -87,16 +88,13 @@ class Program
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
-                        int code = (int)response.StatusCode;
-                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {code}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
-                        
-                        responseStats.AddOrUpdate(code, 1, (k, v) => v + 1);
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
                         
                         // Вывод статистики одной строкой
                         var statsString = string.Join(", ", responseStats.Select(kv => $"{kv.Key} - {kv.Value}"));
                         Console.Write($"Статистика кодов ответов: {statsString}\n");
 
-                        if (code == 404)
+                        if ((int)response.StatusCode == 404)
                             return;
                         
                         var title = ExtractTitle(html);
@@ -109,7 +107,7 @@ class Program
                             insertCommand.Parameters.AddWithValue("@link", link);
                             insertCommand.Parameters.AddWithValue("@title", title);
                             int rowsAffected = insertCommand.ExecuteNonQuery();
-                            Console.WriteLine($"Записано в БД: {rowsAffected} строк");
+                            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
                         }
                         catch (NpgsqlException dbEx)
                         {
