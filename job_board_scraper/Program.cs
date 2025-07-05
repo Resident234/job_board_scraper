@@ -9,6 +9,8 @@ class Program
 {
     static readonly char[] chars = "abcdefghijklmnopqrstuvwxyz0123456789-_".ToCharArray();
     static readonly string baseUrl = "http://career.habr.com/";
+    static readonly int minLength = 3;
+    static readonly int maxLength = 3;
 
     static async Task Main(string[] args)
     {
@@ -19,10 +21,13 @@ class Program
                                                      "Password=admin;Database=jobs;");
         conn.Open();
         
-        for (int len = 1; len <= 3; len++)
+        for (int len = minLength; len <= maxLength; len++)
         {
-            foreach (var username in GenerateUsernames(len))
+            var usernames = new List<string>(GenerateUsernames(len));
+            int totalLinks = usernames.Count;
+            for (int i = 0; i < totalLinks; i++)
             {
+                var username = usernames[i];
                 string link = baseUrl + username;
                 try
                 {
@@ -62,6 +67,10 @@ class Program
                     // Можно раскомментировать для отладки:
                     // Console.WriteLine($"Error for {url}: {ex.Message}");
                 }
+                
+                // Добавить вывод прогресс бара обработанных ссылок
+                Console.WriteLine($"Обработано ссылок: {i + 1}/{totalLinks}");
+                Console.Out.Flush();
             }
         }
         
