@@ -43,6 +43,37 @@ class Program
         var semaphore = new SemaphoreSlim(maxConcurrentRequests);
         var activeRequests = new ConcurrentDictionary<string, Task>();
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
+        var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
+        var cts = new CancellationTokenSource();
+        
+        var dbWriterTask = Task.Run(async () =>
+        {
+            while (!cts.Token.IsCancellationRequested)//  || !saveQueue.IsEmpty
+            {
+                while (saveQueue.TryDequeue(out var item))
+                {
+                    try
+                    {
+                        if (conn.State != System.Data.ConnectionState.Open)
+                            conn.Open();
+                        NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
+                        insertCommand.Parameters.AddWithValue("@link", item.link);
+                        insertCommand.Parameters.AddWithValue("@title", item.title);
+                        int rowsAffected = insertCommand.ExecuteNonQuery();
+                        Console.WriteLine($"Записано в БД: {rowsAffected} строка, {item.link} | {item.title}");
+                    }
+                    catch (NpgsqlException dbEx)
+                    {
+                        Console.WriteLine($"Ошибка БД для {item.link}: {dbEx.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Неожиданная ошибка при записи в БД для {item.link}: {ex.Message}");
+                    }
+                }
+                await Task.Delay(500, cts.Token);
+            }
+        });
 
         for (int len = minLength; len <= maxLength; len++)
         {
@@ -94,24 +125,9 @@ class Program
                             return;
                         
                         var title = ExtractTitle(html);
-                        try
-                        {
-                            if (conn.State != System.Data.ConnectionState.Open)
-                                conn.Open();
-                            NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
-                            insertCommand.Parameters.AddWithValue("@link", link);
-                            insertCommand.Parameters.AddWithValue("@title", title);
-                            int rowsAffected = insertCommand.ExecuteNonQuery();
-                            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
-                        }
-                        catch (NpgsqlException dbEx)
-                        {
-                            Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
-                        }
+                        
+                        // Кладём в очередь для записи в БД
+                        saveQueue.Enqueue((link, title));
                     }
                     catch (Exception ex)
                     {
@@ -128,6 +144,8 @@ class Program
             }
             await Task.WhenAll(tasks);
         }
+        cts.Cancel(); // Завершаем поток записи в БД
+        await dbWriterTask;
         conn.Close();
     }
 
