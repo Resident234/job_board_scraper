@@ -29,7 +29,7 @@ class Program
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 5;
+    static readonly int maxConcurrentRequests = 15;
     static readonly int maxRetries = 3; // Количество попыток запроса
     static readonly int retryDelay = 1000; // Задержка между попытками
 
@@ -73,7 +73,7 @@ class Program
                         {
                             response = await client.GetAsync(link);
                             html = await response.Content.ReadAsStringAsync();
-                            responseStats.AddOrUpdate((int)response.StatusCode, 1, (k, v) => v + 1);
+                            ResponseStats(responseStats, (int)response.StatusCode);
                             if ((int)response.StatusCode != 503)
                                 break;
                             attempt++;
@@ -90,15 +90,10 @@ class Program
                         }
                         Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
                         
-                        // Вывод статистики одной строкой
-                        var statsString = string.Join(", ", responseStats.Select(kv => $"{kv.Key} - {kv.Value}"));
-                        Console.Write($"Статистика кодов ответов: {statsString}\n");
-
                         if ((int)response.StatusCode == 404)
                             return;
                         
                         var title = ExtractTitle(html);
-                        Console.WriteLine($"{link} | {title}");
                         try
                         {
                             if (conn.State != System.Data.ConnectionState.Open)
@@ -161,5 +156,12 @@ class Program
     {
         var match = Regex.Match(html, "<title>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         return match.Success ? match.Groups[1].Value.Trim() : "(no title)";
+    }
+
+    static void ResponseStats(ConcurrentDictionary<int, int> stats, int code)
+    {
+        stats.AddOrUpdate(code, 1, (k, v) => v + 1);
+        var statsString = string.Join(", ", stats.Select(kv => $"{kv.Key} - {kv.Value} раз"));
+        Console.Write($"Статистика кодов ответов: {statsString}\n");
     }
 }
