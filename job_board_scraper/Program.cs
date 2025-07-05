@@ -28,7 +28,9 @@ class Program
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 20;
+    static readonly int maxConcurrentRequests = 5;
+    static readonly int maxRetries = 3; // Количество попыток запроса
+    static readonly int retryDelay = 1000; // Задержка между попытками
 
     static async Task Main(string[] args)
     {
@@ -62,8 +64,19 @@ class Program
                     try
                     {
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                        var response = await client.GetAsync(link);
-                        var html = await response.Content.ReadAsStringAsync();
+                        HttpResponseMessage response = null;
+                        string html = null;
+                        int attempt = 0;
+                        while (attempt < maxRetries)
+                        {
+                            response = await client.GetAsync(link);
+                            html = await response.Content.ReadAsStringAsync();
+                            if ((int)response.StatusCode != 503)
+                                break;
+                            attempt++;
+                            if (attempt < maxRetries)
+                                await Task.Delay(retryDelay);
+                        }
                         stopwatch.Stop();
                         double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
                         double percent;
@@ -72,9 +85,10 @@ class Program
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
-                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
                         if ((int)response.StatusCode == 404)
                             return;
+                        
                         var title = ExtractTitle(html);
                         Console.WriteLine($"{link} | {title}");
                         try
