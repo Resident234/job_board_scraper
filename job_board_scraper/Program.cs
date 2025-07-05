@@ -4,75 +4,109 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using Npgsql;
+using System.Collections.Concurrent;
+using System.Threading;
 
+/// <summary>
+/// Программа перебирает все возможные имена пользователей (a-z, 0-9, -, _) длиной от minLength до maxLength,
+/// формирует для каждого имя ссылку http://career.habr.com/USERNAME и выполняет HTTP-запросы параллельно.
+/// Одновременно выполняется не более maxConcurrentRequests запросов (SemaphoreSlim).
+/// Для отслеживания активных запросов используется ConcurrentDictionary.
+/// Если страница не возвращает 404, ссылка и title сохраняются в базу данных PostgreSQL (таблица habr_resumes).
+/// В консоль выводится прогресс (количество, процент, время запроса) и результат записи в БД.
+/// 
+/// План:
+/// Используется SemaphoreSlim для ограничения параллелизма.
+/// Для отслеживания активных запросов — ConcurrentDictionary.
+/// Каждый запрос — отдельная Task, которая добавляет себя в структуру при старте и удаляет при завершении.
+/// Основной цикл — запускает задачи, но ждет, если активных задач уже 10.
+/// 
+/// </summary>
 class Program
 {
     static readonly char[] chars = "abcdefghijklmnopqrstuvwxyz0123456789-_".ToCharArray();
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 3;
     static readonly int maxLength = 3;
+    static readonly int maxConcurrentRequests = 10;
 
     static async Task Main(string[] args)
     {
         using var client = new HttpClient();
         client.Timeout = TimeSpan.FromSeconds(10);
-        
-        NpgsqlConnection conn = new NpgsqlConnection("Server=localhost:5432;User Id=postgres; " + 
-                                                     "Password=admin;Database=jobs;");
+        NpgsqlConnection conn = new NpgsqlConnection("Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;");
         conn.Open();
-        
+
+        var semaphore = new SemaphoreSlim(maxConcurrentRequests);
+        var activeRequests = new ConcurrentDictionary<string, Task>();
+
         for (int len = minLength; len <= maxLength; len++)
         {
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
+            int completed = 0;
+            var tasks = new List<Task>();
+
             for (int i = 0; i < totalLinks; i++)
             {
-                var username = usernames[i];
+                string username = usernames[i];
                 string link = baseUrl + username;
-                try
+
+                await semaphore.WaitAsync();
+
+                var task = Task.Run(async () =>
                 {
-                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    var response = await client.GetAsync(link);
-                    var html = await response.Content.ReadAsStringAsync();
-                    stopwatch.Stop();
-                    
-                    double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
-                    double percent = (i + 1) * 100.0 / totalLinks;
-                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {i + 1}/{totalLinks} ({percent:F2}%)");
-                    
-                    if ((int)response.StatusCode == 404)
-                        continue;
-                    var title = ExtractTitle(html);
-                    Console.WriteLine($"{link} | {title}");
-                    
-                    // Запись в таблицу habr
+                    activeRequests.TryAdd(link, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
                     try
                     {
-                        NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
-                        insertCommand.Parameters.AddWithValue("@link", link);
-                        insertCommand.Parameters.AddWithValue("@title", title);
-                        int rowsAffected = insertCommand.ExecuteNonQuery();
-                        Console.WriteLine($"Записано в БД: {rowsAffected} строк");
-                    }
-                    catch (NpgsqlException dbEx)
-                    {
-                        Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
+                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        var response = await client.GetAsync(link);
+                        var html = await response.Content.ReadAsStringAsync();
+                        stopwatch.Stop();
+                        double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+                        double percent;
+                        lock (usernames)
+                        {
+                            completed++;
+                            percent = completed * 100.0 / totalLinks;
+                        }
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
+                        if ((int)response.StatusCode == 404)
+                            return;
+                        var title = ExtractTitle(html);
+                        Console.WriteLine($"{link} | {title}");
+                        try
+                        {
+                            NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
+                            insertCommand.Parameters.AddWithValue("@link", link);
+                            insertCommand.Parameters.AddWithValue("@title", title);
+                            int rowsAffected = insertCommand.ExecuteNonQuery();
+                            Console.WriteLine($"Записано в БД: {rowsAffected} строк");
+                        }
+                        catch (NpgsqlException dbEx)
+                        {
+                            Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
+                        // Console.WriteLine($"Error for {link}: {ex.Message}");
                     }
-                }
-                catch (Exception ex)
-                {
-                    // Можно раскомментировать для отладки:
-                    // Console.WriteLine($"Error for {url}: {ex.Message}");
-                }
-                
-                Console.Out.Flush();
+                    finally
+                    {
+                        activeRequests.TryRemove(link, out _);
+                        semaphore.Release();
+                        Console.Out.Flush();
+                    }
+                });
+                tasks.Add(task);
             }
+            await Task.WhenAll(tasks);
         }
-        
         conn.Close();
     }
 
