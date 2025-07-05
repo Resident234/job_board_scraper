@@ -37,7 +37,7 @@ class Program
                     stopwatch.Stop();
                     
                     double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
-                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек");
+                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Обработано ссылок: {i + 1}/{totalLinks}");
                     
                     if ((int)response.StatusCode == 404)
                         continue;
@@ -68,8 +68,6 @@ class Program
                     // Console.WriteLine($"Error for {url}: {ex.Message}");
                 }
                 
-                // Добавить вывод прогресс бара обработанных ссылок
-                Console.WriteLine($"Обработано ссылок: {i + 1}/{totalLinks}");
                 Console.Out.Flush();
             }
         }
