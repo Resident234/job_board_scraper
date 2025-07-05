@@ -26,10 +26,16 @@ class Program
                 string link = baseUrl + username;
                 try
                 {
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                     var response = await client.GetAsync(link);
+                    var html = await response.Content.ReadAsStringAsync();
+                    stopwatch.Stop();
+                    
+                    double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+                    Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек");
+                    
                     if ((int)response.StatusCode == 404)
                         continue;
-                    var html = await response.Content.ReadAsStringAsync();
                     var title = ExtractTitle(html);
                     Console.WriteLine($"{link} | {title}");
                     
