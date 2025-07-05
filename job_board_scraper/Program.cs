@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Npgsql;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Linq;
 
 /// <summary>
 /// Программа перебирает все возможные имена пользователей (a-z, 0-9, -, _) длиной от minLength до maxLength,
@@ -41,6 +42,7 @@ class Program
 
         var semaphore = new SemaphoreSlim(maxConcurrentRequests);
         var activeRequests = new ConcurrentDictionary<string, Task>();
+        var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
 
         for (int len = minLength; len <= maxLength; len++)
         {
@@ -85,8 +87,16 @@ class Program
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
-                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
-                        if ((int)response.StatusCode == 404)
+                        int code = (int)response.StatusCode;
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {code}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
+                        
+                        responseStats.AddOrUpdate(code, 1, (k, v) => v + 1);
+                        
+                        // Вывод статистики одной строкой
+                        var statsString = string.Join(", ", responseStats.Select(kv => $"{kv.Key} - {kv.Value}"));
+                        Console.Write($"Статистика кодов ответов: {statsString}\n");
+
+                        if (code == 404)
                             return;
                         
                         var title = ExtractTitle(html);
