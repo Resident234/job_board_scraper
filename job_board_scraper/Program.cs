@@ -26,9 +26,9 @@ class Program
 {
     static readonly char[] chars = "abcdefghijklmnopqrstuvwxyz0123456789-_".ToCharArray();
     static readonly string baseUrl = "http://career.habr.com/";
-    static readonly int minLength = 3;
-    static readonly int maxLength = 3;
-    static readonly int maxConcurrentRequests = 10;
+    static readonly int minLength = 4;
+    static readonly int maxLength = 4;
+    static readonly int maxConcurrentRequests = 20;
 
     static async Task Main(string[] args)
     {
@@ -47,6 +47,8 @@ class Program
             int completed = 0;
             var tasks = new List<Task>();
 
+            Console.WriteLine($"Сгенерировано адресов {totalLinks}");
+            
             for (int i = 0; i < totalLinks; i++)
             {
                 string username = usernames[i];
@@ -77,6 +79,8 @@ class Program
                         Console.WriteLine($"{link} | {title}");
                         try
                         {
+                            if (conn.State != System.Data.ConnectionState.Open)
+                                conn.Open();
                             NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
                             insertCommand.Parameters.AddWithValue("@link", link);
                             insertCommand.Parameters.AddWithValue("@title", title);
