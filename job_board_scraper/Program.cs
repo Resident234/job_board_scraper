@@ -29,7 +29,7 @@ class Program
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 15;
+    static readonly int maxConcurrentRequests = 20;
     static readonly int maxRetries = 3; // Количество попыток запроса
     static readonly int retryDelay = 1000; // Задержка между попытками
 
@@ -37,11 +37,11 @@ class Program
     {
         using var client = new HttpClient();
         client.Timeout = TimeSpan.FromSeconds(10);
-        NpgsqlConnection conn = new NpgsqlConnection("Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;");
-        conn.Open();
+
+        await using var conn = DatabaseConnectionInit();
 
         var semaphore = new SemaphoreSlim(maxConcurrentRequests);
-        var activeRequests = new ConcurrentDictionary<string, Task>();
+        var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
         var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
         var cts = new CancellationTokenSource();
@@ -54,13 +54,7 @@ class Program
                 {
                     try
                     {
-                        if (conn.State != System.Data.ConnectionState.Open)
-                            conn.Open();
-                        NpgsqlCommand insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
-                        insertCommand.Parameters.AddWithValue("@link", item.link);
-                        insertCommand.Parameters.AddWithValue("@title", item.title);
-                        int rowsAffected = insertCommand.ExecuteNonQuery();
-                        Console.WriteLine($"Записано в БД: {rowsAffected} строка, {item.link} | {item.title}");
+                        DatabaseInsert(conn, item.link, item.title);
                     }
                     catch (NpgsqlException dbEx)
                     {
@@ -146,7 +140,7 @@ class Program
         }
         cts.Cancel(); // Завершаем поток записи в БД
         await dbWriterTask;
-        conn.Close();
+        DatabaseConnectionClose(conn);
     }
 
     static IEnumerable<string> GenerateUsernames(int length)
@@ -181,5 +175,34 @@ class Program
         stats.AddOrUpdate(code, 1, (k, v) => v + 1);
         var statsString = string.Join(", ", stats.Select(kv => $"{kv.Key} - {kv.Value} раз"));
         Console.Write($"Статистика кодов ответов: {statsString}\n");
+    }
+
+    static void DatabaseInsert(NpgsqlConnection conn, string link, string title)
+    {
+        DatabaseEnsureConnectionOpen(conn);
+        using var insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
+        insertCommand.Parameters.AddWithValue("@link", link);
+        insertCommand.Parameters.AddWithValue("@title", title);
+        int rowsAffected = insertCommand.ExecuteNonQuery();
+        Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
+    }
+
+    static void DatabaseEnsureConnectionOpen(NpgsqlConnection conn)
+    {
+        if (conn.State != System.Data.ConnectionState.Open)
+            conn.Open();
+    }
+
+    static void DatabaseConnectionClose(NpgsqlConnection conn)
+    {
+        conn.Close();
+    }
+    
+    static NpgsqlConnection DatabaseConnectionInit()
+    {
+        NpgsqlConnection conn = new NpgsqlConnection("Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;");
+        conn.Open();
+        
+        return conn;
     }
 }
