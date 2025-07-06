@@ -52,18 +52,7 @@ class Program
             {
                 while (saveQueue.TryDequeue(out var item))
                 {
-                    try
-                    {
-                        DatabaseInsert(conn, item.link, item.title);
-                    }
-                    catch (NpgsqlException dbEx)
-                    {
-                        Console.WriteLine($"Ошибка БД для {item.link}: {dbEx.Message}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Неожиданная ошибка при записи в БД для {item.link}: {ex.Message}");
-                    }
+                    DatabaseInsert(conn, item.link, item.title);
                 }
                 await Task.Delay(500, cts.Token);
             }
@@ -179,12 +168,23 @@ class Program
 
     static void DatabaseInsert(NpgsqlConnection conn, string link, string title)
     {
-        DatabaseEnsureConnectionOpen(conn);
-        using var insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
-        insertCommand.Parameters.AddWithValue("@link", link);
-        insertCommand.Parameters.AddWithValue("@title", title);
-        int rowsAffected = insertCommand.ExecuteNonQuery();
-        Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+            using var insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
+            insertCommand.Parameters.AddWithValue("@link", link);
+            insertCommand.Parameters.AddWithValue("@title", title);
+            int rowsAffected = insertCommand.ExecuteNonQuery();
+            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"Ошибка БД для {item.link}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Неожиданная ошибка при записи в БД для {item.link}: {ex.Message}");
+        }
     }
 
     static void DatabaseEnsureConnectionOpen(NpgsqlConnection conn)
