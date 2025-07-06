@@ -66,8 +66,27 @@ class Program
             var tasks = new List<Task>();
 
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
+
+            // Получаем последний обработанный link из БД
+            string lastLink = DatabaseGetLastLink(conn);
+            Console.WriteLine($"Последний обработанный link из БД: {lastLink}");
             
-            for (int i = 0; i < totalLinks; i++)
+            int startIndex = 0;
+            if (!string.IsNullOrEmpty(lastLink))
+            {
+                int foundIndex = usernames.IndexOf(lastLink.Replace(baseUrl, ""));
+                if (foundIndex >= 0 && foundIndex < usernames.Count - 1)
+                {
+                    startIndex = foundIndex + 1;
+                    Console.WriteLine($"Продолжаем перебор с {startIndex}-го элемента: {usernames[startIndex]}");
+                }
+                else
+                {
+                    Console.WriteLine($"Последний link из БД не найден в usernames, начинаем с начала.");
+                }
+            }
+
+            for (int i = startIndex; i < totalLinks; i++)
             {
                 string username = usernames[i];
                 string link = baseUrl + username;
@@ -179,11 +198,11 @@ class Program
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"Ошибка БД для {item.link}: {dbEx.Message}");
+            Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Неожиданная ошибка при записи в БД для {item.link}: {ex.Message}");
+            Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
         }
     }
 
@@ -204,5 +223,20 @@ class Program
         conn.Open();
         
         return conn;
+    }
+
+    static string DatabaseGetLastLink(NpgsqlConnection conn)
+    {
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+            using var cmd = new NpgsqlCommand("SELECT link FROM habr_resumes ORDER BY LENGTH(link) DESC, link DESC LIMIT 1", conn);
+            var result = cmd.ExecuteScalar();
+            return result == null ? null : result.ToString();
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
