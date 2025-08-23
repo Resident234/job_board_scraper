@@ -7,6 +7,7 @@ using Npgsql;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Linq;
+using job_board_scraper;
 
 /// <summary>
 /// Программа перебирает все возможные имена пользователей (a-z, 0-9, -, _) длиной от minLength до maxLength,
@@ -30,8 +31,7 @@ class Program
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
     static readonly int maxConcurrentRequests = 20;
-    static readonly int maxRetries = 3; // Количество попыток запроса
-    static readonly int retryDelay = 1000; // Задержка между попытками
+    static readonly int maxRetries = 20;
 
     static async Task Main(string[] args)
     {
@@ -85,6 +85,7 @@ class Program
                     Console.WriteLine($"Последний link из БД не найден в usernames, начинаем с начала.");
                 }
             }
+            completed = startIndex;
 
             for (int i = startIndex; i < totalLinks; i++)
             {
@@ -100,19 +101,17 @@ class Program
                     {
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                         HttpResponseMessage response = null;
-                        string html = null;
-                        int attempt = 0;
-                        while (attempt < maxRetries)
-                        {
-                            response = await client.GetAsync(link);
-                            html = await response.Content.ReadAsStringAsync();
-                            ResponseStats(responseStats, (int)response.StatusCode);
-                            if ((int)response.StatusCode != 503)
-                                break;
-                            attempt++;
-                            if (attempt < maxRetries)
-                                await Task.Delay(retryDelay);
-                        }
+
+                        response = await HttpRetry.GetStringWithRetriesAsync(
+                            client,
+                            link,
+                            maxRetries: maxRetries,
+                            baseDelay: TimeSpan.FromMilliseconds(400), // стартовая пауза
+                            maxDelay: TimeSpan.FromSeconds(30), // верхняя граница
+                            infoLog: msg => Console.WriteLine(msg), // куда писать сообщения о повторах
+                            responseStats: r => ResponseStats(responseStats, (int)r.StatusCode) // сбор статистики
+                        );
+                        
                         stopwatch.Stop();
                         double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
                         double percent;
@@ -125,6 +124,8 @@ class Program
                         
                         if ((int)response.StatusCode == 404)
                             return;
+                        
+                        string html = await response.Content.ReadAsStringAsync();
                         
                         var title = ExtractTitle(html);
                         
