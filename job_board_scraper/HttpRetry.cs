@@ -6,21 +6,29 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
+public sealed record HttpFetchResult(
+    HttpStatusCode StatusCode,
+    string? Content,
+    bool IsSuccess,
+    bool IsNotFound);
+
+
 public static class HttpRetry
 {
-    public static async Task<HttpResponseMessage> GetStringWithRetriesAsync(
+    public static async Task<HttpFetchResult> FetchAsync(
         HttpClient client,
         string url,
         int maxRetries = 5,
         TimeSpan? baseDelay = null,
         TimeSpan? maxDelay = null,
-        Action<string> infoLog = null,
-        Action<HttpResponseMessage> responseStats = null)
+        Action<string>? infoLog = null,
+        Action<HttpResponseMessage>? responseStats = null)
     {
         if (client == null) throw new ArgumentNullException(nameof(client));
         if (url == null) throw new ArgumentNullException(nameof(url));
         if (infoLog == null) throw new ArgumentNullException(nameof(infoLog));
         if (responseStats == null) throw new ArgumentNullException(nameof(responseStats));
+        
         baseDelay ??= TimeSpan.FromMilliseconds(500);
         maxDelay ??= TimeSpan.FromSeconds(30);
 
@@ -29,20 +37,21 @@ public static class HttpRetry
             HttpResponseMessage? response = null;
             try
             {
-                response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-
+                response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                 responseStats?.Invoke(response);
 
-                // 404 — не обрабатываем: без повторов и исключений
+                // 404 — не обрабатываем: без повторов и без исключений
                 if (response.StatusCode == HttpStatusCode.NotFound)
-                    return response;
+                    return new HttpFetchResult(HttpStatusCode.NotFound, null, IsSuccess: false, IsNotFound: true);
                 
+                // Не-транзиентный ответ (включая 2xx и большинство 4xx)
                 if (!IsTransient(response.StatusCode))
                 {
-                    // Бросит исключение для неуспешных не‑транзиентных кодов (например, 4xx, кроме 408/429)
-                    response.EnsureSuccessStatusCode();
-                    return response;
+                    response.EnsureSuccessStatusCode(); // бросит для 4xx/5xx (кроме 2xx)
+                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return new HttpFetchResult(response.StatusCode, content, IsSuccess: true, IsNotFound: false);
                 }
+
 
                 // Транзиентная ошибка: готовим повтор (если есть попытки)
                 if (attempt == maxRetries)
@@ -60,7 +69,11 @@ public static class HttpRetry
                 infoLog?.Invoke($"[Retry] Код={(int)response.StatusCode} ({response.StatusCode}); попытка {attempt}/{maxRetries}; пауза {Format(delay)}" +
                                 (retryAfter.HasValue ? " (учтен Retry-After)" : ""));
 
-                await Task.Delay(delay).ConfigureAwait(false);
+                await Task.Delay(delay);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (HttpRequestException ex)
             {
@@ -69,7 +82,7 @@ public static class HttpRetry
 
                 var delay = ComputeBackoff(attempt, baseDelay.Value, maxDelay.Value);
                 infoLog?.Invoke($"[Retry] Исключение {ex.GetType().Name}: {ex.Message}; попытка {attempt}/{maxRetries}; пауза {Format(delay)}");
-                await Task.Delay(delay).ConfigureAwait(false);
+                await Task.Delay(delay);
             }
             finally
             {

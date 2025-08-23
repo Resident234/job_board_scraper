@@ -31,7 +31,7 @@ class Program
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
     static readonly int maxConcurrentRequests = 20;
-    static readonly int maxRetries = 20;
+    static readonly int maxRetries = 200;
 
     static async Task Main(string[] args)
     {
@@ -50,8 +50,11 @@ class Program
         {
             while (!cts.Token.IsCancellationRequested)//  || !saveQueue.IsEmpty
             {
+                Console.WriteLine(saveQueue.Count);
+
                 while (saveQueue.TryDequeue(out var item))
                 {
+                    Console.WriteLine("DatabaseInsert");
                     DatabaseInsert(conn, item.link, item.title);
                 }
                 await Task.Delay(500, cts.Token);
@@ -100,9 +103,8 @@ class Program
                     try
                     {
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                        HttpResponseMessage response = null;
-
-                        response = await HttpRetry.GetStringWithRetriesAsync(
+                        
+                        var result = await HttpRetry.FetchAsync(
                             client,
                             link,
                             maxRetries: maxRetries,
@@ -120,15 +122,17 @@ class Program
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
-                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)result.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
                         
-                        if ((int)response.StatusCode == 404)
+                        if (result.IsNotFound)
                             return;
                         
-                        string html = await response.Content.ReadAsStringAsync();
+                        string html = result.Content;
                         
                         var title = ExtractTitle(html);
                         
+                        Console.WriteLine($"Страница {link}: {title}");
+                            
                         // Кладём в очередь для записи в БД
                         saveQueue.Enqueue((link, title));
                     }
