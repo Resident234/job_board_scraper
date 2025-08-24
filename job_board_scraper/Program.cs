@@ -1,13 +1,9 @@
-﻿using System;
-using System.Net.Http;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
+using AngleSharp.Html.Parser;
 using Npgsql;
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Linq;
-using job_board_scraper;
+
+namespace job_board_scraper;
 
 /// <summary>
 /// Программа перебирает все возможные имена пользователей (a-z, 0-9, -, _) длиной от minLength до maxLength,
@@ -30,31 +26,50 @@ class Program
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 20;
+    static readonly int maxConcurrentRequests = 2;
     static readonly int maxRetries = 200;
 
     static async Task Main(string[] args)
     {
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(10);
-
+        using var httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(baseUrl)
+        };
+        httpClient.Timeout = TimeSpan.FromSeconds(10);
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HabrScraper/1.0 Safari/537.36");
+        httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+        
         await using var conn = DatabaseConnectionInit();
 
         var semaphore = new SemaphoreSlim(maxConcurrentRequests);
         var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
         var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        
+        // Инициализация вашего существующего saveQueue (у вас он уже есть).
+        // Пример адаптации: передаём делегат добавления в вашу очередь.
+        var scraper = new ListResumeScraper(
+            httpClient,
+            enqueueToSaveQueue: item =>
+            {
+                saveQueue.Enqueue((item.link, item.title));
+                Console.WriteLine($"[Main] (debug) Поступило в saveQueue: {item.title} -> {item.link}");
+            },
+            interval: TimeSpan.FromMinutes(10));
+
+        // Запуск фоновой задачи (работает параллельно)
+        _ = scraper.StartAsync(cts.Token);
         
         var dbWriterTask = Task.Run(async () =>
         {
             while (!cts.Token.IsCancellationRequested)//  || !saveQueue.IsEmpty
             {
-                Console.WriteLine(saveQueue.Count);
-
                 while (saveQueue.TryDequeue(out var item))
                 {
-                    Console.WriteLine("DatabaseInsert");
                     DatabaseInsert(conn, item.link, item.title);
                 }
                 await Task.Delay(500, cts.Token);
@@ -105,7 +120,7 @@ class Program
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                         
                         var result = await HttpRetry.FetchAsync(
-                            client,
+                            httpClient,
                             link,
                             maxRetries: maxRetries,
                             baseDelay: TimeSpan.FromMilliseconds(400), // стартовая пауза
@@ -177,10 +192,11 @@ class Program
         }
     }
 
-    static string ExtractTitle(string html)
+    public static string ExtractTitle(string html)
     {
-        var match = Regex.Match(html, "<title>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        return match.Success ? match.Groups[1].Value.Trim() : "(no title)";
+        var parser = new HtmlParser();
+        var doc = parser.ParseDocument(html);
+        return doc.QuerySelector("title")?.TextContent?.Trim() ?? string.Empty;
     }
 
     static void ResponseStats(ConcurrentDictionary<int, int> stats, int code)
