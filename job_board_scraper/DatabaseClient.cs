@@ -90,16 +90,39 @@ public sealed class DatabaseClient
 
     }
 
-    // Получение последней сохранённой ссылки
-    public string? DatabaseGetLastLink(NpgsqlConnection conn)
+    // Получение последней ссылки.
+    // Если linkLength не задан, используется прежний алгоритм:
+    //   ORDER BY LENGTH(link) DESC, link DESC
+    // Если linkLength задан ( > 0 ), выбирается среди ссылок указанной длины:
+    //   WHERE LENGTH(link) = @len ORDER BY link DESC
+    public string? DatabaseGetLastLink(NpgsqlConnection conn, int? linkLength = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (linkLength.HasValue && linkLength.Value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(linkLength));
 
         try
         {
             DatabaseEnsureConnectionOpen(conn);
-            using var cmd = new NpgsqlCommand("SELECT link FROM habr_resumes ORDER BY LENGTH(link) DESC, link DESC LIMIT 1", conn);
+
+            using var cmd = linkLength is null
+                ? new NpgsqlCommand(
+                    "SELECT link " +
+                    "FROM habr_resumes " +
+                    "ORDER BY LENGTH(link) DESC, link DESC " +
+                    "LIMIT 1", conn)
+                : new NpgsqlCommand(
+                    "SELECT link " +
+                    "FROM habr_resumes " +
+                    "WHERE LENGTH(link) = @len " + 
+                    "ORDER BY link DESC " +
+                    "LIMIT 1", conn);
+
+            if (linkLength is not null)
+                cmd.Parameters.AddWithValue("@len", linkLength.Value);
+
             var result = cmd.ExecuteScalar();
+
             return result?.ToString();
         }
         catch
@@ -107,4 +130,5 @@ public sealed class DatabaseClient
             return null;
         }
     }
+
 }

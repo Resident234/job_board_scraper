@@ -89,7 +89,8 @@ class Program
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
 
             // Получаем последний обработанный link из БД
-            string lastLink = db.DatabaseGetLastLink(conn);
+            int totalLength = (baseUrl?.Length ?? 0) + maxLength;
+            string lastLink = db.DatabaseGetLastLink(conn, totalLength);
             Console.WriteLine($"Последний обработанный link из БД: {lastLink}");
             
             int startIndex = 0;
