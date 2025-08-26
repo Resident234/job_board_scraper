@@ -41,7 +41,10 @@ class Program
         httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
         
-        await using var conn = DatabaseConnectionInit();
+        var connectionString = "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
+        var db = new DatabaseClient(connectionString);
+        using var conn = db.DatabaseConnectionInit();
+        db.DatabaseEnsureConnectionOpen(conn);
 
         var semaphore = new SemaphoreSlim(maxConcurrentRequests);
         var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
@@ -70,7 +73,7 @@ class Program
             {
                 while (saveQueue.TryDequeue(out var item))
                 {
-                    DatabaseInsert(conn, item.link, item.title);
+                    db.DatabaseInsert(conn, link: item.link, title: item.title);
                 }
                 await Task.Delay(500, cts.Token);
             }
@@ -86,7 +89,7 @@ class Program
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
 
             // Получаем последний обработанный link из БД
-            string lastLink = DatabaseGetLastLink(conn);
+            string lastLink = db.DatabaseGetLastLink(conn);
             Console.WriteLine($"Последний обработанный link из БД: {lastLink}");
             
             int startIndex = 0;
@@ -153,7 +156,7 @@ class Program
                     }
                     catch (Exception ex)
                     {
-                        // Console.WriteLine($"Error for {link}: {ex.Message}");
+                        Console.WriteLine($"Error for {link}: {ex.Message}");
                     }
                     finally
                     {
@@ -168,7 +171,7 @@ class Program
         }
         cts.Cancel(); // Завершаем поток записи в БД
         await dbWriterTask;
-        DatabaseConnectionClose(conn);
+        db.DatabaseConnectionClose(conn);
     }
 
     static IEnumerable<string> GenerateUsernames(int length)
@@ -204,60 +207,5 @@ class Program
         stats.AddOrUpdate(code, 1, (k, v) => v + 1);
         var statsString = string.Join(", ", stats.Select(kv => $"{kv.Key} - {kv.Value} раз"));
         Console.Write($"Статистика кодов ответов: {statsString}\n");
-    }
-
-    static void DatabaseInsert(NpgsqlConnection conn, string link, string title)
-    {
-        try
-        {
-            DatabaseEnsureConnectionOpen(conn);
-            using var insertCommand = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
-            insertCommand.Parameters.AddWithValue("@link", link);
-            insertCommand.Parameters.AddWithValue("@title", title);
-            int rowsAffected = insertCommand.ExecuteNonQuery();
-            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
-        }
-    }
-
-    static void DatabaseEnsureConnectionOpen(NpgsqlConnection conn)
-    {
-        if (conn.State != System.Data.ConnectionState.Open)
-            conn.Open();
-    }
-
-    static void DatabaseConnectionClose(NpgsqlConnection conn)
-    {
-        conn.Close();
-    }
-    
-    static NpgsqlConnection DatabaseConnectionInit()
-    {
-        NpgsqlConnection conn = new NpgsqlConnection("Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;");
-        conn.Open();
-        
-        return conn;
-    }
-
-    static string DatabaseGetLastLink(NpgsqlConnection conn)
-    {
-        try
-        {
-            DatabaseEnsureConnectionOpen(conn);
-            using var cmd = new NpgsqlCommand("SELECT link FROM habr_resumes ORDER BY LENGTH(link) DESC, link DESC LIMIT 1", conn);
-            var result = cmd.ExecuteScalar();
-            return result == null ? null : result.ToString();
-        }
-        catch
-        {
-            return null;
-        }
     }
 }
