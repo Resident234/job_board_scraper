@@ -41,8 +41,15 @@ public static class HttpRetry
                 responseStats?.Invoke(response);
 
                 // 404 — не обрабатываем: без повторов и без исключений
-                if (response.StatusCode == HttpStatusCode.NotFound)
+                if (response.StatusCode is HttpStatusCode.NotFound)
                     return new HttpFetchResult(HttpStatusCode.NotFound, null, IsSuccess: false, IsNotFound: true);
+                
+                // 429 - если такой ответ возвращается, то на самом деле страница существует
+                if (response.StatusCode is (HttpStatusCode)429)
+                {
+                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return new HttpFetchResult(response.StatusCode, content, IsSuccess: true, IsNotFound: false);
+                }
                 
                 // Не-транзиентный ответ (включая 2xx и большинство 4xx)
                 if (!IsTransient(response.StatusCode))
@@ -59,7 +66,7 @@ public static class HttpRetry
                     // Последняя попытка — вернем подробность ошибки
                     var code = (int)response.StatusCode;
                     var reason = response.ReasonPhrase ?? response.StatusCode.ToString();
-                    throw new HttpRequestException($"Запрос завершился с кодом {code} ({reason}) после {attempt} попыток.");
+                    throw new HttpRequestException($"[Retry] Запрос завершился с кодом {code} ({reason}) после {attempt} попыток.");
                 }
 
                 var backoff = ComputeBackoff(attempt, baseDelay.Value, maxDelay.Value);
@@ -91,12 +98,12 @@ public static class HttpRetry
         }
 
         // Сюда не дойдем
-        throw new InvalidOperationException("Неожиданное завершение стратегии повторов.");
+        throw new InvalidOperationException("[Retry] Неожиданное завершение стратегии повторов.");
     }
 
     private static bool IsTransient(HttpStatusCode status) =>
         status is HttpStatusCode.RequestTimeout         // 408
-            or (HttpStatusCode)429                       // 429 Too Many Requests
+            or (HttpStatusCode)429                     // 429 Too Many Requests
             or HttpStatusCode.InternalServerError        // 500
             or HttpStatusCode.BadGateway                 // 502
             or HttpStatusCode.ServiceUnavailable         // 503

@@ -26,7 +26,7 @@ class Program
     static readonly string baseUrl = "http://career.habr.com/";
     static readonly int minLength = 4;
     static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 2;
+    static readonly int maxConcurrentRequests = 5;
     static readonly int maxRetries = 200;
 
     static async Task Main(string[] args)
