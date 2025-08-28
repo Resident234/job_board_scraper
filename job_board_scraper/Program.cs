@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 using AngleSharp.Html.Parser;
-using Npgsql;
 
 namespace job_board_scraper;
 
@@ -22,18 +20,12 @@ namespace job_board_scraper;
 /// </summary>
 class Program
 {
-    static readonly char[] chars = "abcdefghijklmnopqrstuvwxyz0123456789-_".ToCharArray();
-    static readonly string baseUrl = "http://career.habr.com/";
-    static readonly int minLength = 4;
-    static readonly int maxLength = 4;
-    static readonly int maxConcurrentRequests = 5;
-    static readonly int maxRetries = 200;
 
     static async Task Main(string[] args)
     {
         using var httpClient = new HttpClient
         {
-            BaseAddress = new Uri(baseUrl)
+            BaseAddress = new Uri(AppConfig.BaseUrl)
         };
         httpClient.Timeout = TimeSpan.FromSeconds(10);
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
@@ -41,12 +33,11 @@ class Program
         httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
         
-        var connectionString = "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
-        var db = new DatabaseClient(connectionString);
+        var db = new DatabaseClient(AppConfig.ConnectionString);
         using var conn = db.DatabaseConnectionInit();
         db.DatabaseEnsureConnectionOpen(conn);
 
-        var semaphore = new SemaphoreSlim(maxConcurrentRequests);
+        var semaphore = new SemaphoreSlim(AppConfig.MaxConcurrentRequests);
         var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
         var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
@@ -79,7 +70,7 @@ class Program
             }
         });
 
-        for (int len = minLength; len <= maxLength; len++)
+        for (int len = AppConfig.MinLength; len <= AppConfig.MaxLength; len++)
         {
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
@@ -89,14 +80,14 @@ class Program
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
 
             // Получаем последний обработанный link из БД
-            int totalLength = (baseUrl?.Length ?? 0) + maxLength;
+            int totalLength = (AppConfig.BaseUrl?.Length ?? 0) + AppConfig.MaxLength;
             string lastLink = db.DatabaseGetLastLink(conn, totalLength);
             Console.WriteLine($"Последний обработанный link из БД: {lastLink}");
             
             int startIndex = 0;
             if (!string.IsNullOrEmpty(lastLink))
             {
-                int foundIndex = usernames.IndexOf(lastLink.Replace(baseUrl, ""));
+                int foundIndex = usernames.IndexOf(lastLink.Replace(AppConfig.BaseUrl, ""));
                 if (foundIndex >= 0 && foundIndex < usernames.Count - 1)
                 {
                     startIndex = foundIndex + 1;
@@ -112,7 +103,7 @@ class Program
             for (int i = startIndex; i < totalLinks; i++)
             {
                 string username = usernames[i];
-                string link = baseUrl + username;
+                string link = AppConfig.BaseUrl + username;
 
                 await semaphore.WaitAsync();
 
@@ -126,7 +117,7 @@ class Program
                         var result = await HttpRetry.FetchAsync(
                             httpClient,
                             link,
-                            maxRetries: maxRetries,
+                            maxRetries: AppConfig.MaxRetries,
                             baseDelay: TimeSpan.FromMilliseconds(400), // стартовая пауза
                             maxDelay: TimeSpan.FromSeconds(30), // верхняя граница
                             infoLog: msg => Console.WriteLine(msg), // куда писать сообщения о повторах
@@ -188,7 +179,7 @@ class Program
             yield return new string(arr);
             yield break;
         }
-        foreach (var c in chars)
+        foreach (var c in AppConfig.Chars)
         {
             arr[pos] = c;
             foreach (var s in GenerateUsernamesRecursive(arr, pos + 1))

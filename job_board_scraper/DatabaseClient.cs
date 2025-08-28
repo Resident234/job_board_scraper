@@ -98,7 +98,7 @@ public sealed class DatabaseClient
     public string? DatabaseGetLastLink(NpgsqlConnection conn, int? linkLength = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (linkLength.HasValue && linkLength.Value <= 0)
+        if (linkLength is <= 0)
             throw new ArgumentOutOfRangeException(nameof(linkLength));
 
         try

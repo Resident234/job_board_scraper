@@ -8,7 +8,7 @@ namespace job_board_scraper
     // Отдельный класс, запускающий фоновую задачу с интервалом 10 минут
     public sealed class ListResumeScraper
     {
-        private static readonly Uri BaseUri = new("https://career.habr.com");
+        private static readonly Uri BaseUri = new(AppConfig.BaseUrl);
         private readonly HttpClient _httpClient;
         private readonly Action<ResumeItem> _enqueueToSaveQueue;
         private readonly TimeSpan _interval;
