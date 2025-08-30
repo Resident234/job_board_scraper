@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HabrResumesViewer", "HabrResumesViewer\HabrResumesViewer.csproj", "{2E3CC819-E5C2-454E-BEBA-DF3D3886A049}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2E3CC819-E5C2-454E-BEBA-DF3D3886A049}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E3CC819-E5C2-454E-BEBA-DF3D3886A049}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E3CC819-E5C2-454E-BEBA-DF3D3886A049}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E3CC819-E5C2-454E-BEBA-DF3D3886A049}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
