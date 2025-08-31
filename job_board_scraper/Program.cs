@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using AngleSharp.Html.Parser;
 
+
 namespace job_board_scraper;
 
 /// <summary>
@@ -20,9 +21,20 @@ namespace job_board_scraper;
 /// </summary>
 class Program
 {
+    private static readonly HttpClient Http = new()
+    {
+        BaseAddress = new Uri(AppConfig.BaseUrl)
+    };
 
     static async Task Main(string[] args)
     {
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
         using var httpClient = new HttpClient
         {
             BaseAddress = new Uri(AppConfig.BaseUrl)
@@ -37,12 +49,26 @@ class Program
         using var conn = db.DatabaseConnectionInit();
         db.DatabaseEnsureConnectionOpen(conn);
 
-        var semaphore = new SemaphoreSlim(AppConfig.MaxConcurrentRequests);
+        //var semaphore = new SemaphoreSlim(AppConfig.MaxConcurrentRequests);
+        // Инициализация адаптивного контроллера вместо фиксированного SemaphoreSlim
+        var controller = new AdaptiveConcurrencyController(
+            defaultConcurrency: AppConfig.MaxConcurrentRequests, // раньше было фиксировано через SemaphoreSlim
+            minConcurrency: 1,
+            maxConcurrency: 128,
+            fastThreshold: TimeSpan.FromMilliseconds(250),
+            slowThreshold: TimeSpan.FromSeconds(1),
+            evaluationPeriod: TimeSpan.FromSeconds(2),
+            emaAlpha: 0.2,
+            increaseStep: 1,
+            decreaseFactor: 0.75
+        );
+        
         var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
         var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
-        using var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        
+        // Запускаем цикл оценки (регулирует DesiredConcurrency на основе ReportLatency)
+        var controllerLoop = controller.RunAsync(cts.Token);
         
         // Инициализация существующего saveQueue.
         // Пример адаптации: передаём делегат добавления в очередь.
@@ -75,7 +101,7 @@ class Program
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
             int completed = 0;
-            var tasks = new List<Task>();
+            //var tasks = new List<Task>();
 
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
 
@@ -99,20 +125,30 @@ class Program
                 }
             }
             completed = startIndex;
+            
+            //от usernames отрезать всю предыдущую часть до startIndex
+            usernames = usernames.Skip(startIndex).ToList();
+            
+            //for (int i = startIndex; i < totalLinks; i++)
+            //{
+            
+                //await semaphore.WaitAsync();
 
-            for (int i = startIndex; i < totalLinks; i++)
-            {
-                string username = usernames[i];
-                string link = AppConfig.BaseUrl + username;
-
-                await semaphore.WaitAsync();
-
-                var task = Task.Run(async () =>
+                //var task = Task.Run(async () =>
+                //{
+                
+            await AdaptiveForEach.ForEachAdaptiveAsync(
+                source: usernames,
+                body: async username =>
                 {
+
+                    //string username = usernames[i];
+                    string link = AppConfig.BaseUrl + username;
+    
                     activeRequests.TryAdd(link, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
                     try
                     {
-                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
                         
                         var result = await HttpRetry.FetchAsync(
                             httpClient,
@@ -124,8 +160,10 @@ class Program
                             responseStats: r => ResponseStats(responseStats, (int)r.StatusCode) // сбор статистики
                         );
                         
-                        stopwatch.Stop();
-                        double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+                        sw.Stop();
+                        controller.ReportLatency(sw.Elapsed); // важный сигнал для адаптации конкуренции
+
+                        double elapsedSeconds = sw.Elapsed.TotalSeconds;
                         double percent;
                         lock (usernames)
                         {
@@ -153,14 +191,31 @@ class Program
                     finally
                     {
                         activeRequests.TryRemove(link, out _);
-                        semaphore.Release();
+                        //semaphore.Release();
                         Console.Out.Flush();
                     }
-                });
-                tasks.Add(task);
-            }
-            await Task.WhenAll(tasks);
+                    
+            //});
+                },
+                controller: controller,
+                ct: cts.Token
+            );
+                
+                //tasks.Add(task);
+            //}
+            //await Task.WhenAll(tasks);
         }
+        
+        // Корректно завершаем фоновую задачу контроллера
+        try
+        {
+            await controllerLoop;
+        }
+        catch (OperationCanceledException)
+        {
+            // игнорируем отмену при выходе
+        }
+
         cts.Cancel(); // Завершаем поток записи в БД
         await dbWriterTask;
         db.DatabaseConnectionClose(conn);
