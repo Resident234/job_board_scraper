@@ -88,9 +88,9 @@ app.MapGet("/", async (HttpContext http, NpgsqlDataSource ds, long? id, Cancella
     // 2) Пометить запись как просмотренную: viewed = 1
     await using (var updateCmd = conn.CreateCommand())
     {
-        //updateCmd.CommandText = "update habr_resumes set viewed = 1 where id = @id and viewed IS NULL";
-        //updateCmd.Parameters.AddWithValue("id", currentId.Value);
-        //await updateCmd.ExecuteNonQueryAsync(ct);
+        updateCmd.CommandText = "update habr_resumes set viewed = B'1'::bit(1) where id = @id and viewed IS NULL";
+        updateCmd.Parameters.AddWithValue("id", currentId.Value);
+        await updateCmd.ExecuteNonQueryAsync(ct);
     }
 
     // 3) Найти prev/next среди НЕпросмотренных (viewed != 1), относительно текущего id
