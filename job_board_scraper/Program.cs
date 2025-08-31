@@ -44,8 +44,8 @@ class Program
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         
-        // Инициализация вашего существующего saveQueue (у вас он уже есть).
-        // Пример адаптации: передаём делегат добавления в вашу очередь.
+        // Инициализация существующего saveQueue.
+        // Пример адаптации: передаём делегат добавления в очередь.
         var scraper = new ListResumeScraper(
             httpClient,
             enqueueToSaveQueue: item =>
