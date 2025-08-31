@@ -8,6 +8,8 @@ public sealed class AdaptiveConcurrencyController
     // Текущий желаемый уровень конкуренции (динамический)
     private int _desired;
 
+    private int _lastLoggedConcurrency = -1;
+    
     // Границы
     private readonly int _min;
     private readonly int _max;
@@ -38,7 +40,8 @@ public sealed class AdaptiveConcurrencyController
         TimeSpan? evaluationPeriod = null,  // как часто корректируем конкуренцию
         double emaAlpha = 0.2,              // степень сглаживания EMA [0..1]
         int increaseStep = 1,               // на сколько повышать за один шаг
-        double decreaseFactor = 0.75        // во сколько раз снижать (мультипликативно)
+        double decreaseFactor = 0.75,        // во сколько раз снижать (мультипликативно)
+        Action<string>? infoLog = null
     )
     {
         if (defaultConcurrency < 1) defaultConcurrency = 1;
@@ -55,6 +58,8 @@ public sealed class AdaptiveConcurrencyController
 
         _increaseStep = Math.Max(1, increaseStep);
         _decreaseFactor = Math.Clamp(decreaseFactor, 0.1, 0.99);
+        
+        Volatile.Write(ref _lastLoggedConcurrency, -1);
     }
 
     public int DesiredConcurrency => Volatile.Read(ref _desired);
@@ -79,7 +84,7 @@ public sealed class AdaptiveConcurrencyController
 
         Volatile.Write(ref _emaLatencyMs, next);
     }
-
+    
 
     // Фоновая подстройка конкуренции
     public async Task RunAsync(CancellationToken ct)
@@ -111,6 +116,7 @@ public sealed class AdaptiveConcurrencyController
                 {
                     Interlocked.Exchange(ref _desired, next);
                     Console.WriteLine($"[Adaptive] EMA={ema:F0} ms, concurrency: {current} -> {next}");
+                    Volatile.Write(ref _lastLoggedConcurrency, current);
                 }
             }
         }
@@ -119,6 +125,8 @@ public sealed class AdaptiveConcurrencyController
             // нормальная остановка
         }
     }
+    
+    
 }
 
 public static class AdaptiveForEach

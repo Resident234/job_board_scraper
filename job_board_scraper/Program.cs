@@ -150,7 +150,7 @@ class Program
                         
                         sw.Stop();
                         controller.ReportLatency(sw.Elapsed); // важный сигнал для адаптации конкуренции
-
+                        
                         double elapsedSeconds = sw.Elapsed.TotalSeconds;
                         double percent;
                         lock (usernames)
@@ -158,7 +158,7 @@ class Program
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
-                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)result.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%)");
+                        Console.WriteLine($"HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)result.StatusCode}. Обработано ссылок: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {activeRequests.Count}.");
                         
                         if (result.IsNotFound)
                             return;
