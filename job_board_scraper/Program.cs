@@ -100,8 +100,6 @@ class Program
         {
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
-            int completed = 0;
-            //var tasks = new List<Task>();
 
             Console.WriteLine($"Сгенерировано адресов {totalLinks}");
 
@@ -124,25 +122,15 @@ class Program
                     Console.WriteLine($"Последний link из БД не найден в usernames, начинаем с начала.");
                 }
             }
-            completed = startIndex;
-            
+            var completed = startIndex;
+
             //от usernames отрезать всю предыдущую часть до startIndex
             usernames = usernames.Skip(startIndex).ToList();
-            
-            //for (int i = startIndex; i < totalLinks; i++)
-            //{
-            
-                //await semaphore.WaitAsync();
-
-                //var task = Task.Run(async () =>
-                //{
                 
             await AdaptiveForEach.ForEachAdaptiveAsync(
                 source: usernames,
                 body: async username =>
                 {
-
-                    //string username = usernames[i];
                     string link = AppConfig.BaseUrl + username;
     
                     activeRequests.TryAdd(link, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
@@ -191,19 +179,12 @@ class Program
                     finally
                     {
                         activeRequests.TryRemove(link, out _);
-                        //semaphore.Release();
                         Console.Out.Flush();
                     }
-                    
-            //});
                 },
                 controller: controller,
                 ct: cts.Token
             );
-                
-                //tasks.Add(task);
-            //}
-            //await Task.WhenAll(tasks);
         }
         
         // Корректно завершаем фоновую задачу контроллера
