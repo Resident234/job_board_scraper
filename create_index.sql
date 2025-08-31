@@ -1,0 +1,1 @@
+create index if not exists ix_habr_resumes_viewed_id on public.habr_resumes (viewed, id);
