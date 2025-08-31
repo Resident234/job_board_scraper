@@ -109,13 +109,13 @@ public sealed class DatabaseClient
                 ? new NpgsqlCommand(
                     "SELECT link " +
                     "FROM habr_resumes " +
-                    "ORDER BY LENGTH(link) DESC, link DESC " +
+                    "ORDER BY id DESC " +
                     "LIMIT 1", conn)
                 : new NpgsqlCommand(
                     "SELECT link " +
                     "FROM habr_resumes " +
                     "WHERE LENGTH(link) = @len " + 
-                    "ORDER BY link DESC " +
+                    "ORDER BY id DESC " +
                     "LIMIT 1", conn);
 
             if (linkLength is not null)
