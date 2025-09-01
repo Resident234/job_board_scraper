@@ -49,7 +49,6 @@ class Program
         using var conn = db.DatabaseConnectionInit();
         db.DatabaseEnsureConnectionOpen(conn);
 
-        //var semaphore = new SemaphoreSlim(AppConfig.MaxConcurrentRequests);
         // Инициализация адаптивного контроллера вместо фиксированного SemaphoreSlim
         var controller = new AdaptiveConcurrencyController(
             defaultConcurrency: AppConfig.MaxConcurrentRequests, // раньше было фиксировано через SemaphoreSlim
@@ -65,36 +64,24 @@ class Program
         
         var activeRequests = new ConcurrentDictionary<string, Task>();// задачи, выполняющие http запросы
         var responseStats = new ConcurrentDictionary<int, int>(); // статистика кодов ответов
-        var saveQueue = new ConcurrentQueue<(string link, string title)>(); // очередь для записи в БД
         
         // Запускаем цикл оценки (регулирует DesiredConcurrency на основе ReportLatency)
         var controllerLoop = controller.RunAsync(cts.Token);
-        
-        // Инициализация существующего saveQueue.
-        // Пример адаптации: передаём делегат добавления в очередь.
+
+        // Запускаем задачу фоновой записи в БД и получаем созданную очередь
+        db.StartWriterTask(conn, cts.Token, delayMs: 500);
+
+        // Инициализация скрапера с передачей делегата для добавления в очередь
         var scraper = new ListResumeScraper(
             httpClient,
             enqueueToSaveQueue: item =>
             {
-                saveQueue.Enqueue((item.link, item.title));
-                Console.WriteLine($"[Main] (debug) Поступило в saveQueue: {item.title} -> {item.link}");
+                db.EnqueueItem(item.link, item.title);
             },
             interval: TimeSpan.FromMinutes(10));
 
         // Запуск фоновой задачи (работает параллельно)
         _ = scraper.StartAsync(cts.Token);
-        
-        var dbWriterTask = Task.Run(async () =>
-        {
-            while (!cts.Token.IsCancellationRequested)//  || !saveQueue.IsEmpty
-            {
-                while (saveQueue.TryDequeue(out var item))
-                {
-                    db.DatabaseInsert(conn, link: item.link, title: item.title);
-                }
-                await Task.Delay(500, cts.Token);
-            }
-        });
 
         for (int len = AppConfig.MinLength; len <= AppConfig.MaxLength; len++)
         {
@@ -170,7 +157,7 @@ class Program
                         Console.WriteLine($"Страница {link}: {title}");
                             
                         // Кладём в очередь для записи в БД
-                        saveQueue.Enqueue((link, title));
+                        db.EnqueueItem(link, title);
                     }
                     catch (Exception ex)
                     {
@@ -197,8 +184,12 @@ class Program
             // игнорируем отмену при выходе
         }
 
-        cts.Cancel(); // Завершаем поток записи в БД
-        await dbWriterTask;
+        cts.Cancel(); // Сигнал всем задачам на завершение
+
+        // Корректно останавливаем задачу записи в БД
+        await db.StopWriterTask();
+
+        // Закрываем соединение с БД
         db.DatabaseConnectionClose(conn);
     }
 

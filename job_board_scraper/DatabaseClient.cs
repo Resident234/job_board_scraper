@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Data;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using Npgsql;
 
 namespace job_board_scraper;
@@ -7,6 +10,9 @@ namespace job_board_scraper;
 public sealed class DatabaseClient
 {
     private readonly string _connectionString;
+    private Task? _dbWriterTask;
+    private CancellationTokenSource? _writerCts;
+    private ConcurrentQueue<(string link, string title)>? _saveQueue;
 
     public DatabaseClient(string connectionString)
     {
@@ -19,7 +25,7 @@ public sealed class DatabaseClient
     {
         NpgsqlConnection conn = new NpgsqlConnection(_connectionString);
         conn.Open();
-        
+
         return conn;
     }
 
@@ -51,7 +57,7 @@ public sealed class DatabaseClient
         var result = cmd.ExecuteScalar();
         return result is not null;
     }
-    
+
     // Вставка ссылки и заголовка страницы
     public void DatabaseInsert(NpgsqlConnection conn, string link, string title)
     {
@@ -61,21 +67,22 @@ public sealed class DatabaseClient
         try
         {
             DatabaseEnsureConnectionOpen(conn);
-            
+
             // Проверка существования по link
             if (DatabaseRecordExistsByLink(conn, link))
             {
                 Console.WriteLine($"Запись уже есть в БД, вставка пропущена: {link}");
                 return;
             }
-            
+
             using var cmd = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
             cmd.Parameters.AddWithValue("@link", link);
             cmd.Parameters.AddWithValue("@title", title);
             int rowsAffected = cmd.ExecuteNonQuery();
             Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
         }
-        catch (PostgresException pgEx) when (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
+        catch (PostgresException pgEx) when
+            (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
         {
             Console.WriteLine($"Запись уже есть в БД (уникальное ограничение), вставка пропущена: {link}");
         }
@@ -114,7 +121,7 @@ public sealed class DatabaseClient
                 : new NpgsqlCommand(
                     "SELECT link " +
                     "FROM habr_resumes " +
-                    "WHERE LENGTH(link) = @len " + 
+                    "WHERE LENGTH(link) = @len " +
                     "ORDER BY id DESC " +
                     "LIMIT 1", conn);
 
@@ -131,4 +138,111 @@ public sealed class DatabaseClient
         }
     }
 
+    /// <summary>
+    /// Запустить фоновую задачу по записи данных из очереди в базу данных
+    /// </summary>
+    /// <param name="conn">Открытое соединение с базой данных</param>
+    /// <param name="queue">Очередь элементов для записи</param>
+    /// <param name="token">Токен отмены операции</param>
+    /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
+    /// <returns>Запущенную задачу</returns>
+    public Task StartWriterTask(NpgsqlConnection conn, ConcurrentQueue<(string link, string title)> queue,
+        CancellationToken token, int delayMs = 500)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (queue is null) throw new ArgumentNullException(nameof(queue));
+
+        // Сохраняем ссылку на очередь
+        _saveQueue = queue;
+
+        // Создаем внутренний токен отмены, который можно будет отменить при вызове StopWriterTask
+        _writerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var linkedToken = _writerCts.Token;
+
+        _dbWriterTask = Task.Run(async () =>
+        {
+            while (!linkedToken.IsCancellationRequested)
+            {
+                while (queue.TryDequeue(out var item))
+                {
+                    DatabaseInsert(conn, link: item.link, title: item.title);
+                }
+
+                await Task.Delay(delayMs, linkedToken);
+            }
+        }, linkedToken);
+
+        return _dbWriterTask;
+    }
+
+    /// <summary>
+    /// Запустить фоновую задачу по записи данных в базу данных с использованием внутренней очереди
+    /// </summary>
+    /// <param name="conn">Открытое соединение с базой данных</param>
+    /// <param name="token">Токен отмены операции</param>
+    /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
+    /// <returns>Запущенную задачу и очередь для добавления элементов</returns>
+    public (Task task, ConcurrentQueue<(string link, string title)> queue) StartWriterTask(NpgsqlConnection conn,
+        CancellationToken token, int delayMs = 500)
+    {
+        // Создаем новую очередь
+        var queue = new ConcurrentQueue<(string link, string title)>();
+        var task = StartWriterTask(conn, queue, token, delayMs);
+        return (task, queue);
+    }
+
+    /// <summary>
+    /// Остановить задачу записи в базу данных
+    /// </summary>
+    /// <returns>Task, завершающийся после полной остановки записывающей задачи</returns>
+    public async Task StopWriterTask()
+    {
+        if (_writerCts != null)
+        {
+            // Отмечаем, что нужно завершить работу
+            if (!_writerCts.IsCancellationRequested)
+                _writerCts.Cancel();
+
+            // Дожидаемся завершения задачи, если она была запущена
+            if (_dbWriterTask != null)
+            {
+                try
+                {
+                    await _dbWriterTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Нормальное завершение при отмене
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Ошибка при остановке задачи записи в БД: {ex.Message}");
+                }
+                finally
+                {
+                    _dbWriterTask = null;
+                }
+            }
+
+            // Очищаем ресурсы
+            _writerCts.Dispose();
+            _writerCts = null;
+        }
+    }
+
+    /// <summary>
+    /// Добавить элемент в очередь на запись в базу данных
+    /// </summary>
+    /// <param name="link">Ссылка</param>
+    /// <param name="title">Заголовок</param>
+    /// <returns>true если элемент добавлен, false если задача записи не запущена</returns>
+    public bool EnqueueItem(string link, string title)
+    {
+        if (_saveQueue == null) return false;
+
+        _saveQueue.Enqueue((link, title));
+        Console.WriteLine($"[DB] Поступило в очередь: {title} -> {link}");
+        
+        return true;
+    }
 }
