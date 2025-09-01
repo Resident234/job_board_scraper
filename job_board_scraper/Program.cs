@@ -21,10 +21,6 @@ namespace job_board_scraper;
 /// </summary>
 class Program
 {
-    private static readonly HttpClient Http = new()
-    {
-        BaseAddress = new Uri(AppConfig.BaseUrl)
-    };
 
     static async Task Main(string[] args)
     {
@@ -35,15 +31,8 @@ class Program
             cts.Cancel();
         };
 
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(AppConfig.BaseUrl)
-        };
-        httpClient.Timeout = TimeSpan.FromSeconds(10);
-        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HabrScraper/1.0 Safari/537.36");
-        httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-        httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+        // Используем фабрику для создания HttpClient с нужными настройками
+        using var httpClient = HttpClientFactory.CreateDefaultClient(timeoutSeconds: 10);
         
         var db = new DatabaseClient(AppConfig.ConnectionString);
         using var conn = db.DatabaseConnectionInit();
