@@ -1,7 +1,4 @@
-﻿using AngleSharp.Html.Parser;
-
-
-namespace job_board_scraper
+﻿namespace job_board_scraper
 {
     public readonly record struct ResumeItem(string link, string title);
 
@@ -12,7 +9,6 @@ namespace job_board_scraper
         private readonly HttpClient _httpClient;
         private readonly Action<ResumeItem> _enqueueToSaveQueue;
         private readonly TimeSpan _interval;
-        private readonly HtmlParser _parser = new();
         private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
 
         public ListResumeScraper(
@@ -73,7 +69,7 @@ namespace job_board_scraper
 
             var html = await response.Content.ReadAsStringAsync(ct);
 
-            var doc = await _parser.ParseDocumentAsync(html, ct);
+            var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
             var anchors = doc.QuerySelectorAll("a.resume-card__title-link");
 

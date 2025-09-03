@@ -141,7 +141,7 @@ class Program
                         
                         string html = result.Content;
                         
-                        var title = ExtractTitle(html);
+                        var title = HtmlParser.ExtractTitle(html);
                         
                         Console.WriteLine($"Страница {link}: {title}");
                             
@@ -201,13 +201,6 @@ class Program
             foreach (var s in GenerateUsernamesRecursive(arr, pos + 1))
                 yield return s;
         }
-    }
-
-    public static string ExtractTitle(string html)
-    {
-        var parser = new HtmlParser();
-        var doc = parser.ParseDocument(html);
-        return doc.QuerySelector("title")?.TextContent?.Trim() ?? string.Empty;
     }
 
     static void ResponseStats(ConcurrentDictionary<int, int> stats, int code)
