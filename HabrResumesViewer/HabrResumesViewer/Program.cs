@@ -150,7 +150,7 @@ app.MapGet("/", async (HttpContext http, NpgsqlDataSource ds, long? id, Cancella
     sb.Append($"  <h1>{title}</h1>\n");
     if (!string.IsNullOrWhiteSpace(link))
     {
-        sb.Append($"  <p><a href=\"{link}\" target=\"_blank\" rel=\"noopener noreferrer\">{link}</a></p>\n");
+        sb.Append($"  <p><a class=\"resume_link\" href=\"{link}\" target=\"_blank\" rel=\"noopener noreferrer\">{link}</a></p>\n");
     }
     else
     {
@@ -174,7 +174,7 @@ app.MapGet("/", async (HttpContext http, NpgsqlDataSource ds, long? id, Cancella
         sb.Append("    <a class=\"button\" aria-disabled=\"true\" href=\"#\">Следующая →</a>\n");
 
     sb.Append("  </div>\n");
-
+    sb.Append("<script>\nwindow.addEventListener('load', function() {\n const link = document.querySelector('a.resume_link:not([aria-disabled=\"true\"])');\n if (link) {\n setTimeout(() => {\n link.click();\n }, 300); \n }\n });\n </script>\n\n");
     sb.Append("""
         </body>
         </html>
