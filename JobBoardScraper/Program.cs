@@ -1,0 +1,87 @@
+﻿using JobBoardScraper.WebScraper;
+
+namespace JobBoardScraper;
+
+/// <summary>
+/// Точка входа приложения.
+/// Запускает два параллельных процесса:
+/// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
+/// 2. ResumeListPageScraper - периодический обход страницы со списком резюме
+/// </summary>
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        using var httpClient = HttpClientFactory.CreateDefaultClient(timeoutSeconds: 10);
+
+        var db = new DatabaseClient(AppConfig.ConnectionString);
+        using var conn = db.DatabaseConnectionInit();
+        db.DatabaseEnsureConnectionOpen(conn);
+
+        var controller = new AdaptiveConcurrencyController(
+            defaultConcurrency: AppConfig.MaxConcurrentRequests,
+            minConcurrency: 1,
+            maxConcurrency: 128,
+            fastThreshold: TimeSpan.FromMilliseconds(250),
+            slowThreshold: TimeSpan.FromSeconds(1),
+            evaluationPeriod: TimeSpan.FromSeconds(2),
+            emaAlpha: 0.2,
+            increaseStep: 1,
+            decreaseFactor: 0.75
+        );
+
+        var controllerLoop = controller.RunAsync(cts.Token);
+
+        db.StartWriterTask(conn, cts.Token, delayMs: 500);
+
+        // Процесс 2: Периодический обход страницы со списком резюме
+        var resumeListScraper = new ResumeListPageScraper(
+            httpClient,
+            enqueueToSaveQueue: item =>
+            {
+                db.EnqueueItem(item.link, item.title);
+            },
+            interval: TimeSpan.FromMinutes(10));
+
+        _ = resumeListScraper.StartAsync(cts.Token);
+
+        // Процесс 1: Перебор всех возможных имен пользователей
+        var bruteForceScraperTask = Task.Run(async () =>
+        {
+            var bruteForceScraper = new BruteForceUsernameScraper(httpClient, db, controller);
+            await bruteForceScraper.RunAsync(cts.Token);
+        }, cts.Token);
+
+        try
+        {
+            await bruteForceScraperTask;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Процесс перебора остановлен пользователем.");
+        }
+
+        try
+        {
+            await controllerLoop;
+        }
+        catch (OperationCanceledException)
+        {
+            // игнорируем отмену при выходе
+        }
+
+        cts.Cancel();
+
+        await db.StopWriterTask();
+        db.DatabaseConnectionClose(conn);
+
+        Console.WriteLine("Приложение завершено.");
+    }
+}
