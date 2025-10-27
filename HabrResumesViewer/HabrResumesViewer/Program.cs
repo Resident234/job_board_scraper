@@ -188,3 +188,6 @@ app.Run();
 
 // Модель для справки 
 public record Resume(long Id, string Title, string Url);
+
+// TODO исключать из перебора заблокированных и скрытых настроками приватности 
+// 
