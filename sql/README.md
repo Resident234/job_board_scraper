@@ -5,7 +5,7 @@
 ## Файлы
 
 ### create_companies_table.sql
-Создание таблицы `companies` для хранения кодов компаний с career.habr.com.
+Создание таблицы `habr_companies` для хранения кодов компаний с career.habr.com.
 
 **Структура:**
 - `id` - первичный ключ
