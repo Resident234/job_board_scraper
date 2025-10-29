@@ -7,12 +7,20 @@ using Npgsql;
 
 namespace JobBoardScraper;
 
+public enum DbRecordType
+{
+    Resume,
+    Company
+}
+
+public readonly record struct DbRecord(DbRecordType Type, string PrimaryValue, string SecondaryValue);
+
 public sealed class DatabaseClient
 {
     private readonly string _connectionString;
     private Task? _dbWriterTask;
     private CancellationTokenSource? _writerCts;
-    private ConcurrentQueue<(string link, string title)>? _saveQueue;
+    private ConcurrentQueue<DbRecord>? _saveQueue;
 
     public DatabaseClient(string connectionString)
     {
@@ -138,41 +146,38 @@ public sealed class DatabaseClient
         }
     }
 
-    /// <summary>
-    /// Запустить фоновую задачу по записи данных из очереди в базу данных
-    /// </summary>
-    /// <param name="conn">Открытое соединение с базой данных</param>
-    /// <param name="queue">Очередь элементов для записи</param>
-    /// <param name="token">Токен отмены операции</param>
-    /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
-    /// <returns>Запущенную задачу</returns>
-    public Task StartWriterTask(NpgsqlConnection conn, ConcurrentQueue<(string link, string title)> queue,
-        CancellationToken token, int delayMs = 500)
+    // Вставка компании
+    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (queue is null) throw new ArgumentNullException(nameof(queue));
+        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
 
-        // Сохраняем ссылку на очередь
-        _saveQueue = queue;
-
-        // Создаем внутренний токен отмены, который можно будет отменить при вызове StopWriterTask
-        _writerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var linkedToken = _writerCts.Token;
-
-        _dbWriterTask = Task.Run(async () =>
+        try
         {
-            while (!linkedToken.IsCancellationRequested)
-            {
-                while (queue.TryDequeue(out var item))
-                {
-                    DatabaseInsert(conn, link: item.link, title: item.title);
-                }
+            DatabaseEnsureConnectionOpen(conn);
 
-                await Task.Delay(delayMs, linkedToken);
-            }
-        }, linkedToken);
-
-        return _dbWriterTask;
+            using var cmd = new NpgsqlCommand(@"
+                INSERT INTO habr_companies (company_code, company_url, created_at, updated_at)
+                VALUES (@code, @url, NOW(), NOW())
+                ON CONFLICT (company_code) 
+                DO UPDATE SET 
+                    company_url = EXCLUDED.company_url,
+                    updated_at = NOW()", conn);
+            
+            cmd.Parameters.AddWithValue("@code", companyCode);
+            cmd.Parameters.AddWithValue("@url", companyUrl);
+            
+            int rowsAffected = cmd.ExecuteNonQuery();
+            Console.WriteLine($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при записи компании {companyCode}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -181,14 +186,37 @@ public sealed class DatabaseClient
     /// <param name="conn">Открытое соединение с базой данных</param>
     /// <param name="token">Токен отмены операции</param>
     /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
-    /// <returns>Запущенную задачу и очередь для добавления элементов</returns>
-    public (Task task, ConcurrentQueue<(string link, string title)> queue) StartWriterTask(NpgsqlConnection conn,
-        CancellationToken token, int delayMs = 500)
+    public void StartWriterTask(NpgsqlConnection conn, CancellationToken token, int delayMs = 500)
     {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
         // Создаем новую очередь
-        var queue = new ConcurrentQueue<(string link, string title)>();
-        var task = StartWriterTask(conn, queue, token, delayMs);
-        return (task, queue);
+        _saveQueue = new ConcurrentQueue<DbRecord>();
+
+        // Создаем внутренний токен отмены
+        _writerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var linkedToken = _writerCts.Token;
+
+        _dbWriterTask = Task.Run(async () =>
+        {
+            while (!linkedToken.IsCancellationRequested)
+            {
+                while (_saveQueue.TryDequeue(out var record))
+                {
+                    switch (record.Type)
+                    {
+                        case DbRecordType.Resume:
+                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue);
+                            break;
+                        case DbRecordType.Company:
+                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue);
+                            break;
+                    }
+                }
+
+                await Task.Delay(delayMs, linkedToken);
+            }
+        }, linkedToken);
     }
 
     /// <summary>
@@ -231,18 +259,36 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить элемент в очередь на запись в базу данных
+    /// Добавить резюме в очередь на запись в базу данных
     /// </summary>
-    /// <param name="link">Ссылка</param>
-    /// <param name="title">Заголовок</param>
-    /// <returns>true если элемент добавлен, false если задача записи не запущена</returns>
-    public bool EnqueueItem(string link, string title)
+    public bool EnqueueResume(string link, string title)
     {
         if (_saveQueue == null) return false;
 
-        _saveQueue.Enqueue((link, title));
-        Console.WriteLine($"[DB] Поступило в очередь: {title} -> {link}");
+        var record = new DbRecord(DbRecordType.Resume, link, title);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] Resume: {title} -> {link}");
         
         return true;
     }
+
+    /// <summary>
+    /// Добавить компанию в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompany(string companyCode, string companyUrl)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}");
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить элемент в очередь на запись в базу данных (устаревший метод для обратной совместимости)
+    /// </summary>
+    [Obsolete("Use EnqueueResume instead")]
+    public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
 }
