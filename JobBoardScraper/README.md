@@ -28,6 +28,10 @@
 - `Companies:LinkSelector` - CSS селектор для поиска ссылок на компании
 - `Companies:HrefRegex` - регулярное выражение для извлечения кода компании из href
 - `Companies:NextPageSelector` - CSS селектор для поиска следующей страницы (поддерживает {0} для номера страницы)
+- `Companies:OutputMode` - режим вывода: `ConsoleOnly`, `FileOnly`, `Both` (по умолчанию: `ConsoleOnly`)
+
+### Logging
+- `Logging:OutputDirectory` - директория для лог-файлов (по умолчанию: `./logs`)
 
 ### Database
 - `Database:ConnectionString` - строка подключения к PostgreSQL
@@ -39,6 +43,18 @@
 ```bash
 psql -U postgres -d jobs -f sql/create_companies_table.sql
 ```
+
+## Логирование
+
+Каждый процесс может иметь свой режим вывода:
+
+1. **ConsoleOnly** - вывод только в консоль (по умолчанию)
+2. **FileOnly** - вывод только в файл
+3. **Both** - вывод одновременно в консоль и файл
+
+Лог-файлы создаются в формате: `{ProcessName}_{yyyyMMdd_HHmmss}.log`
+
+Пример: `CompanyListScraper_20251029_213000.log`
 
 ## Запуск
 

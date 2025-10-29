@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using JobBoardScraper.Helper;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -6,22 +7,33 @@ namespace JobBoardScraper.WebScraper;
 /// Периодически (раз в неделю) обходит все страницы списка компаний на career.habr.com/companies
 /// и извлекает коды компаний для сохранения в базу данных.
 /// </summary>
-public sealed class CompanyListScraper
+public sealed class CompanyListScraper : IDisposable
 {
     private readonly Regex _companyHrefRegex;
     private readonly HttpClient _httpClient;
     private readonly Action<string, string> _enqueueCompany;
     private readonly TimeSpan _interval;
+    private readonly Helper.ConsoleLogger _logger;
 
     public CompanyListScraper(
         HttpClient httpClient,
         Action<string, string> enqueueCompany,
-        TimeSpan? interval = null)
+        TimeSpan? interval = null,
+        Helper.OutputMode outputMode = Helper.OutputMode.ConsoleOnly)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueCompany = enqueueCompany ?? throw new ArgumentNullException(nameof(enqueueCompany));
         _interval = interval ?? TimeSpan.FromDays(7);
         _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
+        
+        _logger = new Helper.ConsoleLogger("CompanyListScraper");
+        _logger.SetOutputMode(outputMode);
+        _logger.WriteLine($"Инициализация CompanyListScraper с режимом вывода: {outputMode}");
+    }
+
+    public void Dispose()
+    {
+        _logger?.Dispose();
     }
 
     public Task StartAsync(CancellationToken ct)
@@ -59,13 +71,13 @@ public sealed class CompanyListScraper
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[CompanyListScraper] Ошибка: {ex.Message}");
+            _logger.WriteLine($"Ошибка: {ex.Message}");
         }
     }
 
     private async Task ScrapeAllPagesAsync(CancellationToken ct)
     {
-        Console.WriteLine($"[CompanyListScraper] Начало обхода списка компаний...");
+        _logger.WriteLine("Начало обхода списка компаний...");
         
         var page = 1;
         var totalCompaniesFound = 0;
@@ -76,13 +88,13 @@ public sealed class CompanyListScraper
             try
             {
                 var url = $"{AppConfig.CompaniesListUrl}?page={page}";
-                Console.WriteLine($"[CompanyListScraper] Обработка страницы {page}: {url}");
+                _logger.WriteLine($"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
                 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[CompanyListScraper] Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
+                    _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
                     break;
                 }
 
@@ -93,7 +105,7 @@ public sealed class CompanyListScraper
                 
                 if (companyLinks.Length == 0)
                 {
-                    Console.WriteLine($"[CompanyListScraper] На странице {page} не найдено ссылок на компании. Завершение обхода.");
+                    _logger.WriteLine($"На странице {page} не найдено ссылок на компании. Завершение обхода.");
                     hasMorePages = false;
                     break;
                 }
@@ -123,19 +135,19 @@ public sealed class CompanyListScraper
                     var companyUrl = $"{AppConfig.CompaniesBaseUrl}{companyCode}";
                     
                     _enqueueCompany(companyCode, companyUrl);
-                    Console.WriteLine($"[CompanyListScraper] В очередь: {companyCode} -> {companyUrl}");
+                    _logger.WriteLine($"В очередь: {companyCode} -> {companyUrl}");
                     companiesOnPage++;
                     totalCompaniesFound++;
                 }
 
-                Console.WriteLine($"[CompanyListScraper] Страница {page}: найдено {companiesOnPage} уникальных компаний.");
+                _logger.WriteLine($"Страница {page}: найдено {companiesOnPage} уникальных компаний.");
 
                 // Проверяем наличие следующей страницы
                 var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, page + 1);
                 var nextPageLink = doc.QuerySelector(nextPageSelector);
                 if (nextPageLink == null)
                 {
-                    Console.WriteLine($"[CompanyListScraper] Достигнута последняя страница ({page}). Завершение обхода.");
+                    _logger.WriteLine($"Достигнута последняя страница ({page}). Завершение обхода.");
                     hasMorePages = false;
                 }
 
@@ -146,11 +158,11 @@ public sealed class CompanyListScraper
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[CompanyListScraper] Ошибка на странице {page}: {ex.Message}");
+                _logger.WriteLine($"Ошибка на странице {page}: {ex.Message}");
                 hasMorePages = false;
             }
         }
 
-        Console.WriteLine($"[CompanyListScraper] Обход завершён. Всего обработано компаний: {totalCompaniesFound}");
+        _logger.WriteLine($"Обход завершён. Всего обработано компаний: {totalCompaniesFound}");
     }
 }

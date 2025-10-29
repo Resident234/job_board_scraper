@@ -54,13 +54,17 @@ class Program
         _ = resumeListScraper.StartAsync(cts.Token);
 
         // Процесс 3: Периодический обход списка компаний
+        Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
+        Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
+        
         var companyListScraper = new CompanyListScraper(
             httpClient,
             enqueueCompany: (companyCode, companyUrl) =>
             {
                 db.EnqueueCompany(companyCode, companyUrl);
             },
-            interval: TimeSpan.FromDays(7));
+            interval: TimeSpan.FromDays(7),
+            outputMode: AppConfig.CompaniesOutputMode);
 
         _ = companyListScraper.StartAsync(cts.Token);
 

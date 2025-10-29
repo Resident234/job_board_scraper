@@ -31,6 +31,18 @@ public static class AppConfig
     
     public static string CompaniesNextPageSelector => ConfigurationManager.AppSettings["Companies:NextPageSelector"] ?? "a.page[href*='page={0}']";
     
+    public static Helper.OutputMode CompaniesOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["Companies:OutputMode"];
+            return Enum.TryParse<Helper.OutputMode>(value, out var mode) ? mode : Helper.OutputMode.ConsoleOnly;
+        }
+    }
+    
+    // Настройки логирования
+    public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
+    
     // Настройки базы данных
     public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ?? "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
 }
