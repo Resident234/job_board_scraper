@@ -10,6 +10,13 @@
     <ItemGroup>
       <PackageReference Include="AngleSharp" Version="1.3.0" />
       <PackageReference Include="Npgsql" Version="9.0.3" />
+      <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="App.config">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>
