@@ -100,7 +100,7 @@ public sealed class BruteForceUsernameScraper
 
                         Console.WriteLine($"[BruteForceScraper] Страница {link}: {title}");
 
-                        _db.EnqueueItem(link, title);
+                        _db.EnqueueResume(link, title);
                     }
                     catch (Exception ex)
                     {
