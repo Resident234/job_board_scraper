@@ -4,9 +4,10 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает два параллельных процесса:
+/// Запускает три параллельных процесса:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
-/// 2. ResumeListPageScraper - периодический обход страницы со списком резюме
+/// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
+/// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
 /// </summary>
 class Program
 {
@@ -46,11 +47,23 @@ class Program
             httpClient,
             enqueueToSaveQueue: item =>
             {
-                db.EnqueueItem(item.link, item.title);
+                db.EnqueueResume(item.link, item.title);
             },
             interval: TimeSpan.FromMinutes(10));
 
         _ = resumeListScraper.StartAsync(cts.Token);
+
+        // Процесс 3: Периодический обход списка компаний
+        var companyListScraper = new CompanyListScraper(
+            httpClient,
+            enqueueCompany: (companyCode, companyUrl) =>
+            {
+                db.EnqueueCompany(companyCode, companyUrl);
+            },
+            interval: TimeSpan.FromDays(7));
+
+        _ = companyListScraper.StartAsync(cts.Token);
+
 
         // Процесс 1: Перебор всех возможных имен пользователей
         var bruteForceScraperTask = Task.Run(async () =>
