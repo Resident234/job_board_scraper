@@ -7,6 +7,8 @@ namespace JobBoardScraper.WebScraper;
 /// Периодически (раз в неделю) обходит все страницы списка компаний на career.habr.com/companies
 /// и извлекает коды компаний для сохранения в базу данных.
 /// </summary>
+/// TODO подсчет процента найденных компаний отталкиваясь от значения, записанного на странице https://career.habr.com/companies
+/// TODO использование всех возможных комбинаций фильтров
 public sealed class CompanyListScraper : IDisposable
 {
     private readonly Regex _companyHrefRegex;
