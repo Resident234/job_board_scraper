@@ -12,17 +12,20 @@ public sealed class CompanyListScraper : IDisposable
     private readonly Regex _companyHrefRegex;
     private readonly HttpClient _httpClient;
     private readonly Action<string, string> _enqueueCompany;
+    private readonly Func<List<string>> _getCategoryIds;
     private readonly TimeSpan _interval;
     private readonly Helper.ConsoleLogger _logger;
 
     public CompanyListScraper(
         HttpClient httpClient,
         Action<string, string> enqueueCompany,
+        Func<List<string>> getCategoryIds,
         TimeSpan? interval = null,
         Helper.OutputMode outputMode = Helper.OutputMode.ConsoleOnly)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueCompany = enqueueCompany ?? throw new ArgumentNullException(nameof(enqueueCompany));
+        _getCategoryIds = getCategoryIds ?? throw new ArgumentNullException(nameof(getCategoryIds));
         _interval = interval ?? TimeSpan.FromDays(7);
         _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
         
@@ -79,6 +82,59 @@ public sealed class CompanyListScraper : IDisposable
     {
         _logger.WriteLine("Начало обхода списка компаний...");
         
+        var totalCompaniesFound = 0;
+        
+        // Сначала обходим базовый URL без фильтров
+        _logger.WriteLine("Обход компаний без фильтров...");
+        totalCompaniesFound += await ScrapeWithFiltersAsync(null, null, null, ct);
+        
+        // Затем обходим с параметрами sz от 1 до 5
+        var sizeFilters = new[] { 1, 2, 3, 4, 5 };
+        foreach (var sz in sizeFilters)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+                
+            _logger.WriteLine($"Обход компаний с фильтром sz={sz}...");
+            totalCompaniesFound += await ScrapeWithFiltersAsync(sz, null, null, ct);
+        }
+        
+        // Получаем категории из БД и обходим по ним
+        var categoryIds = _getCategoryIds();
+        _logger.WriteLine($"Загружено {categoryIds.Count} категорий для обхода");
+        
+        foreach (var categoryId in categoryIds)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+                
+            _logger.WriteLine($"Обход компаний с фильтром category_root_id={categoryId}...");
+            totalCompaniesFound += await ScrapeWithFiltersAsync(null, categoryId, null, ct);
+        }
+        
+        // Обходим с дополнительными фильтрами
+        var additionalFilters = new Dictionary<string, string>
+        {
+            { "with_vacancies", "1" },
+            { "with_ratings", "1" },
+            { "with_habr_url", "1" },
+            { "has_accreditation", "1" }
+        };
+        
+        foreach (var filter in additionalFilters)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+                
+            _logger.WriteLine($"Обход компаний с фильтром {filter.Key}={filter.Value}...");
+            totalCompaniesFound += await ScrapeWithFiltersAsync(null, null, filter, ct);
+        }
+        
+        _logger.WriteLine($"Обход завершён. Всего обработано компаний: {totalCompaniesFound}");
+    }
+
+    private async Task<int> ScrapeWithFiltersAsync(int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter, CancellationToken ct)
+    {
         var page = 1;
         var totalCompaniesFound = 0;
         var hasMorePages = true;
@@ -87,7 +143,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             try
             {
-                var url = $"{AppConfig.CompaniesListUrl}?page={page}";
+                var url = BuildUrl(page, sizeFilter, categoryId, additionalFilter);
                 _logger.WriteLine($"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
@@ -163,6 +219,42 @@ public sealed class CompanyListScraper : IDisposable
             }
         }
 
-        _logger.WriteLine($"Обход завершён. Всего обработано компаний: {totalCompaniesFound}");
+        return totalCompaniesFound;
+    }
+
+    private string BuildUrl(int page, int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter)
+    {
+        var baseUrl = AppConfig.CompaniesListUrl;
+        
+        if (page == 1 && !sizeFilter.HasValue && string.IsNullOrWhiteSpace(categoryId) && !additionalFilter.HasValue)
+        {
+            return baseUrl;
+        }
+
+        var queryParams = new List<string>();
+        
+        if (page > 1)
+        {
+            queryParams.Add($"page={page}");
+        }
+        
+        if (sizeFilter.HasValue)
+        {
+            queryParams.Add($"sz={sizeFilter.Value}");
+        }
+        
+        if (!string.IsNullOrWhiteSpace(categoryId))
+        {
+            queryParams.Add($"category_root_id={categoryId}");
+        }
+        
+        if (additionalFilter.HasValue)
+        {
+            queryParams.Add($"{additionalFilter.Value.Key}={additionalFilter.Value.Value}");
+        }
+
+        return queryParams.Count > 0 
+            ? $"{baseUrl}?{string.Join("&", queryParams)}"
+            : baseUrl;
     }
 }
