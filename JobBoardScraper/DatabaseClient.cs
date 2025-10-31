@@ -10,7 +10,8 @@ namespace JobBoardScraper;
 public enum DbRecordType
 {
     Resume,
-    Company
+    Company,
+    CategoryRootId
 }
 
 public readonly record struct DbRecord(DbRecordType Type, string PrimaryValue, string SecondaryValue);
@@ -180,6 +181,40 @@ public sealed class DatabaseClient
         }
     }
 
+    // Вставка category_root_id
+    public void DatabaseInsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(categoryId)) throw new ArgumentException("Category ID must not be empty.", nameof(categoryId));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                INSERT INTO habr_category_root_ids (category_id, category_name, created_at, updated_at)
+                VALUES (@id, @name, NOW(), NOW())
+                ON CONFLICT (category_id) 
+                DO UPDATE SET 
+                    category_name = EXCLUDED.category_name,
+                    updated_at = NOW()", conn);
+            
+            cmd.Parameters.AddWithValue("@id", categoryId);
+            cmd.Parameters.AddWithValue("@name", categoryName ?? (object)DBNull.Value);
+            
+            int rowsAffected = cmd.ExecuteNonQuery();
+            Console.WriteLine($"[DB] Записано в БД (category_root_ids): {categoryId} -> {categoryName}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для категории {categoryId}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при записи категории {categoryId}: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Запустить фоновую задачу по записи данных в базу данных с использованием внутренней очереди
     /// </summary>
@@ -210,6 +245,9 @@ public sealed class DatabaseClient
                             break;
                         case DbRecordType.Company:
                             DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue);
+                            break;
+                        case DbRecordType.CategoryRootId:
+                            DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue, categoryName: record.SecondaryValue);
                             break;
                     }
                 }
@@ -284,6 +322,56 @@ public sealed class DatabaseClient
         Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}");
         
         return true;
+    }
+
+    /// <summary>
+    /// Добавить category_root_id в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCategoryRootId(string categoryId, string categoryName)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(DbRecordType.CategoryRootId, categoryId, categoryName);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Получить все category_id из таблицы habr_category_root_ids
+    /// </summary>
+    public List<string> GetAllCategoryIds(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var categoryIds = new List<string>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(
+                "SELECT category_id FROM habr_category_root_ids ORDER BY category_id", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryId = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(categoryId))
+                {
+                    categoryIds.Add(categoryId);
+                }
+            }
+
+            Console.WriteLine($"[DB] Загружено {categoryIds.Count} категорий из БД");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка при получении категорий: {ex.Message}");
+        }
+
+        return categoryIds;
     }
 
     /// <summary>
