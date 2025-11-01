@@ -4,12 +4,13 @@
 
 CREATE TABLE IF NOT EXISTS habr_resumes
 (
-    link text COLLATE pg_catalog."default",
+    link text COLLATE pg_catalog."default" NOT NULL,
     title text COLLATE pg_catalog."default",
     slogan text COLLATE pg_catalog."default",
     viewed bit(1),
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 ),
-    CONSTRAINT habr_resumes_pkey PRIMARY KEY (id)
+    CONSTRAINT habr_resumes_pkey PRIMARY KEY (id),
+    CONSTRAINT habr_resumes_link_unique UNIQUE (link)
 )
 
 TABLESPACE pg_default;

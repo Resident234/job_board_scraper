@@ -7,15 +7,24 @@
   - Загружает список компаний из БД
   - Обходит страницы `/companies/{code}/followers` с пагинацией
   - Извлекает username, ссылку и слоган пользователей
+  - Использует режим `UpdateIfExists` для обновления существующих записей
   - Интеграция с ConsoleLogger
+  
+- **Режимы вставки в DatabaseClient**
+  - `InsertMode.SkipIfExists` - пропустить, если запись существует (по умолчанию)
+  - `InsertMode.UpdateIfExists` - обновить запись при конфликте (UPSERT)
+  - Добавлен параметр `mode` в `DatabaseInsert()` и `EnqueueResume()`
+  - Расширен `DbRecord` с полем `Mode`
   
 - **Поддержка слогана в DatabaseClient**
   - Добавлен параметр `slogan` в `DatabaseInsert()`
   - Обновлён `EnqueueResume()` для поддержки слогана
   - Расширен `DbRecord` с полем `TertiaryValue`
   
-- **SQL скрипт add_slogan_column.sql**
-  - Добавление столбца `slogan TEXT` в таблицу `habr_resumes`
+- **SQL скрипты**
+  - `add_slogan_column.sql` - добавление столбца `slogan TEXT` в таблицу `habr_resumes`
+  - `add_unique_link_constraint.sql` - добавление уникального ограничения на `link` для UPSERT
+  - Обновлён `create_resumes_table.sql` с `UNIQUE (link)` и комментариями
   
 - **Метод GetAllCompanyCodes() в DatabaseClient**
   - Получение списка всех company_code из БД

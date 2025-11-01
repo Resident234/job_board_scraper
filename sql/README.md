@@ -40,6 +40,13 @@ psql -U postgres -d jobs -f sql/add_slogan_column.sql
 
 Добавляет столбец `slogan` в таблицу `habr_resumes` для хранения специализации/слогана пользователя.
 
+### 5. Добавление уникального ограничения на link
+```bash
+psql -U postgres -d jobs -f sql/add_unique_link_constraint.sql
+```
+
+Добавляет уникальное ограничение на столбец `link` для поддержки режима `UpdateIfExists` (UPSERT).
+
 ## Использование CategoryScraper
 
 ```csharp

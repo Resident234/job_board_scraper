@@ -14,7 +14,25 @@ public enum DbRecordType
     CategoryRootId
 }
 
-public readonly record struct DbRecord(DbRecordType Type, string PrimaryValue, string SecondaryValue, string? TertiaryValue = null);
+public enum InsertMode
+{
+    /// <summary>
+    /// Пропустить вставку, если запись уже существует
+    /// </summary>
+    SkipIfExists,
+    
+    /// <summary>
+    /// Обновить запись, если она уже существует (UPSERT)
+    /// </summary>
+    UpdateIfExists
+}
+
+public readonly record struct DbRecord(
+    DbRecordType Type, 
+    string PrimaryValue, 
+    string SecondaryValue, 
+    string? TertiaryValue = null, 
+    InsertMode Mode = InsertMode.SkipIfExists);
 
 public sealed class DatabaseClient
 {
@@ -68,7 +86,7 @@ public sealed class DatabaseClient
     }
 
     // Вставка ссылки, заголовка страницы и слогана
-    public void DatabaseInsert(NpgsqlConnection conn, string link, string title, string? slogan = null)
+    public void DatabaseInsert(NpgsqlConnection conn, string link, string title, string? slogan = null, InsertMode mode = InsertMode.SkipIfExists)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -77,22 +95,42 @@ public sealed class DatabaseClient
         {
             DatabaseEnsureConnectionOpen(conn);
 
-            // Проверка существования по link
-            if (DatabaseRecordExistsByLink(conn, link))
+            if (mode == InsertMode.SkipIfExists)
             {
-                Console.WriteLine($"Запись уже есть в БД, вставка пропущена: {link}");
-                return;
-            }
+                // Проверка существования по link
+                if (DatabaseRecordExistsByLink(conn, link))
+                {
+                    Console.WriteLine($"Запись уже есть в БД, вставка пропущена: {link}");
+                    return;
+                }
 
-            using var cmd = new NpgsqlCommand(
-                "INSERT INTO habr_resumes (link, title, slogan) VALUES (@link, @title, @slogan)", conn);
-            cmd.Parameters.AddWithValue("@link", link);
-            cmd.Parameters.AddWithValue("@title", title);
-            cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
-            
-            int rowsAffected = cmd.ExecuteNonQuery();
-            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" + 
-                (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+                using var cmd = new NpgsqlCommand(
+                    "INSERT INTO habr_resumes (link, title, slogan) VALUES (@link, @title, @slogan)", conn);
+                cmd.Parameters.AddWithValue("@link", link);
+                cmd.Parameters.AddWithValue("@title", title);
+                cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
+                
+                int rowsAffected = cmd.ExecuteNonQuery();
+                Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" + 
+                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+            }
+            else // UpdateIfExists
+            {
+                using var cmd = new NpgsqlCommand(@"
+                    INSERT INTO habr_resumes (link, title, slogan) 
+                    VALUES (@link, @title, @slogan)
+                    ON CONFLICT (link) 
+                    DO UPDATE SET 
+                        title = EXCLUDED.title,
+                        slogan = EXCLUDED.slogan", conn);
+                cmd.Parameters.AddWithValue("@link", link);
+                cmd.Parameters.AddWithValue("@title", title);
+                cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
+                
+                int rowsAffected = cmd.ExecuteNonQuery();
+                Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" + 
+                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+            }
         }
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
@@ -245,7 +283,7 @@ public sealed class DatabaseClient
                     switch (record.Type)
                     {
                         case DbRecordType.Resume:
-                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue, slogan: record.TertiaryValue);
+                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue, slogan: record.TertiaryValue, mode: record.Mode);
                             break;
                         case DbRecordType.Company:
                             DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue);
@@ -303,13 +341,13 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить резюме в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueResume(string link, string title, string? slogan = null)
+    public bool EnqueueResume(string link, string title, string? slogan = null, InsertMode mode = InsertMode.SkipIfExists)
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Resume, link, title, slogan);
+        var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Resume: {title} -> {link}" + 
+        Console.WriteLine($"[DB Queue] Resume ({mode}): {title} -> {link}" + 
             (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
         
         return true;

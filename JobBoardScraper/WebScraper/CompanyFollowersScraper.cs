@@ -8,14 +8,14 @@ namespace JobBoardScraper.WebScraper;
 public sealed class CompanyFollowersScraper : IDisposable
 {
     private readonly HttpClient _httpClient;
-    private readonly Action<string, string, string?> _enqueueUser;
+    private readonly Action<string, string, string?, InsertMode> _enqueueUser;
     private readonly Func<List<string>> _getCompanyCodes;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
     public CompanyFollowersScraper(
         HttpClient httpClient,
-        Action<string, string, string?> enqueueUser,
+        Action<string, string, string?, InsertMode> enqueueUser,
         Func<List<string>> getCompanyCodes,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
@@ -165,8 +165,8 @@ public sealed class CompanyFollowersScraper : IDisposable
                         var sloganElement = userItem.QuerySelector(AppConfig.CompanyFollowersSloganSelector);
                         var slogan = sloganElement?.TextContent?.Trim();
 
-                        _enqueueUser(fullUrl, username, slogan);
-                        _logger.WriteLine($"В очередь: {username} -> {fullUrl}" + 
+                        _enqueueUser(fullUrl, username, slogan, InsertMode.UpdateIfExists);
+                        _logger.WriteLine($"В очередь (UPDATE): {username} -> {fullUrl}" + 
                             (string.IsNullOrWhiteSpace(slogan) ? "" : $" ({slogan})"));
                         usersOnPage++;
                         totalUsersFound++;
