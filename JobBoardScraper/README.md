@@ -4,12 +4,13 @@
 
 ## Архитектура
 
-Приложение запускает четыре параллельных процесса:
+Приложение запускает пять параллельных процессов:
 
 1. **BruteForceUsernameScraper** - перебор всех возможных имен пользователей (a-z, 0-9, -, _)
 2. **ResumeListPageScraper** - периодический обход страницы со списком резюме (каждые 10 минут)
 3. **CompanyListScraper** - периодический обход списка компаний (раз в неделю)
 4. **CategoryScraper** - периодический сбор category_root_id из select элемента (раз в неделю)
+5. **CompanyFollowersScraper** - периодический обход подписчиков компаний (раз в неделю)
 
 ## Конфигурация
 
@@ -48,6 +49,28 @@
    - `?has_accreditation=1` - аккредитованные компании
 
 Каждый фильтр обходится полностью (все страницы) перед переходом к следующему.
+
+### CompanyFollowersScraper
+- `CompanyFollowers:UrlTemplate` - шаблон URL для страницы подписчиков (поддерживает {0} для кода компании)
+- `CompanyFollowers:UserItemSelector` - CSS селектор для блока пользователя (`.user_friends_item`)
+- `CompanyFollowers:UsernameSelector` - CSS селектор для имени пользователя (`.username`)
+- `CompanyFollowers:SloganSelector` - CSS селектор для слогана/специализации (`.specialization`)
+- `CompanyFollowers:NextPageSelector` - CSS селектор для поиска следующей страницы
+- `CompanyFollowers:OutputMode` - режим вывода: `ConsoleOnly`, `FileOnly`, `Both`
+
+#### Логика обхода CompanyFollowersScraper
+
+Скрапер выполняется раз в неделю и обходит подписчиков всех компаний из БД:
+
+1. **Загрузка списка компаний** - получает все `company_code` из таблицы `habr_companies`
+2. **Обход подписчиков** - для каждой компании:
+   - Открывает `https://career.habr.com/companies/{code}/followers`
+   - Обходит все страницы пагинации (`?page=1`, `?page=2`, и т.д.)
+   - Извлекает для каждого пользователя:
+     - **username** - текст из `.username`
+     - **ссылка** - атрибут `href` из `a` (преобразуется в полный URL)
+     - **slogan** - текст из `.specialization` (опционально)
+3. **Сохранение в БД** - записывает в таблицу `habr_resumes` с полями `link`, `title` (username), `slogan`
 
 ### CategoryScraper
 - Использует те же настройки `Companies:*` для доступа к странице

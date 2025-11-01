@@ -33,6 +33,13 @@ psql -U postgres -d jobs -f sql/create_category_root_ids_table.sql
 - `created_at` - дата создания записи
 - `updated_at` - дата последнего обновления
 
+### 4. Добавление столбца slogan
+```bash
+psql -U postgres -d jobs -f sql/add_slogan_column.sql
+```
+
+Добавляет столбец `slogan` в таблицу `habr_resumes` для хранения специализации/слогана пользователя.
+
 ## Использование CategoryScraper
 
 ```csharp

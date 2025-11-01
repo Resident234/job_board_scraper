@@ -14,7 +14,7 @@ public enum DbRecordType
     CategoryRootId
 }
 
-public readonly record struct DbRecord(DbRecordType Type, string PrimaryValue, string SecondaryValue);
+public readonly record struct DbRecord(DbRecordType Type, string PrimaryValue, string SecondaryValue, string? TertiaryValue = null);
 
 public sealed class DatabaseClient
 {
@@ -67,8 +67,8 @@ public sealed class DatabaseClient
         return result is not null;
     }
 
-    // Вставка ссылки и заголовка страницы
-    public void DatabaseInsert(NpgsqlConnection conn, string link, string title)
+    // Вставка ссылки, заголовка страницы и слогана
+    public void DatabaseInsert(NpgsqlConnection conn, string link, string title, string? slogan = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -84,11 +84,15 @@ public sealed class DatabaseClient
                 return;
             }
 
-            using var cmd = new NpgsqlCommand("INSERT INTO habr_resumes (link, title) VALUES (@link, @title)", conn);
+            using var cmd = new NpgsqlCommand(
+                "INSERT INTO habr_resumes (link, title, slogan) VALUES (@link, @title, @slogan)", conn);
             cmd.Parameters.AddWithValue("@link", link);
             cmd.Parameters.AddWithValue("@title", title);
+            cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
+            
             int rowsAffected = cmd.ExecuteNonQuery();
-            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}");
+            Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" + 
+                (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
         }
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
@@ -241,7 +245,7 @@ public sealed class DatabaseClient
                     switch (record.Type)
                     {
                         case DbRecordType.Resume:
-                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue);
+                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue, slogan: record.TertiaryValue);
                             break;
                         case DbRecordType.Company:
                             DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue);
@@ -299,13 +303,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить резюме в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueResume(string link, string title)
+    public bool EnqueueResume(string link, string title, string? slogan = null)
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Resume, link, title);
+        var record = new DbRecord(DbRecordType.Resume, link, title, slogan);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Resume: {title} -> {link}");
+        Console.WriteLine($"[DB Queue] Resume: {title} -> {link}" + 
+            (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
         
         return true;
     }
@@ -372,6 +377,42 @@ public sealed class DatabaseClient
         }
 
         return categoryIds;
+    }
+
+    /// <summary>
+    /// Получить все company_code из таблицы habr_companies
+    /// </summary>
+    public List<string> GetAllCompanyCodes(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var companyCodes = new List<string>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(
+                "SELECT company_code FROM habr_companies ORDER BY company_code", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var companyCode = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(companyCode))
+                {
+                    companyCodes.Add(companyCode);
+                }
+            }
+
+            Console.WriteLine($"[DB] Загружено {companyCodes.Count} компаний из БД");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка при получении компаний: {ex.Message}");
+        }
+
+        return companyCodes;
     }
 
     /// <summary>

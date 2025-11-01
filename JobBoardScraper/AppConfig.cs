@@ -41,6 +41,26 @@ public static class AppConfig
         }
     }
     
+    // Настройки для CompanyFollowersScraper
+    public static string CompanyFollowersUrlTemplate => ConfigurationManager.AppSettings["CompanyFollowers:UrlTemplate"] ?? "https://career.habr.com/companies/{0}/followers";
+    
+    public static string CompanyFollowersUserItemSelector => ConfigurationManager.AppSettings["CompanyFollowers:UserItemSelector"] ?? ".user_friends_item";
+    
+    public static string CompanyFollowersUsernameSelector => ConfigurationManager.AppSettings["CompanyFollowers:UsernameSelector"] ?? ".username";
+    
+    public static string CompanyFollowersSloganSelector => ConfigurationManager.AppSettings["CompanyFollowers:SloganSelector"] ?? ".specialization";
+    
+    public static string CompanyFollowersNextPageSelector => ConfigurationManager.AppSettings["CompanyFollowers:NextPageSelector"] ?? "a.page[href*='page={0}']";
+    
+    public static OutputMode CompanyFollowersOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["CompanyFollowers:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

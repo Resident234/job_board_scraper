@@ -1,5 +1,33 @@
 # Changelog
 
+## 2025-11-01 - Company Followers Scraper
+
+### Добавлено
+- **CompanyFollowersScraper** - новый скрапер для обхода подписчиков компаний
+  - Загружает список компаний из БД
+  - Обходит страницы `/companies/{code}/followers` с пагинацией
+  - Извлекает username, ссылку и слоган пользователей
+  - Интеграция с ConsoleLogger
+  
+- **Поддержка слогана в DatabaseClient**
+  - Добавлен параметр `slogan` в `DatabaseInsert()`
+  - Обновлён `EnqueueResume()` для поддержки слогана
+  - Расширен `DbRecord` с полем `TertiaryValue`
+  
+- **SQL скрипт add_slogan_column.sql**
+  - Добавление столбца `slogan TEXT` в таблицу `habr_resumes`
+  
+- **Метод GetAllCompanyCodes() в DatabaseClient**
+  - Получение списка всех company_code из БД
+  
+- **Настройки в App.config**
+  - `CompanyFollowers:UrlTemplate`
+  - `CompanyFollowers:UserItemSelector`
+  - `CompanyFollowers:UsernameSelector`
+  - `CompanyFollowers:SloganSelector`
+  - `CompanyFollowers:NextPageSelector`
+  - `CompanyFollowers:OutputMode`
+
 ## 2025-11-01 - Logging Architecture Refactoring
 
 ### Изменено
