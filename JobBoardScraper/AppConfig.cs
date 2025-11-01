@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using JobBoardScraper.Helper.ConsoleHelper;
 
 namespace JobBoardScraper;
 
@@ -31,12 +32,12 @@ public static class AppConfig
     
     public static string CompaniesNextPageSelector => ConfigurationManager.AppSettings["Companies:NextPageSelector"] ?? "a.page[href*='page={0}']";
     
-    public static Helper.OutputMode CompaniesOutputMode
+    public static OutputMode CompaniesOutputMode
     {
         get
         {
             var value = ConfigurationManager.AppSettings["Companies:OutputMode"];
-            return Enum.TryParse<Helper.OutputMode>(value, out var mode) ? mode : Helper.OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
         }
     }
     

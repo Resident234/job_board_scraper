@@ -1,4 +1,4 @@
-using JobBoardScraper.Helper;
+using JobBoardScraper.Helper.ConsoleHelper;
 
 namespace JobBoardScraper.WebScraper;
 

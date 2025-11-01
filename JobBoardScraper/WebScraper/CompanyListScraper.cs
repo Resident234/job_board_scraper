@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using JobBoardScraper.Helper;
+using JobBoardScraper.Helper.ConsoleHelper;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -16,14 +16,14 @@ public sealed class CompanyListScraper : IDisposable
     private readonly Action<string, string> _enqueueCompany;
     private readonly Func<List<string>> _getCategoryIds;
     private readonly TimeSpan _interval;
-    private readonly Helper.ConsoleLogger _logger;
+    private readonly ConsoleLogger _logger;
 
     public CompanyListScraper(
         HttpClient httpClient,
         Action<string, string> enqueueCompany,
         Func<List<string>> getCategoryIds,
         TimeSpan? interval = null,
-        Helper.OutputMode outputMode = Helper.OutputMode.ConsoleOnly)
+        OutputMode outputMode = OutputMode.ConsoleOnly)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueCompany = enqueueCompany ?? throw new ArgumentNullException(nameof(enqueueCompany));
@@ -31,7 +31,7 @@ public sealed class CompanyListScraper : IDisposable
         _interval = interval ?? TimeSpan.FromDays(7);
         _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
         
-        _logger = new Helper.ConsoleLogger("CompanyListScraper");
+        _logger = new ConsoleLogger("CompanyListScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация CompanyListScraper с режимом вывода: {outputMode}");
     }

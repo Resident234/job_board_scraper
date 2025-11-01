@@ -1,4 +1,14 @@
-namespace JobBoardScraper.Helper;
+namespace JobBoardScraper.Helper.ConsoleHelper;
+
+/// <summary>
+/// Режим вывода логов
+/// </summary>
+public enum OutputMode
+{
+    ConsoleOnly,
+    FileOnly,
+    Both
+}
 
 /// <summary>
 /// Управление выводом в консоль и/или файл для конкретного процесса
@@ -6,16 +16,14 @@ namespace JobBoardScraper.Helper;
 public sealed class ConsoleLogger : IDisposable
 {
     private readonly string _processName;
-    private readonly TextWriter _originalOut;
-    private TextWriter? _fileWriter;
-    private TextWriter? _currentWriter;
+    private readonly object _lock = new object();
+    private StreamWriter? _fileWriter;
     private OutputMode _currentMode;
     private bool _disposed;
 
     public ConsoleLogger(string processName)
     {
         _processName = processName ?? throw new ArgumentNullException(nameof(processName));
-        _originalOut = Console.Out;
         _currentMode = OutputMode.ConsoleOnly;
     }
 
@@ -36,34 +44,28 @@ public sealed class ConsoleLogger : IDisposable
         if (_disposed)
             throw new ObjectDisposedException(nameof(ConsoleLogger));
 
-        Console.WriteLine($"[ConsoleLogger] Установка режима вывода: {mode}, директория: {outputDirectory}");
-
-        // Закрываем предыдущий файл, если был
-        CloseFileWriter();
-
-        _currentMode = mode;
-
-        switch (mode)
+        lock (_lock)
         {
-            case OutputMode.ConsoleOnly:
-                Console.SetOut(_originalOut);
+            Console.WriteLine($"[ConsoleLogger] Установка режима вывода для {_processName}: {mode}, директория: {outputDirectory}");
+
+            // Закрываем предыдущий файл, если был
+            CloseFileWriter();
+
+            _currentMode = mode;
+
+            if (mode == OutputMode.FileOnly || mode == OutputMode.Both)
+            {
+                CurrentOutputFile = CreateOutputFile(outputDirectory);
+                _fileWriter = new StreamWriter(CurrentOutputFile, append: false)
+                {
+                    AutoFlush = true
+                };
+                Console.WriteLine($"[ConsoleLogger] Создан лог-файл для {_processName}: {CurrentOutputFile}");
+            }
+            else
+            {
                 CurrentOutputFile = null;
-                break;
-
-            case OutputMode.FileOnly:
-                CurrentOutputFile = CreateOutputFile(outputDirectory);
-                _fileWriter = File.CreateText(CurrentOutputFile);
-                ((StreamWriter)_fileWriter).AutoFlush = true;
-                Console.SetOut(_fileWriter);
-                break;
-
-            case OutputMode.Both:
-                CurrentOutputFile = CreateOutputFile(outputDirectory);
-                _fileWriter = File.CreateText(CurrentOutputFile);
-                ((StreamWriter)_fileWriter).AutoFlush = true;
-                _currentWriter = new DualWriter(_originalOut, _fileWriter);
-                Console.SetOut(_currentWriter);
-                break;
+            }
         }
     }
 
@@ -80,7 +82,20 @@ public sealed class ConsoleLogger : IDisposable
     /// </summary>
     public void WriteLine(string message)
     {
-        Console.WriteLine($"[{_processName}] {message}");
+        var formattedMessage = $"[{_processName}] {message}";
+        
+        lock (_lock)
+        {
+            if (_currentMode == OutputMode.ConsoleOnly || _currentMode == OutputMode.Both)
+            {
+                Console.WriteLine(formattedMessage);
+            }
+
+            if ((_currentMode == OutputMode.FileOnly || _currentMode == OutputMode.Both) && _fileWriter != null)
+            {
+                _fileWriter.WriteLine(formattedMessage);
+            }
+        }
     }
 
     /// <summary>
@@ -88,7 +103,20 @@ public sealed class ConsoleLogger : IDisposable
     /// </summary>
     public void WriteLineWithTime(string message)
     {
-        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{_processName}] {message}");
+        var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{_processName}] {message}";
+        
+        lock (_lock)
+        {
+            if (_currentMode == OutputMode.ConsoleOnly || _currentMode == OutputMode.Both)
+            {
+                Console.WriteLine(formattedMessage);
+            }
+
+            if ((_currentMode == OutputMode.FileOnly || _currentMode == OutputMode.Both) && _fileWriter != null)
+            {
+                _fileWriter.WriteLine(formattedMessage);
+            }
+        }
     }
 
     private string CreateOutputFile(string outputDirectory)
@@ -105,8 +133,6 @@ public sealed class ConsoleLogger : IDisposable
         var fileName = $"{_processName}_{DateTime.Now:yyyyMMdd_HHmmss}.log";
         var fullPath = Path.Combine(absoluteDir, fileName);
         
-        Console.WriteLine($"[ConsoleLogger] Лог-файл будет создан: {fullPath}");
-        
         return fullPath;
     }
 
@@ -118,12 +144,6 @@ public sealed class ConsoleLogger : IDisposable
             _fileWriter.Dispose();
             _fileWriter = null;
         }
-
-        if (_currentWriter != null)
-        {
-            _currentWriter.Dispose();
-            _currentWriter = null;
-        }
     }
 
     public void Dispose()
@@ -131,8 +151,10 @@ public sealed class ConsoleLogger : IDisposable
         if (_disposed)
             return;
 
-        CloseFileWriter();
-        Console.SetOut(_originalOut);
-        _disposed = true;
+        lock (_lock)
+        {
+            CloseFileWriter();
+            _disposed = true;
+        }
     }
 }

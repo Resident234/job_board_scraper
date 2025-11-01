@@ -1,12 +1,23 @@
 # Changelog
 
+## 2025-11-01 - Logging Architecture Refactoring
+
+### Изменено
+- **Helper.ConsoleHelper** - рефакторинг системы логирования
+  - Вынесено в отдельный namespace `JobBoardScraper.Helper.ConsoleHelper`
+  - Папка переименована в `Helper.ConsoleHelper/` (аналогично AliExpressScraper)
+  - Убрано глобальное перенаправление `Console.SetOut()`
+  - Каждый логгер теперь пишет в свой собственный файл
+  - Добавлена потокобезопасность через `lock`
+  - Удалён класс `DualWriter` (больше не нужен)
+  - Обновлена документация с описанием архитектуры
+
 ## 2025-10-29 - Logging System Implementation
 
 ### Добавлено
-- **Helper.ConsoleLogger** - система управления выводом в консоль и файлы
+- **Helper.ConsoleHelper** - система управления выводом в консоль и файлы
   - `OutputMode` enum с тремя режимами: ConsoleOnly, FileOnly, Both
   - `ConsoleLogger` класс для управления выводом процессов
-  - `DualWriter` для одновременной записи в консоль и файл
   
 - **CompanyListScraper** - новый скрапер для обхода списка компаний
   - Периодический обход (раз в неделю)
@@ -32,7 +43,7 @@
 - **Структура проекта**
   - Переименование `job_board_scraper` → `JobBoardScraper`
   - SQL скрипты перемещены в папку `sql/`
-  - Добавлена папка `Helper/` для утилит
+  - Добавлена папка `Helper.ConsoleHelper/` для утилит логирования
 
 ### SQL
 - `sql/create_companies_table.sql` - таблица `habr_companies`
@@ -40,7 +51,7 @@
 
 ### Документация
 - `JobBoardScraper/README.md` - основная документация
-- `JobBoardScraper/Helper/README.md` - документация по логированию
+- `JobBoardScraper/Helper.ConsoleHelper/README.md` - документация по логированию
 - `sql/README.md` - документация по SQL скриптам
 
 ## Архитектура
