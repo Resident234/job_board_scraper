@@ -9,6 +9,8 @@ namespace JobBoardScraper;
 public static class AppConfig
 {
     // Настройки для BruteForceUsernameScraper
+    public static bool BruteForceEnabled => bool.TryParse(ConfigurationManager.AppSettings["BruteForce:Enabled"], out var value) && value;
+    
     public static char[] Chars => (ConfigurationManager.AppSettings["BruteForce:Chars"] ?? "abcdefghijklmnopqrstuvwxyz0123456789-_").ToCharArray();
     
     public static string BaseUrl => ConfigurationManager.AppSettings["BruteForce:BaseUrl"] ?? "http://career.habr.com/";
@@ -26,6 +28,8 @@ public static class AppConfig
     public static bool BruteForceEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["BruteForce:EnableTrafficMeasuring"], out var value) ? value : true;
     
     // Настройки для CompanyListScraper
+    public static bool CompaniesEnabled => bool.TryParse(ConfigurationManager.AppSettings["Companies:Enabled"], out var value) && value;
+    
     public static string CompaniesListUrl => ConfigurationManager.AppSettings["Companies:ListUrl"] ?? "https://career.habr.com/companies";
     
     public static string CompaniesBaseUrl => ConfigurationManager.AppSettings["Companies:BaseUrl"] ?? "https://career.habr.com/companies/";
@@ -48,6 +52,8 @@ public static class AppConfig
     public static bool CompaniesEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Companies:EnableTrafficMeasuring"], out var value) ? value : true;
     
     // Настройки для CompanyFollowersScraper
+    public static bool CompanyFollowersEnabled => bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:Enabled"], out var value) ? value : true;
+    
     public static string CompanyFollowersUrlTemplate => ConfigurationManager.AppSettings["CompanyFollowers:UrlTemplate"] ?? "https://career.habr.com/companies/{0}/followers";
     
     public static string CompanyFollowersUserItemSelector => ConfigurationManager.AppSettings["CompanyFollowers:UserItemSelector"] ?? ".user_friends_item";
@@ -70,7 +76,11 @@ public static class AppConfig
     public static bool CompanyFollowersEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:EnableTrafficMeasuring"], out var value) ? value : true;
     
     // Общие настройки для скраперов
+    public static bool ResumeListEnabled => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:Enabled"], out var value) && value;
+    
     public static bool ResumeListEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static bool CategoryEnabled => bool.TryParse(ConfigurationManager.AppSettings["Category:Enabled"], out var value) && value;
     
     public static bool CategoryEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Category:EnableTrafficMeasuring"], out var value) ? value : true;
     

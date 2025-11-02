@@ -53,106 +53,162 @@ class Program
         db.StartWriterTask(conn, cts.Token, delayMs: 500);
 
         // Процесс 2: Периодический обход страницы со списком резюме
-        var resumeListHttpClient = new SmartHttpClient(
-            httpClient, 
-            "ResumeListPageScraper", 
-            trafficStats,
-            enableRetry: false,
-            enableTrafficMeasuring: AppConfig.ResumeListEnableTrafficMeasuring);
-        var resumeListScraper = new ResumeListPageScraper(
-            resumeListHttpClient,
-            enqueueToSaveQueue: item =>
-            {
-                db.EnqueueResume(item.link, item.title);
-            },
-            interval: TimeSpan.FromMinutes(10));
+        if (AppConfig.ResumeListEnabled)
+        {
+            Console.WriteLine("[Program] ResumeListPageScraper: ВКЛЮЧЕН");
+            var resumeListHttpClient = new SmartHttpClient(
+                httpClient, 
+                "ResumeListPageScraper", 
+                trafficStats,
+                enableRetry: false,
+                enableTrafficMeasuring: AppConfig.ResumeListEnableTrafficMeasuring);
+            var resumeListScraper = new ResumeListPageScraper(
+                resumeListHttpClient,
+                enqueueToSaveQueue: item =>
+                {
+                    db.EnqueueResume(item.link, item.title);
+                },
+                interval: TimeSpan.FromMinutes(10));
 
-        _ = resumeListScraper.StartAsync(cts.Token);
+            _ = resumeListScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] ResumeListPageScraper: ОТКЛЮЧЕН");
+        }
 
         // Процесс 3: Периодический обход списка компаний
-        Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
-        Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
-        
-        var companyListHttpClient = new SmartHttpClient(
-            httpClient, 
-            "CompanyListScraper", 
-            trafficStats,
-            enableRetry: false,
-            enableTrafficMeasuring: AppConfig.CompaniesEnableTrafficMeasuring);
-        var companyListScraper = new CompanyListScraper(
-            companyListHttpClient,
-            enqueueCompany: (companyCode, companyUrl) =>
-            {
-                db.EnqueueCompany(companyCode, companyUrl);
-            },
-            getCategoryIds: () => db.GetAllCategoryIds(conn),
-            interval: TimeSpan.FromDays(7),
-            outputMode: AppConfig.CompaniesOutputMode);
+        if (AppConfig.CompaniesEnabled)
+        {
+            Console.WriteLine("[Program] CompanyListScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
+            Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
+            
+            var companyListHttpClient = new SmartHttpClient(
+                httpClient, 
+                "CompanyListScraper", 
+                trafficStats,
+                enableRetry: false,
+                enableTrafficMeasuring: AppConfig.CompaniesEnableTrafficMeasuring);
+            var companyListScraper = new CompanyListScraper(
+                companyListHttpClient,
+                enqueueCompany: (companyCode, companyUrl) =>
+                {
+                    db.EnqueueCompany(companyCode, companyUrl);
+                },
+                getCategoryIds: () => db.GetAllCategoryIds(conn),
+                interval: TimeSpan.FromDays(7),
+                outputMode: AppConfig.CompaniesOutputMode);
 
-        _ = companyListScraper.StartAsync(cts.Token);
+            _ = companyListScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] CompanyListScraper: ОТКЛЮЧЕН");
+        }
 
         // Процесс 4: Периодический сбор category_root_id
-        var categoryHttpClient = new SmartHttpClient(
-            httpClient, 
-            "CategoryScraper", 
-            trafficStats,
-            enableRetry: false,
-            enableTrafficMeasuring: AppConfig.CategoryEnableTrafficMeasuring);
-        var categoryScraper = new CategoryScraper(
-            categoryHttpClient,
-            enqueueCategory: (categoryId, categoryName) =>
-            {
-                db.EnqueueCategoryRootId(categoryId, categoryName);
-            },
-            interval: TimeSpan.FromDays(7),
-            outputMode: AppConfig.CompaniesOutputMode);
+        if (AppConfig.CategoryEnabled)
+        {
+            Console.WriteLine("[Program] CategoryScraper: ВКЛЮЧЕН");
+            var categoryHttpClient = new SmartHttpClient(
+                httpClient, 
+                "CategoryScraper", 
+                trafficStats,
+                enableRetry: false,
+                enableTrafficMeasuring: AppConfig.CategoryEnableTrafficMeasuring);
+            var categoryScraper = new CategoryScraper(
+                categoryHttpClient,
+                enqueueCategory: (categoryId, categoryName) =>
+                {
+                    db.EnqueueCategoryRootId(categoryId, categoryName);
+                },
+                interval: TimeSpan.FromDays(7),
+                outputMode: AppConfig.CompaniesOutputMode);
 
-        _ = categoryScraper.StartAsync(cts.Token);
+            _ = categoryScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] CategoryScraper: ОТКЛЮЧЕН");
+        }
 
         // Процесс 5: Периодический обход подписчиков компаний
-        Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
-        
-        var companyFollowersHttpClient = new SmartHttpClient(
-            httpClient, 
-            "CompanyFollowersScraper", 
-            trafficStats,
-            enableRetry: false,
-            enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring);
-        var companyFollowersScraper = new CompanyFollowersScraper(
-            companyFollowersHttpClient,
-            enqueueUser: (link, username, slogan, mode) =>
-            {
-                db.EnqueueResume(link, username, slogan, mode);
-            },
-            getCompanyCodes: () => db.GetAllCompanyCodes(conn),
-            interval: TimeSpan.FromDays(5),
-            outputMode: AppConfig.CompanyFollowersOutputMode);
+        if (AppConfig.CompanyFollowersEnabled)
+        {
+            Console.WriteLine("[Program] CompanyFollowersScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
+            
+            var companyFollowersHttpClient = new SmartHttpClient(
+                httpClient, 
+                "CompanyFollowersScraper", 
+                trafficStats,
+                enableRetry: false,
+                enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring);
+            var companyFollowersScraper = new CompanyFollowersScraper(
+                companyFollowersHttpClient,
+                enqueueUser: (link, username, slogan, mode) =>
+                {
+                    db.EnqueueResume(link, username, slogan, mode);
+                },
+                getCompanyCodes: () => db.GetAllCompanyCodes(conn),
+                interval: TimeSpan.FromDays(5),
+                outputMode: AppConfig.CompanyFollowersOutputMode);
 
-        _ = companyFollowersScraper.StartAsync(cts.Token);
+            _ = companyFollowersScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] CompanyFollowersScraper: ОТКЛЮЧЕН");
+        }
 
         // Процесс 1: Перебор всех возможных имен пользователей
-        var bruteForceHttpClient = new SmartHttpClient(
-            httpClient, 
-            "BruteForceUsernameScraper", 
-            trafficStats,
-            enableRetry: AppConfig.BruteForceEnableRetry,
-            enableTrafficMeasuring: AppConfig.BruteForceEnableTrafficMeasuring,
-            maxRetries: AppConfig.MaxRetries,
-            baseDelay: TimeSpan.FromMilliseconds(400),
-            maxDelay: TimeSpan.FromSeconds(30));
-        var bruteForceScraperTask = Task.Run(async () =>
+        Task? bruteForceScraperTask = null;
+        if (AppConfig.BruteForceEnabled)
         {
-            var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
-            await bruteForceScraper.RunAsync(cts.Token);
-        }, cts.Token);
-
-        try
-        {
-            await bruteForceScraperTask;
+            Console.WriteLine("[Program] BruteForceUsernameScraper: ВКЛЮЧЕН");
+            var bruteForceHttpClient = new SmartHttpClient(
+                httpClient, 
+                "BruteForceUsernameScraper", 
+                trafficStats,
+                enableRetry: AppConfig.BruteForceEnableRetry,
+                enableTrafficMeasuring: AppConfig.BruteForceEnableTrafficMeasuring,
+                maxRetries: AppConfig.MaxRetries,
+                baseDelay: TimeSpan.FromMilliseconds(400),
+                maxDelay: TimeSpan.FromSeconds(30));
+            bruteForceScraperTask = Task.Run(async () =>
+            {
+                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
+                await bruteForceScraper.RunAsync(cts.Token);
+            }, cts.Token);
         }
-        catch (OperationCanceledException)
+        else
         {
-            Console.WriteLine("Процесс перебора остановлен пользователем.");
+            Console.WriteLine("[Program] BruteForceUsernameScraper: ОТКЛЮЧЕН");
+        }
+
+        if (bruteForceScraperTask != null)
+        {
+            try
+            {
+                await bruteForceScraperTask;
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Процесс перебора остановлен пользователем.");
+            }
+        }
+        else
+        {
+            // Если BruteForce отключен, ждём отмены
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Приложение остановлено пользователем.");
+            }
         }
 
         try
