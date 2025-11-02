@@ -3,6 +3,15 @@ using System.Net;
 namespace JobBoardScraper;
 
 /// <summary>
+/// Результат HTTP-запроса с дополнительной информацией
+/// </summary>
+public sealed record HttpFetchResult(
+    HttpStatusCode StatusCode,
+    string? Content,
+    bool IsSuccess,
+    bool IsNotFound);
+
+/// <summary>
 /// Умная обёртка над HttpClient с поддержкой:
 /// - Автоматических повторов при ошибках (retry)
 /// - Измерения трафика
