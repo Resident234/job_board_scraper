@@ -16,21 +16,50 @@
 
 Все настройки находятся в файле `App.config`:
 
+### Управление скраперами
+
+Каждый скрапер можно включить или отключить через конфигурацию:
+
+```xml
+<!-- Включить/отключить скраперы -->
+<add key="BruteForce:Enabled" value="false" />
+<add key="ResumeList:Enabled" value="false" />
+<add key="Companies:Enabled" value="false" />
+<add key="Category:Enabled" value="false" />
+<add key="CompanyFollowers:Enabled" value="true" />
+```
+
+**По умолчанию включен только `CompanyFollowersScraper`**, остальные отключены.
+
+При запуске приложение выведет статус каждого скрапера:
+```
+[Program] ResumeListPageScraper: ОТКЛЮЧЕН
+[Program] CompanyListScraper: ОТКЛЮЧЕН
+[Program] CategoryScraper: ОТКЛЮЧЕН
+[Program] CompanyFollowersScraper: ВКЛЮЧЕН
+[Program] BruteForceUsernameScraper: ОТКЛЮЧЕН
+```
+
 ### BruteForceUsernameScraper
+- `BruteForce:Enabled` - включить/отключить скрапер (по умолчанию: `false`)
 - `BruteForce:BaseUrl` - базовый URL для профилей
 - `BruteForce:MinLength` - минимальная длина username
 - `BruteForce:MaxLength` - максимальная длина username
 - `BruteForce:MaxConcurrentRequests` - количество параллельных запросов
 - `BruteForce:MaxRetries` - максимальное количество повторов при ошибке
 - `BruteForce:Chars` - символы для генерации username
+- `BruteForce:EnableRetry` - включить автоматические повторы (по умолчанию: `true`)
+- `BruteForce:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
 
 ### CompanyListScraper
+- `Companies:Enabled` - включить/отключить скрапер (по умолчанию: `false`)
 - `Companies:ListUrl` - URL списка компаний
 - `Companies:BaseUrl` - базовый URL для страниц компаний
 - `Companies:LinkSelector` - CSS селектор для поиска ссылок на компании
 - `Companies:HrefRegex` - регулярное выражение для извлечения кода компании из href
 - `Companies:NextPageSelector` - CSS селектор для поиска следующей страницы (поддерживает {0} для номера страницы)
 - `Companies:OutputMode` - режим вывода: `ConsoleOnly`, `FileOnly`, `Both` (по умолчанию: `ConsoleOnly`)
+- `Companies:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
 
 #### Логика обхода CompanyListScraper
 
@@ -51,12 +80,14 @@
 Каждый фильтр обходится полностью (все страницы) перед переходом к следующему.
 
 ### CompanyFollowersScraper
+- `CompanyFollowers:Enabled` - включить/отключить скрапер (по умолчанию: `true`)
 - `CompanyFollowers:UrlTemplate` - шаблон URL для страницы подписчиков (поддерживает {0} для кода компании)
 - `CompanyFollowers:UserItemSelector` - CSS селектор для блока пользователя (`.user_friends_item`)
 - `CompanyFollowers:UsernameSelector` - CSS селектор для имени пользователя (`.username`)
 - `CompanyFollowers:SloganSelector` - CSS селектор для слогана/специализации (`.specialization`)
 - `CompanyFollowers:NextPageSelector` - CSS селектор для поиска следующей страницы
 - `CompanyFollowers:OutputMode` - режим вывода: `ConsoleOnly`, `FileOnly`, `Both`
+- `CompanyFollowers:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
 
 #### Логика обхода CompanyFollowersScraper
 
@@ -73,8 +104,14 @@
 3. **Сохранение в БД** - записывает в таблицу `habr_resumes` с полями `link`, `title` (username), `slogan`
 
 ### CategoryScraper
+- `Category:Enabled` - включить/отключить скрапер (по умолчанию: `false`)
+- `Category:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
 - Использует те же настройки `Companies:*` для доступа к странице
 - Собирает все значения из `<select id="category_root_id">` и сохраняет в таблицу `habr_category_root_ids`
+
+### ResumeListPageScraper
+- `ResumeList:Enabled` - включить/отключить скрапер (по умолчанию: `false`)
+- `ResumeList:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
 
 ### Logging
 - `Logging:OutputDirectory` - директория для лог-файлов (по умолчанию: `./logs`)
