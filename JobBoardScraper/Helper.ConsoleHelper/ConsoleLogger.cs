@@ -1,14 +1,5 @@
 namespace JobBoardScraper.Helper.ConsoleHelper;
 
-/// <summary>
-/// Режим вывода логов
-/// </summary>
-public enum OutputMode
-{
-    ConsoleOnly,
-    FileOnly,
-    Both
-}
 
 /// <summary>
 /// Управление выводом в консоль и/или файл для конкретного процесса
