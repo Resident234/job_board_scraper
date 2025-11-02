@@ -4,11 +4,12 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает четыре параллельных процесса:
+/// Запускает пять параллельных процессов:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
 /// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
 /// 4. CategoryScraper - периодический сбор category_root_id (раз в неделю)
+/// 5. CompanyFollowersScraper - периодический обход подписчиков компаний (каждые 5 дней)
 /// </summary>
 class Program
 {
@@ -81,6 +82,21 @@ class Program
             outputMode: AppConfig.CompaniesOutputMode);
 
         _ = categoryScraper.StartAsync(cts.Token);
+
+        // Процесс 5: Периодический обход подписчиков компаний
+        Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
+        
+        var companyFollowersScraper = new CompanyFollowersScraper(
+            httpClient,
+            enqueueUser: (link, username, slogan, mode) =>
+            {
+                db.EnqueueResume(link, username, slogan, mode);
+            },
+            getCompanyCodes: () => db.GetAllCompanyCodes(conn),
+            interval: TimeSpan.FromDays(5),
+            outputMode: AppConfig.CompanyFollowersOutputMode);
+
+        _ = companyFollowersScraper.StartAsync(cts.Token);
 
         // Процесс 1: Перебор всех возможных имен пользователей
         var bruteForceScraperTask = Task.Run(async () =>
