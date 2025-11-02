@@ -23,6 +23,14 @@ class Program
         };
 
         using var httpClient = HttpClientFactory.CreateDefaultClient(timeoutSeconds: 10);
+        
+        // Инициализация статистики трафика
+        using var trafficStats = new TrafficStatistics(
+            AppConfig.TrafficStatsOutputFile,
+            AppConfig.TrafficStatsSaveInterval);
+        
+        Console.WriteLine($"[Program] Статистика трафика будет сохраняться в: {AppConfig.TrafficStatsOutputFile}");
+        Console.WriteLine($"[Program] Интервал сохранения статистики: {AppConfig.TrafficStatsSaveInterval.TotalMinutes} минут");
 
         var db = new DatabaseClient(AppConfig.ConnectionString);
         using var conn = db.DatabaseConnectionInit();
@@ -45,8 +53,14 @@ class Program
         db.StartWriterTask(conn, cts.Token, delayMs: 500);
 
         // Процесс 2: Периодический обход страницы со списком резюме
+        var resumeListHttpClient = new SmartHttpClient(
+            httpClient, 
+            "ResumeListPageScraper", 
+            trafficStats,
+            enableRetry: false,
+            enableTrafficMeasuring: AppConfig.ResumeListEnableTrafficMeasuring);
         var resumeListScraper = new ResumeListPageScraper(
-            httpClient,
+            resumeListHttpClient,
             enqueueToSaveQueue: item =>
             {
                 db.EnqueueResume(item.link, item.title);
@@ -59,8 +73,14 @@ class Program
         Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
         Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
         
+        var companyListHttpClient = new SmartHttpClient(
+            httpClient, 
+            "CompanyListScraper", 
+            trafficStats,
+            enableRetry: false,
+            enableTrafficMeasuring: AppConfig.CompaniesEnableTrafficMeasuring);
         var companyListScraper = new CompanyListScraper(
-            httpClient,
+            companyListHttpClient,
             enqueueCompany: (companyCode, companyUrl) =>
             {
                 db.EnqueueCompany(companyCode, companyUrl);
@@ -72,8 +92,14 @@ class Program
         _ = companyListScraper.StartAsync(cts.Token);
 
         // Процесс 4: Периодический сбор category_root_id
+        var categoryHttpClient = new SmartHttpClient(
+            httpClient, 
+            "CategoryScraper", 
+            trafficStats,
+            enableRetry: false,
+            enableTrafficMeasuring: AppConfig.CategoryEnableTrafficMeasuring);
         var categoryScraper = new CategoryScraper(
-            httpClient,
+            categoryHttpClient,
             enqueueCategory: (categoryId, categoryName) =>
             {
                 db.EnqueueCategoryRootId(categoryId, categoryName);
@@ -86,8 +112,14 @@ class Program
         // Процесс 5: Периодический обход подписчиков компаний
         Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
         
+        var companyFollowersHttpClient = new SmartHttpClient(
+            httpClient, 
+            "CompanyFollowersScraper", 
+            trafficStats,
+            enableRetry: false,
+            enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring);
         var companyFollowersScraper = new CompanyFollowersScraper(
-            httpClient,
+            companyFollowersHttpClient,
             enqueueUser: (link, username, slogan, mode) =>
             {
                 db.EnqueueResume(link, username, slogan, mode);
@@ -99,9 +131,18 @@ class Program
         _ = companyFollowersScraper.StartAsync(cts.Token);
 
         // Процесс 1: Перебор всех возможных имен пользователей
+        var bruteForceHttpClient = new SmartHttpClient(
+            httpClient, 
+            "BruteForceUsernameScraper", 
+            trafficStats,
+            enableRetry: AppConfig.BruteForceEnableRetry,
+            enableTrafficMeasuring: AppConfig.BruteForceEnableTrafficMeasuring,
+            maxRetries: AppConfig.MaxRetries,
+            baseDelay: TimeSpan.FromMilliseconds(400),
+            maxDelay: TimeSpan.FromSeconds(30));
         var bruteForceScraperTask = Task.Run(async () =>
         {
-            var bruteForceScraper = new BruteForceUsernameScraper(httpClient, db, controller);
+            var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
             await bruteForceScraper.RunAsync(cts.Token);
         }, cts.Token);
 

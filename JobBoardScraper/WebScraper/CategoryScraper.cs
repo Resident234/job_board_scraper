@@ -8,13 +8,13 @@ namespace JobBoardScraper.WebScraper;
 /// </summary>
 public sealed class CategoryScraper : IDisposable
 {
-    private readonly HttpClient _httpClient;
+    private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string> _enqueueCategory;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
     public CategoryScraper(
-        HttpClient httpClient,
+        SmartHttpClient httpClient,
         Action<string, string> enqueueCategory,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)

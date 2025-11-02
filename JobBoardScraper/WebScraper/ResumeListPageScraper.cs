@@ -9,13 +9,13 @@ public readonly record struct ResumeItem(string link, string title);
 public sealed class ResumeListPageScraper
 {
     private static readonly Uri BaseUri = new(AppConfig.BaseUrl);
-    private readonly HttpClient _httpClient;
+    private readonly SmartHttpClient _httpClient;
     private readonly Action<ResumeItem> _enqueueToSaveQueue;
     private readonly TimeSpan _interval;
     private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
 
     public ResumeListPageScraper(
-        HttpClient httpClient,
+        SmartHttpClient httpClient,
         Action<ResumeItem> enqueueToSaveQueue,
         TimeSpan? interval = null)
     {

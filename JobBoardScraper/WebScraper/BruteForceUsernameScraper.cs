@@ -9,14 +9,14 @@ namespace JobBoardScraper.WebScraper;
 /// </summary>
 public sealed class BruteForceUsernameScraper
 {
-    private readonly HttpClient _httpClient;
+    private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly AdaptiveConcurrencyController _controller;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly ConcurrentDictionary<int, int> _responseStats = new();
 
     public BruteForceUsernameScraper(
-        HttpClient httpClient,
+        SmartHttpClient httpClient,
         DatabaseClient db,
         AdaptiveConcurrencyController controller)
     {
@@ -70,12 +70,8 @@ public sealed class BruteForceUsernameScraper
                     {
                         var sw = System.Diagnostics.Stopwatch.StartNew();
 
-                        var result = await HttpRetry.FetchAsync(
-                            _httpClient,
+                        var result = await _httpClient.FetchAsync(
                             link,
-                            maxRetries: AppConfig.MaxRetries,
-                            baseDelay: TimeSpan.FromMilliseconds(400),
-                            maxDelay: TimeSpan.FromSeconds(30),
                             infoLog: msg => Console.WriteLine(msg),
                             responseStats: r => RecordResponseStats((int)r.StatusCode)
                         );

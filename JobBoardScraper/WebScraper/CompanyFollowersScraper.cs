@@ -7,14 +7,14 @@ namespace JobBoardScraper.WebScraper;
 /// </summary>
 public sealed class CompanyFollowersScraper : IDisposable
 {
-    private readonly HttpClient _httpClient;
+    private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string, string?, InsertMode> _enqueueUser;
     private readonly Func<List<string>> _getCompanyCodes;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
     public CompanyFollowersScraper(
-        HttpClient httpClient,
+        SmartHttpClient httpClient,
         Action<string, string, string?, InsertMode> enqueueUser,
         Func<List<string>> getCompanyCodes,
         TimeSpan? interval = null,

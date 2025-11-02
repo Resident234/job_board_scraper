@@ -12,14 +12,14 @@ namespace JobBoardScraper.WebScraper;
 public sealed class CompanyListScraper : IDisposable
 {
     private readonly Regex _companyHrefRegex;
-    private readonly HttpClient _httpClient;
+    private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string> _enqueueCompany;
     private readonly Func<List<string>> _getCategoryIds;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
     public CompanyListScraper(
-        HttpClient httpClient,
+        SmartHttpClient httpClient,
         Action<string, string> enqueueCompany,
         Func<List<string>> getCategoryIds,
         TimeSpan? interval = null,

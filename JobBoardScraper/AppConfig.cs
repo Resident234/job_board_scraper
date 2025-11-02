@@ -21,6 +21,10 @@ public static class AppConfig
     
     public static int MaxRetries => int.TryParse(ConfigurationManager.AppSettings["BruteForce:MaxRetries"], out var value) ? value : 200;
     
+    public static bool BruteForceEnableRetry => bool.TryParse(ConfigurationManager.AppSettings["BruteForce:EnableRetry"], out var value) && value;
+    
+    public static bool BruteForceEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["BruteForce:EnableTrafficMeasuring"], out var value) ? value : true;
+    
     // Настройки для CompanyListScraper
     public static string CompaniesListUrl => ConfigurationManager.AppSettings["Companies:ListUrl"] ?? "https://career.habr.com/companies";
     
@@ -40,6 +44,8 @@ public static class AppConfig
             return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
         }
     }
+    
+    public static bool CompaniesEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Companies:EnableTrafficMeasuring"], out var value) ? value : true;
     
     // Настройки для CompanyFollowersScraper
     public static string CompanyFollowersUrlTemplate => ConfigurationManager.AppSettings["CompanyFollowers:UrlTemplate"] ?? "https://career.habr.com/companies/{0}/followers";
@@ -61,8 +67,27 @@ public static class AppConfig
         }
     }
     
+    public static bool CompanyFollowersEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    // Общие настройки для скраперов
+    public static bool ResumeListEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static bool CategoryEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Category:EnableTrafficMeasuring"], out var value) ? value : true;
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
+    
+    // Настройки статистики трафика
+    public static string TrafficStatsOutputFile => ConfigurationManager.AppSettings["Traffic:OutputFile"] ?? "./logs/traffic_stats.txt";
+    
+    public static TimeSpan TrafficStatsSaveInterval
+    {
+        get
+        {
+            var minutes = int.TryParse(ConfigurationManager.AppSettings["Traffic:SaveIntervalMinutes"], out var value) ? value : 5;
+            return TimeSpan.FromMinutes(minutes);
+        }
+    }
     
     // Настройки базы данных
     public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ?? "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";

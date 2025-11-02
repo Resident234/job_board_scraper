@@ -111,6 +111,91 @@ psql -U postgres -d jobs -f sql/create_index.sql
 
 Подробнее см. [sql/README.md](../sql/README.md)
 
+## SmartHttpClient - Умная обёртка над HttpClient
+
+`SmartHttpClient` - это универсальная обёртка, которая добавляет к стандартному `HttpClient` две ключевые возможности:
+
+### Возможности
+
+1. **Автоматические повторы (Retry)**
+   - Экспоненциальная задержка между попытками
+   - Обработка транзиентных ошибок (408, 429, 500, 502, 503, 504)
+   - Учёт заголовка `Retry-After`
+   - Настраиваемое количество попыток и задержек
+
+2. **Измерение трафика**
+   - Автоматический подсчёт размера каждого HTTP-ответа
+   - Статистика по каждому скраперу отдельно
+   - Общая статистика по всем скраперам
+   - Сохранение в файл с настраиваемым интервалом
+
+### Настройка через конфигурацию
+
+Каждый скрапер имеет индивидуальные настройки:
+
+```xml
+<!-- BruteForceUsernameScraper: повторы + измерение трафика -->
+<add key="BruteForce:EnableRetry" value="true" />
+<add key="BruteForce:EnableTrafficMeasuring" value="true" />
+
+<!-- Остальные скраперы: только измерение трафика -->
+<add key="Companies:EnableTrafficMeasuring" value="true" />
+<add key="CompanyFollowers:EnableTrafficMeasuring" value="true" />
+<add key="ResumeList:EnableTrafficMeasuring" value="true" />
+<add key="Category:EnableTrafficMeasuring" value="true" />
+
+<!-- Настройки статистики трафика -->
+<add key="Traffic:OutputFile" value="./logs/traffic_stats.txt" />
+<add key="Traffic:SaveIntervalMinutes" value="5" />
+```
+
+### Пример использования
+
+```csharp
+// Создание SmartHttpClient для скрапера с повторами и измерением трафика
+var smartClient = new SmartHttpClient(
+    httpClient,
+    scraperName: "BruteForceUsernameScraper",
+    trafficStats: trafficStats,
+    enableRetry: true,
+    enableTrafficMeasuring: true,
+    maxRetries: 200,
+    baseDelay: TimeSpan.FromMilliseconds(400),
+    maxDelay: TimeSpan.FromSeconds(30)
+);
+
+// Использование в скрапере
+var result = await smartClient.FetchAsync(url, infoLog: Console.WriteLine);
+```
+
+### Статистика трафика
+
+Статистика автоматически сохраняется в файл (по умолчанию каждые 5 минут):
+
+```
+================================================================================
+Traffic Statistics Report - 2025-11-02 12:30:00
+================================================================================
+
+OVERALL STATISTICS:
+  Total Requests: 1,234
+  Total Traffic:  45.67 MB
+  Average/Request: 37.92 KB
+
+PER-SCRAPER STATISTICS:
+--------------------------------------------------------------------------------
+  BruteForceUsernameScraper:
+    Requests:     500
+    Total:        18.5 MB
+    Avg/Request:  37.92 KB
+
+  CompanyListScraper:
+    Requests:     234
+    Total:        8.2 MB
+    Avg/Request:  35.04 KB
+...
+```
+
 ## Логирование
 
 Каждый процесс может иметь свой режим вывода:

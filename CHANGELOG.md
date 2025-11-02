@@ -1,5 +1,44 @@
 # Changelog
 
+## 2025-11-02 - Traffic Statistics
+
+### Добавлено
+- **TrafficStatistics** - система сбора статистики HTTP-трафика
+  - Измерение размера каждого HTTP-ответа
+  - Сбор статистики по каждому скраперу отдельно
+  - Общая статистика по всем скраперам
+  - Автоматическое сохранение в файл с настраиваемым интервалом
+  - Форматирование размеров (B, KB, MB, GB)
+  
+- **SmartHttpClient** - универсальная обёртка над HttpClient
+  - Объединяет функциональность `HttpRetry` и `TrafficMeasuringHttpClient`
+  - Автоматические повторы при ошибках (retry) - настраивается
+  - Измерение трафика - настраивается
+  - Индивидуальные настройки для каждого скрапера через конфигурацию
+  
+- **Настройки в App.config**
+  - `Traffic:OutputFile` - путь к файлу статистики
+  - `Traffic:SaveIntervalMinutes` - интервал сохранения (по умолчанию 5 минут)
+  - `BruteForce:EnableRetry` - включить повторы (true для BruteForce)
+  - `BruteForce:EnableTrafficMeasuring` - включить измерение трафика
+  - `Companies:EnableTrafficMeasuring` - включить измерение для CompanyListScraper
+  - `CompanyFollowers:EnableTrafficMeasuring` - включить измерение для CompanyFollowersScraper
+  - `ResumeList:EnableTrafficMeasuring` - включить измерение для ResumeListPageScraper
+  - `Category:EnableTrafficMeasuring` - включить измерение для CategoryScraper
+
+### Изменено
+- **Все 5 скраперов** теперь используют `SmartHttpClient`:
+  - `BruteForceUsernameScraper` - с включёнными повторами и измерением трафика
+  - `ResumeListPageScraper` - только измерение трафика
+  - `CompanyListScraper` - только измерение трафика
+  - `CategoryScraper` - только измерение трафика
+  - `CompanyFollowersScraper` - только измерение трафика
+- `Program.cs` создаёт отдельный `SmartHttpClient` для каждого скрапера с индивидуальными настройками
+
+### Удалено
+- `TrafficMeasuringHttpClient` - заменён на `SmartHttpClient`
+- Перегрузки `HttpRetry.FetchAsync` - функциональность перенесена в `SmartHttpClient`
+
 ## 2025-11-01 - Company Followers Scraper
 
 ### Добавлено
