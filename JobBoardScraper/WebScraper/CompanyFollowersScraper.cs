@@ -14,6 +14,7 @@ public sealed class CompanyFollowersScraper : IDisposable
     private readonly AdaptiveConcurrencyController _controller;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
 
     public CompanyFollowersScraper(
         SmartHttpClient httpClient,
@@ -94,6 +95,8 @@ public sealed class CompanyFollowersScraper : IDisposable
             source: companyCodes,
             body: async companyCode =>
             {
+                _activeRequests.TryAdd(companyCode, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
+                
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 
                 try
@@ -111,13 +114,18 @@ public sealed class CompanyFollowersScraper : IDisposable
                         var percent = completed * 100.0 / companyCodes.Count;
                         _logger.WriteLine($"Компания {companyCode}: найдено {usersFound} пользователей. " +
                             $"Обработано: {completed}/{companyCodes.Count} ({percent:F2}%). " +
-                            $"Время: {sw.Elapsed.TotalSeconds:F2}с");
+                            $"Время: {sw.Elapsed.TotalSeconds:F2}с. " + 
+                            $"Параллельных процессов: {_activeRequests.Count}");
                     }
                 }
                 catch (Exception ex)
                 {
                     sw.Stop();
                     _logger.WriteLine($"Ошибка при обработке компании {companyCode}: {ex.Message}");
+                }
+                finally
+                {
+                    _activeRequests.TryRemove(companyCode, out _);
                 }
             },
             controller: _controller,
@@ -141,6 +149,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 _logger.WriteLine($"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
+                _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}");
                 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -149,6 +158,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 }
 
                 var html = await response.Content.ReadAsStringAsync(ct);
+                
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                 var userItems = doc.QuerySelectorAll(AppConfig.CompanyFollowersUserItemSelector);
