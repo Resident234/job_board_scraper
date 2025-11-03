@@ -155,6 +155,7 @@ class Program
                     db.EnqueueResume(link, username, slogan, mode);
                 },
                 getCompanyCodes: () => db.GetAllCompanyCodes(conn),
+                controller: controller,
                 interval: TimeSpan.FromDays(5),
                 outputMode: AppConfig.CompanyFollowersOutputMode);
 

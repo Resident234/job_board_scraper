@@ -4,12 +4,14 @@ namespace JobBoardScraper.WebScraper;
 
 /// <summary>
 /// Обходит страницы подписчиков компаний и извлекает профили пользователей
+/// Использует AdaptiveConcurrencyController для параллельной обработки компаний
 /// </summary>
 public sealed class CompanyFollowersScraper : IDisposable
 {
     private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string, string?, InsertMode> _enqueueUser;
     private readonly Func<List<string>> _getCompanyCodes;
+    private readonly AdaptiveConcurrencyController _controller;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
@@ -17,12 +19,14 @@ public sealed class CompanyFollowersScraper : IDisposable
         SmartHttpClient httpClient,
         Action<string, string, string?, InsertMode> enqueueUser,
         Func<List<string>> getCompanyCodes,
+        AdaptiveConcurrencyController controller,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueUser = enqueueUser ?? throw new ArgumentNullException(nameof(enqueueUser));
         _getCompanyCodes = getCompanyCodes ?? throw new ArgumentNullException(nameof(getCompanyCodes));
+        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(7);
         
         _logger = new ConsoleLogger("CompanyFollowersScraper");
@@ -82,19 +86,43 @@ public sealed class CompanyFollowersScraper : IDisposable
         _logger.WriteLine($"Загружено {companyCodes.Count} компаний для обхода");
         
         var totalUsersFound = 0;
+        var completed = 0;
+        var lockObj = new object();
         
-        foreach (var companyCode in companyCodes)
-        {
-            if (ct.IsCancellationRequested)
-                break;
+        // Используем AdaptiveForEach для параллельной обработки компаний
+        await AdaptiveForEach.ForEachAdaptiveAsync(
+            source: companyCodes,
+            body: async companyCode =>
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 
-            _logger.WriteLine($"Обработка компании: {companyCode}");
-            var usersFound = await ScrapeCompanyFollowersAsync(companyCode, ct);
-            totalUsersFound += usersFound;
-            
-            // Небольшая задержка между компаниями
-            await Task.Delay(TimeSpan.FromSeconds(1), ct);
-        }
+                try
+                {
+                    _logger.WriteLine($"Обработка компании: {companyCode}");
+                    var usersFound = await ScrapeCompanyFollowersAsync(companyCode, ct);
+                    
+                    sw.Stop();
+                    _controller.ReportLatency(sw.Elapsed);
+                    
+                    lock (lockObj)
+                    {
+                        totalUsersFound += usersFound;
+                        completed++;
+                        var percent = completed * 100.0 / companyCodes.Count;
+                        _logger.WriteLine($"Компания {companyCode}: найдено {usersFound} пользователей. " +
+                            $"Обработано: {completed}/{companyCodes.Count} ({percent:F2}%). " +
+                            $"Время: {sw.Elapsed.TotalSeconds:F2}с");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    sw.Stop();
+                    _logger.WriteLine($"Ошибка при обработке компании {companyCode}: {ex.Message}");
+                }
+            },
+            controller: _controller,
+            ct: ct
+        );
         
         _logger.WriteLine($"Обход завершён. Всего найдено пользователей: {totalUsersFound}");
     }
