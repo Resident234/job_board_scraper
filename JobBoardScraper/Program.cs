@@ -10,6 +10,7 @@ namespace JobBoardScraper;
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
 /// 4. CategoryScraper - периодический сбор category_root_id (раз в неделю)
 /// 5. CompanyFollowersScraper - периодический обход подписчиков компаний (каждые 5 дней)
+/// TODO при переборе прогресс выводить, там где известно заранее число элементов
 /// </summary>
 class Program
 {
