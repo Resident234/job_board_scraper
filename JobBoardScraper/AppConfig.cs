@@ -54,6 +54,15 @@ public static class AppConfig
     // Настройки для CompanyFollowersScraper
     public static bool CompanyFollowersEnabled => bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:Enabled"], out var value) ? value : true;
     
+    public static TimeSpan CompanyFollowersTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:TimeoutSeconds"], out var value) ? value : 300;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+    
     public static string CompanyFollowersUrlTemplate => ConfigurationManager.AppSettings["CompanyFollowers:UrlTemplate"] ?? "https://career.habr.com/companies/{0}/followers";
     
     public static string CompanyFollowersUserItemSelector => ConfigurationManager.AppSettings["CompanyFollowers:UserItemSelector"] ?? ".user_friends_item";

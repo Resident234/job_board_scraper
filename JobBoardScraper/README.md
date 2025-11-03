@@ -81,6 +81,7 @@
 
 ### CompanyFollowersScraper
 - `CompanyFollowers:Enabled` - включить/отключить скрапер (по умолчанию: `true`)
+- `CompanyFollowers:TimeoutSeconds` - таймаут HTTP-запроса в секундах (по умолчанию: `300` = 5 минут)
 - `CompanyFollowers:UrlTemplate` - шаблон URL для страницы подписчиков (поддерживает {0} для кода компании)
 - `CompanyFollowers:UserItemSelector` - CSS селектор для блока пользователя (`.user_friends_item`)
 - `CompanyFollowers:UsernameSelector` - CSS селектор для имени пользователя (`.username`)

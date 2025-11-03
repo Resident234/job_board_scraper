@@ -139,13 +139,15 @@ class Program
         {
             Console.WriteLine("[Program] CompanyFollowersScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
+            Console.WriteLine($"[Program] Timeout CompanyFollowersScraper: {AppConfig.CompanyFollowersTimeout.TotalSeconds} секунд");
             
             var companyFollowersHttpClient = new SmartHttpClient(
                 httpClient, 
                 "CompanyFollowersScraper", 
                 trafficStats,
                 enableRetry: false,
-                enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring);
+                enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring,
+                timeout: AppConfig.CompanyFollowersTimeout);
             var companyFollowersScraper = new CompanyFollowersScraper(
                 companyFollowersHttpClient,
                 enqueueUser: (link, username, slogan, mode) =>

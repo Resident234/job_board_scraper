@@ -27,6 +27,7 @@ public sealed class SmartHttpClient
     private readonly int _maxRetries;
     private readonly TimeSpan _baseDelay;
     private readonly TimeSpan _maxDelay;
+    private readonly TimeSpan _timeout;
 
     public SmartHttpClient(
         HttpClient httpClient,
@@ -36,7 +37,8 @@ public sealed class SmartHttpClient
         bool enableTrafficMeasuring = true,
         int maxRetries = 5,
         TimeSpan? baseDelay = null,
-        TimeSpan? maxDelay = null)
+        TimeSpan? maxDelay = null,
+        TimeSpan? timeout = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _scraperName = scraperName ?? throw new ArgumentNullException(nameof(scraperName));
@@ -46,6 +48,7 @@ public sealed class SmartHttpClient
         _maxRetries = maxRetries;
         _baseDelay = baseDelay ?? TimeSpan.FromMilliseconds(500);
         _maxDelay = maxDelay ?? TimeSpan.FromSeconds(30);
+        _timeout = timeout ?? TimeSpan.FromSeconds(10);
     }
 
     /// <summary>
@@ -145,7 +148,11 @@ public sealed class SmartHttpClient
 
     private async Task<HttpResponseMessage> GetSimpleAsync(string requestUri, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+        // Создаём CancellationTokenSource с timeout
+        using var timeoutCts = new CancellationTokenSource(_timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        
+        var response = await _httpClient.GetAsync(requestUri, linkedCts.Token);
 
         // Измеряем трафик, если включено
         if (_enableTrafficMeasuring && _trafficStats != null && response.Content != null)
