@@ -83,166 +83,208 @@ public sealed class ExpertsScraper : IDisposable
         var totalExpertsFound = 0;
         var totalCompaniesFound = 0;
         var hasMorePages = true;
+        const int maxPageRetries = 3; // Максимум попыток для одной страницы
 
         while (hasMorePages && !ct.IsCancellationRequested)
         {
-            try
+            var pageRetryCount = 0;
+            var pageProcessed = false;
+
+            while (!pageProcessed && pageRetryCount < maxPageRetries && !ct.IsCancellationRequested)
             {
-                var url = BuildUrl(page);
-                _logger.WriteLine($"Обработка страницы {page}: {url}");
-
-                var response = await _httpClient.GetAsync(url, ct);
-                
-                if (!response.IsSuccessStatusCode)
+                try
                 {
-                    _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
-                    break;
-                }
-
-                // Читаем HTML с правильной кодировкой
-                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                
-                // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
-                var encoding = response.Content.Headers.ContentType?.CharSet != null
-                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                    : System.Text.Encoding.UTF8;
-                
-                var html = encoding.GetString(htmlBytes);
-                
-                // Сохраняем HTML в файл для отладки
-                var savedPath = await HtmlDebug.SaveHtmlAsync(
-                    html, 
-                    "ExpertsScraper", 
-                    "last_page.html",
-                    encoding: encoding,
-                    ct: ct);
-                
-                if (savedPath != null)
-                {
-                    _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
-                }
-                else
-                {
-                    _logger.WriteLine("Не удалось сохранить HTML для отладки.");
-                }
-                
-                var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                // Ищем карточки экспертов
-                var expertCards = doc.QuerySelectorAll(".expert-card");
-                
-                _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
-
-                var expertsOnPage = 0;
-                var companiesOnPage = 0;
-
-                foreach (var card in expertCards)
-                {
-                    try
+                    var url = BuildUrl(page);
+                    
+                    if (pageRetryCount > 0)
                     {
-                        // Извлекаем данные эксперта
-                        var titleLink = card.QuerySelector("a.expert-card__title-link");
-                        if (titleLink == null) continue;
+                        _logger.WriteLine($"Повторная попытка {pageRetryCount + 1}/{maxPageRetries} для страницы {page}: {url}");
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"Обработка страницы {page}: {url}");
+                    }
 
-                        var name = titleLink.TextContent?.Trim();
-                        var href = titleLink.GetAttribute("href");
-                        
-                        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(href))
-                            continue;
+                    var response = await _httpClient.GetAsync(url, ct);
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
+                        hasMorePages = false;
+                        pageProcessed = true;
+                        break;
+                    }
 
-                        // Извлекаем код из href
-                        var match = _codeRegex.Match(href);
-                        var code = match.Success ? match.Groups[1].Value : null;
+                    // Читаем HTML с правильной кодировкой
+                    var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                    
+                    // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
+                    var encoding = response.Content.Headers.ContentType?.CharSet != null
+                        ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                        : System.Text.Encoding.UTF8;
+                    
+                    var html = encoding.GetString(htmlBytes);
+                    
+                    // Сохраняем HTML в файл для отладки
+                    var savedPath = await HtmlDebug.SaveHtmlAsync(
+                        html, 
+                        "ExpertsScraper", 
+                        "last_page.html",
+                        encoding: encoding,
+                        ct: ct);
+                    
+                    if (savedPath != null)
+                    {
+                        _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
+                    }
+                    else
+                    {
+                        _logger.WriteLine("Не удалось сохранить HTML для отладки.");
+                    }
+                    
+                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                        // Формируем полный URL
-                        var fullUrl = href.StartsWith("http") 
-                            ? href 
-                            : $"{AppConfig.BaseUrl.TrimEnd('/')}{href}";
+                    // Ищем карточки экспертов
+                    var expertCards = doc.QuerySelectorAll(".expert-card");
+                    
+                    _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
 
-                        // Извлекаем стаж работы
-                        string? workExperience = null;
-                        var spans = card.QuerySelectorAll("span");
-                        foreach (var span in spans)
+                    var expertsOnPage = 0;
+                    var companiesOnPage = 0;
+
+                    foreach (var card in expertCards)
+                    {
+                        try
                         {
-                            var text = span.TextContent?.Trim();
-                            if (!string.IsNullOrWhiteSpace(text) && text.StartsWith("Стаж "))
-                            {
-                                workExperience = text.Replace("Стаж ", "").Trim();
-                                break;
-                            }
-                        }
+                            // Извлекаем данные эксперта
+                            var titleLink = card.QuerySelector("a.expert-card__title-link");
+                            if (titleLink == null) continue;
 
-                        // Сохраняем эксперта
-                        _db.EnqueueResume(
-                            link: fullUrl,
-                            title: name,
-                            slogan: null,
-                            mode: InsertMode.UpdateIfExists,
-                            code: code,
-                            expert: true,
-                            workExperience: workExperience);
-
-                        _logger.WriteLine($"Эксперт: {name} ({code}) -> {fullUrl}" + 
-                            (workExperience != null ? $" | Стаж: {workExperience}" : ""));
-                        expertsOnPage++;
-
-                        // Извлекаем компанию
-                        var companyLink = card.QuerySelector("a.link-comp");
-                        if (companyLink != null)
-                        {
-                            var companyName = companyLink.TextContent?.Trim();
-                            var companyHref = companyLink.GetAttribute("href");
+                            var name = titleLink.TextContent?.Trim();
+                            var href = titleLink.GetAttribute("href");
                             
-                            if (!string.IsNullOrWhiteSpace(companyName) && !string.IsNullOrWhiteSpace(companyHref))
-                            {
-                                // Извлекаем код компании из href
-                                var companyCodeMatch = Regex.Match(companyHref, @"/companies/([^/]+)");
-                                if (companyCodeMatch.Success)
-                                {
-                                    var companyCode = companyCodeMatch.Groups[1].Value;
-                                    var companyUrl = companyHref.StartsWith("http") 
-                                        ? companyHref 
-                                        : $"https://career.habr.com{companyHref}";
+                            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(href))
+                                continue;
 
-                                    _db.EnqueueCompany(companyCode, companyUrl);
-                                    _logger.WriteLine($"Компания: {companyName} ({companyCode}) -> {companyUrl}");
-                                    companiesOnPage++;
+                            // Извлекаем код из href
+                            var match = _codeRegex.Match(href);
+                            var code = match.Success ? match.Groups[1].Value : null;
+
+                            // Формируем полный URL
+                            var fullUrl = href.StartsWith("http") 
+                                ? href 
+                                : $"{AppConfig.BaseUrl.TrimEnd('/')}{href}";
+
+                            // Извлекаем стаж работы
+                            string? workExperience = null;
+                            var spans = card.QuerySelectorAll("span");
+                            foreach (var span in spans)
+                            {
+                                var text = span.TextContent?.Trim();
+                                if (!string.IsNullOrWhiteSpace(text) && text.StartsWith("Стаж "))
+                                {
+                                    workExperience = text.Replace("Стаж ", "").Trim();
+                                    break;
                                 }
                             }
+
+                            // Сохраняем эксперта
+                            _db.EnqueueResume(
+                                link: fullUrl,
+                                title: name,
+                                slogan: null,
+                                mode: InsertMode.UpdateIfExists,
+                                code: code,
+                                expert: true,
+                                workExperience: workExperience);
+
+                            _logger.WriteLine($"Эксперт: {name} ({code}) -> {fullUrl}" + 
+                                (workExperience != null ? $" | Стаж: {workExperience}" : ""));
+                            expertsOnPage++;
+
+                            // Извлекаем компанию
+                            var companyLink = card.QuerySelector("a.link-comp");
+                            if (companyLink != null)
+                            {
+                                var companyName = companyLink.TextContent?.Trim();
+                                var companyHref = companyLink.GetAttribute("href");
+                                
+                                if (!string.IsNullOrWhiteSpace(companyName) && !string.IsNullOrWhiteSpace(companyHref))
+                                {
+                                    // Извлекаем код компании из href
+                                    var companyCodeMatch = Regex.Match(companyHref, @"/companies/([^/]+)");
+                                    if (companyCodeMatch.Success)
+                                    {
+                                        var companyCode = companyCodeMatch.Groups[1].Value;
+                                        var companyUrl = companyHref.StartsWith("http") 
+                                            ? companyHref 
+                                            : $"https://career.habr.com{companyHref}";
+
+                                        _db.EnqueueCompany(companyCode, companyUrl);
+                                        _logger.WriteLine($"Компания: {companyName} ({companyCode}) -> {companyUrl}");
+                                        companiesOnPage++;
+                                    }
+                                }
+                            }
+
+                            totalExpertsFound++;
                         }
-
-                        totalExpertsFound++;
+                        catch (Exception ex)
+                        {
+                            _logger.WriteLine($"Ошибка при обработке карточки эксперта: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
+
+                    totalCompaniesFound += companiesOnPage;
+                    _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов, {companiesOnPage} компаний.");
+
+                    // Пагинация загружается через AJAX, поэтому просто переходим на следующую страницу
+                    // Если на странице нет экспертов, значит достигнут конец
+                    if (expertsOnPage == 0)
                     {
-                        _logger.WriteLine($"Ошибка при обработке карточки эксперта: {ex.Message}");
+                        _logger.WriteLine($"На странице {page} не найдено экспертов. Достигнута последняя страница.");
+                        hasMorePages = false;
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"Переход на страницу {page + 1}...");
+                    }
+
+                    // Страница успешно обработана
+                    pageProcessed = true;
+                    page++;
+                    
+                    // Небольшая задержка между запросами
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Отмена операции - прерываем обработку
+                    _logger.WriteLine($"Операция отменена на странице {page}.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    pageRetryCount++;
+                    
+                    if (pageRetryCount >= maxPageRetries)
+                    {
+                        _logger.WriteLine($"Ошибка на странице {page} после {maxPageRetries} попыток: {ex.Message}");
+                        _logger.WriteLine($"Пропускаем страницу {page} и переходим к следующей.");
+                        
+                        // Пропускаем проблемную страницу и переходим к следующей
+                        pageProcessed = true;
+                        page++;
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"Ошибка на странице {page} (попытка {pageRetryCount}/{maxPageRetries}): {ex.Message}");
+                        _logger.WriteLine($"Повтор через 2 секунды...");
+                        
+                        // Задержка перед повтором
+                        await Task.Delay(TimeSpan.FromSeconds(2), ct);
                     }
                 }
-
-                totalCompaniesFound += companiesOnPage;
-                _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов, {companiesOnPage} компаний.");
-
-                // Пагинация загружается через AJAX, поэтому просто переходим на следующую страницу
-                // Если на странице нет экспертов, значит достигнут конец
-                if (expertsOnPage == 0)
-                {
-                    _logger.WriteLine($"На странице {page} не найдено экспертов. Достигнута последняя страница.");
-                    hasMorePages = false;
-                }
-                else
-                {
-                    _logger.WriteLine($"Переход на страницу {page + 1}...");
-                }
-
-                page++;
-                
-                // Небольшая задержка между запросами
-                await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.WriteLine($"Ошибка на странице {page}: {ex.Message}");
-                hasMorePages = false;
             }
         }
         

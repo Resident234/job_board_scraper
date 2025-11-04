@@ -141,8 +141,12 @@ class Program
             Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
             Console.WriteLine($"[Program] Timeout CompanyFollowersScraper: {AppConfig.CompanyFollowersTimeout.TotalSeconds} секунд");
             
+            // Создаём отдельный HttpClient с нужным timeout
+            var companyFollowersBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.CompanyFollowersTimeout.TotalSeconds);
+            
             var companyFollowersHttpClient = new SmartHttpClient(
-                httpClient, 
+                companyFollowersBaseHttpClient, 
                 "CompanyFollowersScraper", 
                 trafficStats,
                 enableRetry: false,
@@ -171,13 +175,19 @@ class Program
         {
             Console.WriteLine("[Program] ExpertsScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода ExpertsScraper: {AppConfig.ExpertsOutputMode}");
+            Console.WriteLine($"[Program] Timeout ExpertsScraper: {AppConfig.ExpertsTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var expertsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.ExpertsTimeout.TotalSeconds);
             
             var expertsHttpClient = new SmartHttpClient(
-                httpClient, 
+                expertsBaseHttpClient, 
                 "ExpertsScraper", 
                 trafficStats,
-                enableRetry: false,
-                enableTrafficMeasuring: AppConfig.ExpertsEnableTrafficMeasuring);
+                enableRetry: AppConfig.ExpertsEnableRetry,
+                enableTrafficMeasuring: AppConfig.ExpertsEnableTrafficMeasuring,
+                timeout: AppConfig.ExpertsTimeout);
             var expertsScraper = new ExpertsScraper(
                 expertsHttpClient,
                 db,

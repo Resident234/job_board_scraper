@@ -89,6 +89,17 @@ public static class AppConfig
     
     public static string ExpertsListUrl => ConfigurationManager.AppSettings["Experts:ListUrl"] ?? "https://career.habr.com/experts?order=lastActive";
     
+    public static TimeSpan ExpertsTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["Experts:TimeoutSeconds"], out var value) ? value : 60;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+    
+    public static bool ExpertsEnableRetry => bool.TryParse(ConfigurationManager.AppSettings["Experts:EnableRetry"], out var value) ? value : true;
+    
     public static bool ExpertsEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Experts:EnableTrafficMeasuring"], out var value) ? value : true;
     
     public static OutputMode ExpertsOutputMode
