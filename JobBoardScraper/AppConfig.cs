@@ -177,6 +177,8 @@ public static class AppConfig
     
     public static string CompanyDetailCompanySiteLinkSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanySiteLinkSelector"] ?? "a";
     
+    public static string CompanyDetailCompanyRatingSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyRatingSelector"] ?? "span.rating";
+    
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования

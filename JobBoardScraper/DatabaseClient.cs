@@ -332,14 +332,19 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.CompanyDetails:
-                            // Парсим данные из формата "companyId|companyTitle|companyAbout|companySite"
+                            // Парсим данные из формата "companyId|companyTitle|companyAbout|companySite|companyRating"
                             var parts = record.SecondaryValue.Split('|');
-                            if (parts.Length >= 4 && long.TryParse(parts[0], out var companyIdDetails))
+                            if (parts.Length >= 5 && long.TryParse(parts[0], out var companyIdDetails))
                             {
                                 var companyTitle = string.IsNullOrEmpty(parts[1]) ? null : parts[1];
                                 var companyAbout = string.IsNullOrEmpty(parts[2]) ? null : parts[2];
                                 var companySite = string.IsNullOrEmpty(parts[3]) ? null : parts[3];
-                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout, companySite: companySite);
+                                decimal? companyRating = null;
+                                if (!string.IsNullOrEmpty(parts[4]) && decimal.TryParse(parts[4], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rating))
+                                {
+                                    companyRating = rating;
+                                }
+                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout, companySite: companySite, companyRating: companyRating);
                             }
                             break;
                     }
@@ -567,19 +572,20 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about и site в очередь на обновление в базе данных
+    /// Добавить company_id, title, about, site и rating в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null)
     {
         if (_saveQueue == null) return false;
 
-        // Формируем строку с данными: "companyId|companyTitle|companyAbout|companySite"
-        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}|{companySite ?? ""}";
+        // Формируем строку с данными: "companyId|companyTitle|companyAbout|companySite|companyRating"
+        var ratingStr = companyRating.HasValue ? companyRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}|{companySite ?? ""}|{ratingStr}";
         var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, dataString);
         _saveQueue.Enqueue(record);
         
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}");
+        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}");
         
         return true;
     }
@@ -626,9 +632,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about и site для компании
+    /// Обновить company_id, title, about, site и rating для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -643,6 +649,7 @@ public sealed class DatabaseClient
                     title = COALESCE(@title, title),
                     about = COALESCE(@about, about),
                     site = COALESCE(@site, site),
+                    rating = COALESCE(@rating, rating),
                     updated_at = NOW()
                 WHERE code = @code", conn);
             
@@ -651,13 +658,14 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
             if (rowsAffected > 0)
             {
                 var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}");
+                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}");
             }
             else
             {

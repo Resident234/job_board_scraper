@@ -179,6 +179,19 @@ public sealed class CompanyDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем рейтинг компании
+                decimal? companyRating = null;
+                var companyRatingElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyRatingSelector);
+                if (companyRatingElement != null)
+                {
+                    var ratingText = companyRatingElement.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(ratingText) && 
+                        decimal.TryParse(ratingText, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rating))
+                    {
+                        companyRating = rating;
+                    }
+                }
+
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                 
@@ -218,13 +231,13 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id, title, about и site в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite);
+                // Сохраняем company_id, title, about, site и rating в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 
                     : "(не найдено)";
-                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}");
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}");
                 
                 totalSuccess++;
                 totalProcessed++;
