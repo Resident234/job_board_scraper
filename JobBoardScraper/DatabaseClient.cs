@@ -16,6 +16,19 @@ public enum DbRecordType
     CompanyDetails
 }
 
+/// <summary>
+/// Структура для хранения детальных данных компании
+/// </summary>
+public readonly record struct CompanyDetailsData(
+    long CompanyId,
+    string? Title,
+    string? About,
+    string? Site,
+    decimal? Rating,
+    int? CurrentEmployees,
+    int? PastEmployees
+);
+
 public enum InsertMode
 {
     /// <summary>
@@ -37,7 +50,8 @@ public readonly record struct DbRecord(
     InsertMode Mode = InsertMode.SkipIfExists,
     string? Code = null,
     bool? Expert = null,
-    string? WorkExperience = null);
+    string? WorkExperience = null,
+    CompanyDetailsData? CompanyDetails = null);
 
 public sealed class DatabaseClient
 {
@@ -332,33 +346,21 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.CompanyDetails:
-                            // Парсим данные из формата "companyId|companyTitle|companyAbout|companySite|companyRating|currentEmployees|pastEmployees"
-                            var parts = record.SecondaryValue.Split('|');
-                            if (parts.Length >= 7 && long.TryParse(parts[0], out var companyIdDetails))
+                            // Используем структуру CompanyDetailsData
+                            if (record.CompanyDetails.HasValue)
                             {
-                                var companyTitle = string.IsNullOrEmpty(parts[1]) ? null : parts[1];
-                                var companyAbout = string.IsNullOrEmpty(parts[2]) ? null : parts[2];
-                                var companySite = string.IsNullOrEmpty(parts[3]) ? null : parts[3];
-                                
-                                decimal? companyRating = null;
-                                if (!string.IsNullOrEmpty(parts[4]) && decimal.TryParse(parts[4], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rating))
-                                {
-                                    companyRating = rating;
-                                }
-                                
-                                int? currentEmployees = null;
-                                if (!string.IsNullOrEmpty(parts[5]) && int.TryParse(parts[5], out var currentEmp))
-                                {
-                                    currentEmployees = currentEmp;
-                                }
-                                
-                                int? pastEmployees = null;
-                                if (!string.IsNullOrEmpty(parts[6]) && int.TryParse(parts[6], out var pastEmp))
-                                {
-                                    pastEmployees = pastEmp;
-                                }
-                                
-                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout, companySite: companySite, companyRating: companyRating, currentEmployees: currentEmployees, pastEmployees: pastEmployees);
+                                var details = record.CompanyDetails.Value;
+                                DatabaseUpdateCompanyDetails(
+                                    conn, 
+                                    companyCode: record.PrimaryValue, 
+                                    companyId: details.CompanyId, 
+                                    companyTitle: details.Title, 
+                                    companyAbout: details.About, 
+                                    companySite: details.Site, 
+                                    companyRating: details.Rating, 
+                                    currentEmployees: details.CurrentEmployees, 
+                                    pastEmployees: details.PastEmployees
+                                );
                             }
                             break;
                     }
@@ -592,12 +594,23 @@ public sealed class DatabaseClient
     {
         if (_saveQueue == null) return false;
 
-        // Формируем строку с данными: "companyId|companyTitle|companyAbout|companySite|companyRating|currentEmployees|pastEmployees"
-        var ratingStr = companyRating.HasValue ? companyRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
-        var currentEmpStr = currentEmployees.HasValue ? currentEmployees.Value.ToString() : "";
-        var pastEmpStr = pastEmployees.HasValue ? pastEmployees.Value.ToString() : "";
-        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}|{companySite ?? ""}|{ratingStr}|{currentEmpStr}|{pastEmpStr}";
-        var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, dataString);
+        // Создаём структуру с данными компании
+        var companyDetails = new CompanyDetailsData(
+            CompanyId: companyId,
+            Title: companyTitle,
+            About: companyAbout,
+            Site: companySite,
+            Rating: companyRating,
+            CurrentEmployees: currentEmployees,
+            PastEmployees: pastEmployees
+        );
+        
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyDetails, 
+            PrimaryValue: companyCode, 
+            SecondaryValue: "", // Не используется для CompanyDetails
+            CompanyDetails: companyDetails
+        );
         _saveQueue.Enqueue(record);
         
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
