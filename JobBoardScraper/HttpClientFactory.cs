@@ -29,8 +29,8 @@ public static class HttpClientFactory
         client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
         
-        // Поддержка сжатия для экономии трафика
-        client.DefaultRequestHeaders.AcceptEncoding.ParseAdd("gzip, deflate, br");
+        // Поддержка сжатия для экономии трафика (временно отключено для отладки)
+        // client.DefaultRequestHeaders.AcceptEncoding.ParseAdd("gzip, deflate, br");
 
         return client;
     }
