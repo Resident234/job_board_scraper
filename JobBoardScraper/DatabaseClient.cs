@@ -332,19 +332,33 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.CompanyDetails:
-                            // Парсим данные из формата "companyId|companyTitle|companyAbout|companySite|companyRating"
+                            // Парсим данные из формата "companyId|companyTitle|companyAbout|companySite|companyRating|currentEmployees|pastEmployees"
                             var parts = record.SecondaryValue.Split('|');
-                            if (parts.Length >= 5 && long.TryParse(parts[0], out var companyIdDetails))
+                            if (parts.Length >= 7 && long.TryParse(parts[0], out var companyIdDetails))
                             {
                                 var companyTitle = string.IsNullOrEmpty(parts[1]) ? null : parts[1];
                                 var companyAbout = string.IsNullOrEmpty(parts[2]) ? null : parts[2];
                                 var companySite = string.IsNullOrEmpty(parts[3]) ? null : parts[3];
+                                
                                 decimal? companyRating = null;
                                 if (!string.IsNullOrEmpty(parts[4]) && decimal.TryParse(parts[4], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rating))
                                 {
                                     companyRating = rating;
                                 }
-                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout, companySite: companySite, companyRating: companyRating);
+                                
+                                int? currentEmployees = null;
+                                if (!string.IsNullOrEmpty(parts[5]) && int.TryParse(parts[5], out var currentEmp))
+                                {
+                                    currentEmployees = currentEmp;
+                                }
+                                
+                                int? pastEmployees = null;
+                                if (!string.IsNullOrEmpty(parts[6]) && int.TryParse(parts[6], out var pastEmp))
+                                {
+                                    pastEmployees = pastEmp;
+                                }
+                                
+                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout, companySite: companySite, companyRating: companyRating, currentEmployees: currentEmployees, pastEmployees: pastEmployees);
                             }
                             break;
                     }
@@ -572,20 +586,22 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about, site и rating в очередь на обновление в базе данных
+    /// Добавить company_id, title, about, site, rating и employees в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null)
     {
         if (_saveQueue == null) return false;
 
-        // Формируем строку с данными: "companyId|companyTitle|companyAbout|companySite|companyRating"
+        // Формируем строку с данными: "companyId|companyTitle|companyAbout|companySite|companyRating|currentEmployees|pastEmployees"
         var ratingStr = companyRating.HasValue ? companyRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
-        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}|{companySite ?? ""}|{ratingStr}";
+        var currentEmpStr = currentEmployees.HasValue ? currentEmployees.Value.ToString() : "";
+        var pastEmpStr = pastEmployees.HasValue ? pastEmployees.Value.ToString() : "";
+        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}|{companySite ?? ""}|{ratingStr}|{currentEmpStr}|{pastEmpStr}";
         var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, dataString);
         _saveQueue.Enqueue(record);
         
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}");
+        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}");
         
         return true;
     }
@@ -632,9 +648,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about, site и rating для компании
+    /// Обновить company_id, title, about, site, rating и employees для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -650,6 +666,8 @@ public sealed class DatabaseClient
                     about = COALESCE(@about, about),
                     site = COALESCE(@site, site),
                     rating = COALESCE(@rating, rating),
+                    current_employees = COALESCE(@current_employees, current_employees),
+                    past_employees = COALESCE(@past_employees, past_employees),
                     updated_at = NOW()
                 WHERE code = @code", conn);
             
@@ -659,13 +677,15 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@current_employees", currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@past_employees", pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
             if (rowsAffected > 0)
             {
                 var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}");
+                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}");
             }
             else
             {

@@ -17,11 +17,21 @@ ADD COLUMN IF NOT EXISTS site TEXT;
 ALTER TABLE habr_companies 
 ADD COLUMN IF NOT EXISTS rating DECIMAL(3,2);
 
+-- Добавляем столбец current_employees (текущие сотрудники)
+ALTER TABLE habr_companies 
+ADD COLUMN IF NOT EXISTS current_employees INTEGER;
+
+-- Добавляем столбец past_employees (все сотрудники)
+ALTER TABLE habr_companies 
+ADD COLUMN IF NOT EXISTS past_employees INTEGER;
+
 -- Добавляем комментарии к столбцам
 COMMENT ON COLUMN habr_companies.company_id IS 'Числовой ID компании из элемента company_fav_button';
 COMMENT ON COLUMN habr_companies.about IS 'Описание компании из элемента company_about';
 COMMENT ON COLUMN habr_companies.site IS 'Ссылка на сайт компании из элемента company_site';
 COMMENT ON COLUMN habr_companies.rating IS 'Рейтинг компании из элемента span.rating';
+COMMENT ON COLUMN habr_companies.current_employees IS 'Текущие сотрудники (первое число из "847 / 1622")';
+COMMENT ON COLUMN habr_companies.past_employees IS 'Все сотрудники (второе число из "847 / 1622")';
 
 -- Создаём индекс на company_id для быстрого поиска
 CREATE INDEX IF NOT EXISTS idx_habr_companies_company_id ON habr_companies(company_id);

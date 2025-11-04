@@ -179,6 +179,12 @@ public static class AppConfig
     
     public static string CompanyDetailCompanyRatingSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyRatingSelector"] ?? "span.rating";
     
+    public static string CompanyDetailEmployeesSelector => ConfigurationManager.AppSettings["CompanyDetail:EmployeesSelector"] ?? "[data-tooltip='Текущие и все сотрудники']";
+    
+    public static string CompanyDetailEmployeesCountSelector => ConfigurationManager.AppSettings["CompanyDetail:EmployeesCountSelector"] ?? ".count";
+    
+    public static string CompanyDetailEmployeesRegex => ConfigurationManager.AppSettings["CompanyDetail:EmployeesRegex"] ?? "(\\d+)\\s*/\\s*(\\d+)";
+    
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования

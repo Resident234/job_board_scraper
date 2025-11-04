@@ -15,6 +15,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Regex _companyIdRegex;
+    private readonly Regex _employeesRegex;
 
     public CompanyDetailScraper(
         SmartHttpClient httpClient,
@@ -28,6 +29,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _getCompanies = getCompanies ?? throw new ArgumentNullException(nameof(getCompanies));
         _interval = interval ?? TimeSpan.FromDays(30);
         _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
+        _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
         
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
@@ -192,6 +194,34 @@ public sealed class CompanyDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем количество сотрудников
+                int? currentEmployees = null;
+                int? pastEmployees = null;
+                var employeesElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesSelector);
+                if (employeesElement != null)
+                {
+                    var countElement = employeesElement.QuerySelector(AppConfig.CompanyDetailEmployeesCountSelector);
+                    if (countElement != null)
+                    {
+                        var countText = countElement.TextContent?.Trim();
+                        if (!string.IsNullOrWhiteSpace(countText))
+                        {
+                            var match = _employeesRegex.Match(countText);
+                            if (match.Success && match.Groups.Count >= 3)
+                            {
+                                if (int.TryParse(match.Groups[1].Value, out var current))
+                                {
+                                    currentEmployees = current;
+                                }
+                                if (int.TryParse(match.Groups[2].Value, out var past))
+                                {
+                                    pastEmployees = past;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                 
@@ -231,13 +261,16 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id, title, about, site и rating в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating);
+                // Сохраняем company_id, title, about, site, rating и employees в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 
                     : "(не найдено)";
-                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}");
+                var employeesStr = currentEmployees.HasValue && pastEmployees.HasValue 
+                    ? $"{currentEmployees}/{pastEmployees}" 
+                    : "(не найдено)";
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}");
                 
                 totalSuccess++;
                 totalProcessed++;
