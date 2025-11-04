@@ -32,7 +32,10 @@ public readonly record struct DbRecord(
     string PrimaryValue, 
     string SecondaryValue, 
     string? TertiaryValue = null, 
-    InsertMode Mode = InsertMode.SkipIfExists);
+    InsertMode Mode = InsertMode.SkipIfExists,
+    string? Code = null,
+    bool? Expert = null,
+    string? WorkExperience = null);
 
 public sealed class DatabaseClient
 {
@@ -85,8 +88,16 @@ public sealed class DatabaseClient
         return result is not null;
     }
 
-    // Вставка ссылки, заголовка страницы и слогана
-    public void DatabaseInsert(NpgsqlConnection conn, string link, string title, string? slogan = null, InsertMode mode = InsertMode.SkipIfExists)
+    // Вставка ссылки, заголовка страницы, слогана и дополнительных полей
+    public void DatabaseInsert(
+        NpgsqlConnection conn, 
+        string link, 
+        string title, 
+        string? slogan = null, 
+        string? code = null,
+        bool? expert = null,
+        string? workExperience = null,
+        InsertMode mode = InsertMode.SkipIfExists)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -105,31 +116,42 @@ public sealed class DatabaseClient
                 }
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan) VALUES (@link, @title, @slogan)", conn);
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) VALUES (@link, @title, @slogan, @code, @expert, @work_experience)", conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
                 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" + 
-                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                    (expert == true ? " | ЭКСПЕРТ" : ""));
             }
             else // UpdateIfExists
             {
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan) 
-                    VALUES (@link, @title, @slogan)
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) 
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience)
                     ON CONFLICT (link) 
                     DO UPDATE SET 
                         title = EXCLUDED.title,
-                        slogan = EXCLUDED.slogan", conn);
+                        slogan = EXCLUDED.slogan,
+                        code = EXCLUDED.code,
+                        expert = EXCLUDED.expert,
+                        work_experience = EXCLUDED.work_experience", conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
                 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" + 
-                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                    (expert == true ? " | ЭКСПЕРТ" : ""));
             }
         }
         catch (PostgresException pgEx) when
@@ -190,7 +212,7 @@ public sealed class DatabaseClient
     }
 
     // Вставка компании
-    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl)
+    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl, string? companyTitle = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -200,18 +222,21 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_companies (company_code, company_url, created_at, updated_at)
-                VALUES (@code, @url, NOW(), NOW())
-                ON CONFLICT (company_code) 
+                INSERT INTO habr_companies (code, url, title, created_at, updated_at)
+                VALUES (@code, @url, @title, NOW(), NOW())
+                ON CONFLICT (code) 
                 DO UPDATE SET 
-                    company_url = EXCLUDED.company_url,
+                    url = EXCLUDED.url,
+                    title = EXCLUDED.title,
                     updated_at = NOW()", conn);
             
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
+            cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
-            Console.WriteLine($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}");
+            Console.WriteLine($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
+                (companyTitle != null ? $" | {companyTitle}" : ""));
         }
         catch (NpgsqlException dbEx)
         {
@@ -283,10 +308,17 @@ public sealed class DatabaseClient
                     switch (record.Type)
                     {
                         case DbRecordType.Resume:
-                            DatabaseInsert(conn, link: record.PrimaryValue, title: record.SecondaryValue, slogan: record.TertiaryValue, mode: record.Mode);
+                            DatabaseInsert(conn, 
+                                link: record.PrimaryValue, 
+                                title: record.SecondaryValue, 
+                                slogan: record.TertiaryValue, 
+                                code: record.Code,
+                                expert: record.Expert,
+                                workExperience: record.WorkExperience,
+                                mode: record.Mode);
                             break;
                         case DbRecordType.Company:
-                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue);
+                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue, companyTitle: record.TertiaryValue);
                             break;
                         case DbRecordType.CategoryRootId:
                             DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue, categoryName: record.SecondaryValue);
@@ -341,14 +373,22 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить резюме в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueResume(string link, string title, string? slogan = null, InsertMode mode = InsertMode.SkipIfExists)
+    public bool EnqueueResume(
+        string link, 
+        string title, 
+        string? slogan = null, 
+        InsertMode mode = InsertMode.SkipIfExists,
+        string? code = null,
+        bool? expert = null,
+        string? workExperience = null)
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode);
+        var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode, code, expert, workExperience);
         _saveQueue.Enqueue(record);
         Console.WriteLine($"[DB Queue] Resume ({mode}): {title} -> {link}" + 
-            (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}"));
+            (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+            (expert == true ? " | ЭКСПЕРТ" : ""));
         
         return true;
     }
@@ -356,13 +396,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить компанию в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueCompany(string companyCode, string companyUrl)
+    public bool EnqueueCompany(string companyCode, string companyUrl, string? companyTitle = null)
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl);
+        var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl, companyTitle);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}");
+        Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}" +
+            (companyTitle != null ? $" | {companyTitle}" : ""));
         
         return true;
     }
@@ -431,7 +472,7 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
-                "SELECT company_code FROM habr_companies ORDER BY company_code", conn);
+                "SELECT code FROM habr_companies ORDER BY code", conn);
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())

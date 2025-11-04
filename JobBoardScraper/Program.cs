@@ -166,6 +166,31 @@ class Program
             Console.WriteLine("[Program] CompanyFollowersScraper: ОТКЛЮЧЕН");
         }
 
+        // Процесс 6: Периодический обход экспертов
+        if (AppConfig.ExpertsEnabled)
+        {
+            Console.WriteLine("[Program] ExpertsScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода ExpertsScraper: {AppConfig.ExpertsOutputMode}");
+            
+            var expertsHttpClient = new SmartHttpClient(
+                httpClient, 
+                "ExpertsScraper", 
+                trafficStats,
+                enableRetry: false,
+                enableTrafficMeasuring: AppConfig.ExpertsEnableTrafficMeasuring);
+            var expertsScraper = new ExpertsScraper(
+                expertsHttpClient,
+                db,
+                interval: TimeSpan.FromDays(4),
+                outputMode: AppConfig.ExpertsOutputMode);
+
+            _ = expertsScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] ExpertsScraper: ОТКЛЮЧЕН");
+        }
+
         // Процесс 1: Перебор всех возможных имен пользователей
         Task? bruteForceScraperTask = null;
         if (AppConfig.BruteForceEnabled)

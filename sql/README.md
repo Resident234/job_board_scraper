@@ -47,6 +47,18 @@ psql -U postgres -d jobs -f sql/add_unique_link_constraint.sql
 
 Добавляет уникальное ограничение на столбец `link` для поддержки режима `UpdateIfExists` (UPSERT).
 
+### 6. Добавление столбцов для экспертов
+```bash
+psql -U postgres -d jobs -f sql/add_expert_columns.sql
+```
+
+Добавляет столбцы для хранения данных экспертов:
+- `code` - код пользователя из URL профиля (например, "apstenku")
+- `expert` - флаг, является ли пользователь экспертом (boolean)
+- `work_experience` - стаж работы (например, "9 лет и 9 месяцев")
+
+Также создаёт индексы для быстрого поиска по этим полям.
+
 ## Использование CategoryScraper
 
 ```csharp
@@ -103,4 +115,32 @@ SELECT COUNT(*) FROM habr_category_root_ids;
 ### Найти категорию по ID
 ```sql
 SELECT * FROM habr_category_root_ids WHERE category_id = 'your_category_id';
+```
+
+### Получить всех экспертов
+```sql
+SELECT * FROM habr_resumes WHERE expert = TRUE ORDER BY title;
+```
+
+### Получить экспертов с указанным стажем
+```sql
+SELECT title, code, work_experience, link 
+FROM habr_resumes 
+WHERE expert = TRUE AND work_experience IS NOT NULL
+ORDER BY work_experience DESC;
+```
+
+### Найти пользователя по коду
+```sql
+SELECT * FROM habr_resumes WHERE code = 'apstenku';
+```
+
+### Статистика по экспертам
+```sql
+SELECT 
+    COUNT(*) as total_experts,
+    COUNT(work_experience) as with_experience,
+    COUNT(slogan) as with_slogan
+FROM habr_resumes 
+WHERE expert = TRUE;
 ```

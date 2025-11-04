@@ -84,6 +84,22 @@ public static class AppConfig
     
     public static bool CompanyFollowersEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:EnableTrafficMeasuring"], out var value) ? value : true;
     
+    // Настройки для ExpertsScraper
+    public static bool ExpertsEnabled => bool.TryParse(ConfigurationManager.AppSettings["Experts:Enabled"], out var value) ? value : true;
+    
+    public static string ExpertsListUrl => ConfigurationManager.AppSettings["Experts:ListUrl"] ?? "https://career.habr.com/experts?order=lastActive";
+    
+    public static bool ExpertsEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Experts:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static OutputMode ExpertsOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["Experts:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+    
     // Общие настройки для скраперов
     public static bool ResumeListEnabled => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:Enabled"], out var value) && value;
     
