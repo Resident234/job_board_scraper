@@ -102,7 +102,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 try
                 {
                     _logger.WriteLine($"Обработка компании: {companyCode}");
-                    var usersFound = await ScrapeCompanyFollowersAsync(companyCode, ct);
+                    var (usersFound, statusCode) = await ScrapeCompanyFollowersAsync(companyCode, ct);
                     
                     sw.Stop();
                     _controller.ReportLatency(sw.Elapsed);
@@ -113,6 +113,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                         completed++;
                         var percent = completed * 100.0 / companyCodes.Count;
                         _logger.WriteLine($"Компания {companyCode}: найдено {usersFound} пользователей. " +
+                            $"Код ответа: {statusCode}. " +
                             $"Обработано: {completed}/{companyCodes.Count} ({percent:F2}%). " +
                             $"Время: {sw.Elapsed.TotalSeconds:F2}с. " + 
                             $"Параллельных процессов: {_activeRequests.Count}");
@@ -135,11 +136,12 @@ public sealed class CompanyFollowersScraper : IDisposable
         _logger.WriteLine($"Обход завершён. Всего найдено пользователей: {totalUsersFound}");
     }
 
-    private async Task<int> ScrapeCompanyFollowersAsync(string companyCode, CancellationToken ct)
+    private async Task<(int UsersFound, int LastStatusCode)> ScrapeCompanyFollowersAsync(string companyCode, CancellationToken ct)
     {
         var page = 1;
         var totalUsersFound = 0;
         var hasMorePages = true;
+        var lastStatusCode = 0;
 
         while (hasMorePages && !ct.IsCancellationRequested)
         {
@@ -149,7 +151,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 _logger.WriteLine($"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
-                _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}");
+                lastStatusCode = (int)response.StatusCode;
                 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -157,15 +159,37 @@ public sealed class CompanyFollowersScraper : IDisposable
                     break;
                 }
 
-                var html = await response.Content.ReadAsStringAsync(ct);
+                // Получаем HTML с правильной кодировкой
+                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                
+                // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
+                var encoding = response.Content.Headers.ContentType?.CharSet != null
+                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                    : System.Text.Encoding.UTF8;
+                
+                var html = encoding.GetString(htmlBytes);
+                
+                // Сохраняем HTML в файл для отладки
+                try
+                {
+                    var htmlFilePath = Path.Combine(AppConfig.LoggingOutputDirectory, "last_company_followers_page.html");
+                    await File.WriteAllTextAsync(htmlFilePath, html, encoding, ct);
+                    _logger.WriteLine($"HTML сохранён: {htmlFilePath} (кодировка: {encoding.WebName})");
+                }
+                catch (Exception ex)
+                {
+                    _logger.WriteLine($"Не удалось сохранить HTML: {ex.Message}");
+                }
                 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
+                
                 var userItems = doc.QuerySelectorAll(AppConfig.CompanyFollowersUserItemSelector);
+                _logger.WriteLine($"Селектор '{AppConfig.CompanyFollowersUserItemSelector}' нашёл {userItems.Length} элементов");
                 
                 if (userItems.Length == 0)
                 {
                     _logger.WriteLine($"На странице {page} не найдено пользователей. Завершение обхода компании {companyCode}.");
+                    _logger.WriteLine($"Проверьте селектор в файле: {Path.Combine(AppConfig.LoggingOutputDirectory, "last_company_followers_page.html")}");
                     hasMorePages = false;
                     break;
                 }
@@ -238,7 +262,7 @@ public sealed class CompanyFollowersScraper : IDisposable
             }
         }
 
-        return totalUsersFound;
+        return (totalUsersFound, lastStatusCode);
     }
 
     private string BuildUrl(string companyCode, int page)
