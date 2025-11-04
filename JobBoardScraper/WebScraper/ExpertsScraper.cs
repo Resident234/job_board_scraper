@@ -14,7 +14,8 @@ public sealed class ExpertsScraper : IDisposable
     private readonly DatabaseClient _db;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
-    private readonly Regex _codeRegex = new Regex(@"^/([^/]+)$", RegexOptions.Compiled);
+    private readonly Regex _userCodeRegex;
+    private readonly Regex _companyCodeRegex;
 
     public ExpertsScraper(
         SmartHttpClient httpClient,
@@ -25,6 +26,8 @@ public sealed class ExpertsScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _interval = interval ?? TimeSpan.FromDays(7);
+        _userCodeRegex = new Regex(AppConfig.ExpertsUserCodeRegex, RegexOptions.Compiled);
+        _companyCodeRegex = new Regex(AppConfig.ExpertsCompanyCodeRegex, RegexOptions.Compiled);
         
         _logger = new ConsoleLogger("ExpertsScraper");
         _logger.SetOutputMode(outputMode);
@@ -145,7 +148,7 @@ public sealed class ExpertsScraper : IDisposable
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                     // Ищем карточки экспертов
-                    var expertCards = doc.QuerySelectorAll(".expert-card");
+                    var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
                     
                     _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
 
@@ -157,7 +160,7 @@ public sealed class ExpertsScraper : IDisposable
                         try
                         {
                             // Извлекаем данные эксперта
-                            var titleLink = card.QuerySelector("a.expert-card__title-link");
+                            var titleLink = card.QuerySelector(AppConfig.ExpertsTitleLinkSelector);
                             if (titleLink == null) continue;
 
                             var name = titleLink.TextContent?.Trim();
@@ -167,7 +170,7 @@ public sealed class ExpertsScraper : IDisposable
                                 continue;
 
                             // Извлекаем код из href
-                            var match = _codeRegex.Match(href);
+                            var match = _userCodeRegex.Match(href);
                             var code = match.Success ? match.Groups[1].Value : null;
 
                             // Формируем полный URL
@@ -177,7 +180,7 @@ public sealed class ExpertsScraper : IDisposable
 
                             // Извлекаем стаж работы
                             string? workExperience = null;
-                            var spans = card.QuerySelectorAll("span");
+                            var spans = card.QuerySelectorAll(AppConfig.ExpertsSpanSelector);
                             foreach (var span in spans)
                             {
                                 var text = span.TextContent?.Trim();
@@ -203,7 +206,7 @@ public sealed class ExpertsScraper : IDisposable
                             expertsOnPage++;
 
                             // Извлекаем компанию
-                            var companyLink = card.QuerySelector("a.link-comp");
+                            var companyLink = card.QuerySelector(AppConfig.ExpertsCompanyLinkSelector);
                             if (companyLink != null)
                             {
                                 var companyName = companyLink.TextContent?.Trim();
@@ -212,7 +215,7 @@ public sealed class ExpertsScraper : IDisposable
                                 if (!string.IsNullOrWhiteSpace(companyName) && !string.IsNullOrWhiteSpace(companyHref))
                                 {
                                     // Извлекаем код компании из href
-                                    var companyCodeMatch = Regex.Match(companyHref, @"/companies/([^/]+)");
+                                    var companyCodeMatch = _companyCodeRegex.Match(companyHref);
                                     if (companyCodeMatch.Success)
                                     {
                                         var companyCode = companyCodeMatch.Groups[1].Value;

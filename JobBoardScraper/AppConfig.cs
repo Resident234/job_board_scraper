@@ -69,6 +69,8 @@ public static class AppConfig
     
     public static string CompanyFollowersUsernameSelector => ConfigurationManager.AppSettings["CompanyFollowers:UsernameSelector"] ?? ".username";
     
+    public static string CompanyFollowersLinkSelector => ConfigurationManager.AppSettings["CompanyFollowers:LinkSelector"] ?? "a";
+    
     public static string CompanyFollowersSloganSelector => ConfigurationManager.AppSettings["CompanyFollowers:SloganSelector"] ?? ".specialization";
     
     public static string CompanyFollowersNextPageSelector => ConfigurationManager.AppSettings["CompanyFollowers:NextPageSelector"] ?? "a.page[href*='page={0}']";
@@ -111,14 +113,61 @@ public static class AppConfig
         }
     }
     
+    public static string ExpertsExpertCardSelector => ConfigurationManager.AppSettings["Experts:ExpertCardSelector"] ?? ".expert-card";
+    
+    public static string ExpertsTitleLinkSelector => ConfigurationManager.AppSettings["Experts:TitleLinkSelector"] ?? "a.expert-card__title-link";
+    
+    public static string ExpertsSpanSelector => ConfigurationManager.AppSettings["Experts:SpanSelector"] ?? "span";
+    
+    public static string ExpertsCompanyLinkSelector => ConfigurationManager.AppSettings["Experts:CompanyLinkSelector"] ?? "a.link-comp";
+    
+    public static string ExpertsUserCodeRegex => ConfigurationManager.AppSettings["Experts:UserCodeRegex"] ?? "^/([^/]+)$";
+    
+    public static string ExpertsCompanyCodeRegex => ConfigurationManager.AppSettings["Experts:CompanyCodeRegex"] ?? "/companies/([^/]+)";
+    
     // Общие настройки для скраперов
     public static bool ResumeListEnabled => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:Enabled"], out var value) && value;
     
     public static bool ResumeListEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["ResumeList:EnableTrafficMeasuring"], out var value) ? value : true;
     
+    public static string ResumeListResumeLinkSelector => ConfigurationManager.AppSettings["ResumeList:ResumeLinkSelector"] ?? "a.resume-card__title-link";
+    
     public static bool CategoryEnabled => bool.TryParse(ConfigurationManager.AppSettings["Category:Enabled"], out var value) && value;
     
     public static bool CategoryEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["Category:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static string CategorySelectElementSelector => ConfigurationManager.AppSettings["Category:SelectElementSelector"] ?? "select#category_root_id";
+    
+    public static string CategoryOptionSelector => ConfigurationManager.AppSettings["Category:OptionSelector"] ?? "option[value]";
+    
+    // Настройки для CompanyDetailScraper
+    public static bool CompanyDetailEnabled => bool.TryParse(ConfigurationManager.AppSettings["CompanyDetail:Enabled"], out var value) ? value : false;
+    
+    public static TimeSpan CompanyDetailTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["CompanyDetail:TimeoutSeconds"], out var value) ? value : 60;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+    
+    public static bool CompanyDetailEnableRetry => bool.TryParse(ConfigurationManager.AppSettings["CompanyDetail:EnableRetry"], out var value) ? value : true;
+    
+    public static bool CompanyDetailEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["CompanyDetail:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static OutputMode CompanyDetailOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["CompanyDetail:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+    
+    public static string CompanyDetailFavButtonSelector => ConfigurationManager.AppSettings["CompanyDetail:FavButtonSelector"] ?? "[id^='company_fav_button_']";
+    
+    public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";

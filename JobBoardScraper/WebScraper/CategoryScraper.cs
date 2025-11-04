@@ -93,7 +93,7 @@ public sealed class CategoryScraper : IDisposable
             var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
             // Ищем select с id="category_root_id"
-            var selectElement = doc.QuerySelector("select#category_root_id");
+            var selectElement = doc.QuerySelector(AppConfig.CategorySelectElementSelector);
             
             if (selectElement == null)
             {
@@ -102,7 +102,7 @@ public sealed class CategoryScraper : IDisposable
             }
 
             // Собираем все option с value
-            var options = selectElement.QuerySelectorAll("option[value]");
+            var options = selectElement.QuerySelectorAll(AppConfig.CategoryOptionSelector);
             var categoriesFound = 0;
 
             foreach (var option in options)

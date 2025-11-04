@@ -216,7 +216,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                             continue;
 
                         // Извлекаем ссылку
-                        var linkElement = userItem.QuerySelector("a");
+                        var linkElement = userItem.QuerySelector(AppConfig.CompanyFollowersLinkSelector);
                         if (linkElement == null)
                             continue;
 

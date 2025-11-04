@@ -70,7 +70,7 @@ public sealed class ResumeListPageScraper
 
         var html = await response.Content.ReadAsStringAsync(ct);
         var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-        var anchors = doc.QuerySelectorAll("a.resume-card__title-link");
+        var anchors = doc.QuerySelectorAll(AppConfig.ResumeListResumeLinkSelector);
 
         var found = 0;
         foreach (var a in anchors)
