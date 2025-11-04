@@ -11,7 +11,8 @@ public enum DbRecordType
 {
     Resume,
     Company,
-    CategoryRootId
+    CategoryRootId,
+    CompanyId
 }
 
 public enum InsertMode
@@ -323,6 +324,12 @@ public sealed class DatabaseClient
                         case DbRecordType.CategoryRootId:
                             DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue, categoryName: record.SecondaryValue);
                             break;
+                        case DbRecordType.CompanyId:
+                            if (long.TryParse(record.SecondaryValue, out var companyId))
+                            {
+                                DatabaseUpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
+                            }
+                            break;
                     }
                 }
 
@@ -492,6 +499,100 @@ public sealed class DatabaseClient
         }
 
         return companyCodes;
+    }
+
+    /// <summary>
+    /// Получить все компании (code и url) из таблицы habr_companies
+    /// </summary>
+    public List<(string code, string url)> GetAllCompaniesWithUrls(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var companies = new List<(string code, string url)>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(
+                "SELECT code, url FROM habr_companies ORDER BY code", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var code = reader.GetString(0);
+                var url = reader.GetString(1);
+                
+                if (!string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(url))
+                {
+                    companies.Add((code, url));
+                }
+            }
+
+            Console.WriteLine($"[DB] Загружено {companies.Count} компаний с URL из БД");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка при получении компаний: {ex.Message}");
+        }
+
+        return companies;
+    }
+
+    /// <summary>
+    /// Добавить company_id в очередь на обновление в базе данных
+    /// </summary>
+    public bool EnqueueCompanyId(string companyCode, long companyId)
+    {
+        if (_saveQueue == null) return false;
+
+        // Используем специальный тип записи для обновления company_id
+        var record = new DbRecord(DbRecordType.CompanyId, companyCode, companyId.ToString());
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Обновить company_id для компании
+    /// </summary>
+    public void DatabaseUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_companies 
+                SET company_id = @company_id, updated_at = NOW()
+                WHERE code = @code", conn);
+            
+            cmd.Parameters.AddWithValue("@code", companyCode);
+            cmd.Parameters.AddWithValue("@company_id", companyId);
+            
+            int rowsAffected = cmd.ExecuteNonQuery();
+            
+            if (rowsAffected > 0)
+            {
+                Console.WriteLine($"[DB] Обновлён company_id для {companyCode}: {companyId}");
+            }
+            else
+            {
+                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении company_id для {companyCode}: {ex.Message}");
+        }
     }
 
     /// <summary>

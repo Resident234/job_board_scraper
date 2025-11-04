@@ -4,12 +4,14 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает пять параллельных процессов:
+/// Запускает семь параллельных процессов:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
 /// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
 /// 4. CategoryScraper - периодический сбор category_root_id (раз в неделю)
 /// 5. CompanyFollowersScraper - периодический обход подписчиков компаний (каждые 5 дней)
+/// 6. ExpertsScraper - периодический обход экспертов (каждые 4 дня)
+/// 7. CompanyDetailScraper - периодический обход детальных страниц компаний для извлечения company_id (раз в месяц)
 /// TODO при переборе прогресс выводить, там где известно заранее число элементов
 /// </summary>
 class Program
@@ -199,6 +201,38 @@ class Program
         else
         {
             Console.WriteLine("[Program] ExpertsScraper: ОТКЛЮЧЕН");
+        }
+
+        // Процесс 7: Периодический обход детальных страниц компаний
+        if (AppConfig.CompanyDetailEnabled)
+        {
+            Console.WriteLine("[Program] CompanyDetailScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода CompanyDetailScraper: {AppConfig.CompanyDetailOutputMode}");
+            Console.WriteLine($"[Program] Timeout CompanyDetailScraper: {AppConfig.CompanyDetailTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var companyDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.CompanyDetailTimeout.TotalSeconds);
+            
+            var companyDetailHttpClient = new SmartHttpClient(
+                companyDetailBaseHttpClient, 
+                "CompanyDetailScraper", 
+                trafficStats,
+                enableRetry: AppConfig.CompanyDetailEnableRetry,
+                enableTrafficMeasuring: AppConfig.CompanyDetailEnableTrafficMeasuring,
+                timeout: AppConfig.CompanyDetailTimeout);
+            var companyDetailScraper = new CompanyDetailScraper(
+                companyDetailHttpClient,
+                db,
+                getCompanies: () => db.GetAllCompaniesWithUrls(conn),
+                interval: TimeSpan.FromDays(30),
+                outputMode: AppConfig.CompanyDetailOutputMode);
+
+            _ = companyDetailScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] CompanyDetailScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей
