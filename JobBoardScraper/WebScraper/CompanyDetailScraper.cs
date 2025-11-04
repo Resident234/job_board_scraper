@@ -141,6 +141,24 @@ public sealed class CompanyDetailScraper : IDisposable
 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
+                // Извлекаем название компании
+                string? companyTitle = null;
+                var companyNameElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyNameSelector);
+                if (companyNameElement != null)
+                {
+                    // Ищем ссылку внутри элемента
+                    var linkElement = companyNameElement.QuerySelector(AppConfig.CompanyDetailCompanyNameLinkSelector);
+                    if (linkElement != null)
+                    {
+                        companyTitle = linkElement.TextContent?.Trim();
+                    }
+                    else
+                    {
+                        // Если ссылки нет, берём текст из самого элемента
+                        companyTitle = companyNameElement.TextContent?.Trim();
+                    }
+                }
+
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                 
@@ -180,9 +198,9 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id в БД
-                _db.EnqueueCompanyId(code, companyId);
-                _logger.WriteLine($"Компания {code}: найден ID = {companyId}");
+                // Сохраняем company_id и title в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle);
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}");
                 
                 totalSuccess++;
                 totalProcessed++;

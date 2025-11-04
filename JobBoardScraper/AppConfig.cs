@@ -167,6 +167,10 @@ public static class AppConfig
     
     public static string CompanyDetailFavButtonSelector => ConfigurationManager.AppSettings["CompanyDetail:FavButtonSelector"] ?? "[id^='company_fav_button_']";
     
+    public static string CompanyDetailCompanyNameSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyNameSelector"] ?? ".company_name";
+    
+    public static string CompanyDetailCompanyNameLinkSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyNameLinkSelector"] ?? "a";
+    
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования

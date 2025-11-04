@@ -12,7 +12,8 @@ public enum DbRecordType
     Resume,
     Company,
     CategoryRootId,
-    CompanyId
+    CompanyId,
+    CompanyDetails
 }
 
 public enum InsertMode
@@ -330,6 +331,12 @@ public sealed class DatabaseClient
                                 DatabaseUpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
                             }
                             break;
+                        case DbRecordType.CompanyDetails:
+                            if (long.TryParse(record.SecondaryValue, out var companyIdDetails))
+                            {
+                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: record.TertiaryValue);
+                            }
+                            break;
                     }
                 }
 
@@ -555,6 +562,21 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Добавить company_id и title в очередь на обновление в базе данных
+    /// </summary>
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle)
+    {
+        if (_saveQueue == null) return false;
+
+        // Используем специальный тип записи для обновления company_id и title
+        var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, companyId.ToString(), companyTitle);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}");
+        
+        return true;
+    }
+
+    /// <summary>
     /// Обновить company_id для компании
     /// </summary>
     public void DatabaseUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
@@ -592,6 +614,50 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Console.WriteLine($"[DB] Неожиданная ошибка при обновлении company_id для {companyCode}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обновить company_id и title для компании
+    /// </summary>
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_companies 
+                SET company_id = @company_id, 
+                    title = COALESCE(@title, title),
+                    updated_at = NOW()
+                WHERE code = @code", conn);
+            
+            cmd.Parameters.AddWithValue("@code", companyCode);
+            cmd.Parameters.AddWithValue("@company_id", companyId);
+            cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
+            
+            int rowsAffected = cmd.ExecuteNonQuery();
+            
+            if (rowsAffected > 0)
+            {
+                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}");
+            }
+            else
+            {
+                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении данных для {companyCode}: {ex.Message}");
         }
     }
 
