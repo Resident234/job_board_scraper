@@ -6,11 +6,11 @@
 
 ## 📚 Документация
 
-- **[QUICKSTART.md](../QUICKSTART.md)** - быстрый старт для новых пользователей
-- **[MIGRATION_GUIDE.md](../MIGRATION_GUIDE.md)** - руководство по миграции с v1.x
-- **[EXAMPLES.md](../EXAMPLES.md)** - практические примеры использования
-- **[CHANGELOG.md](../CHANGELOG.md)** - история изменений
-- **[RELEASE_NOTES_v2.0.md](../RELEASE_NOTES_v2.0.md)** - что нового в версии 2.0
+- **[docs/QUICKSTART.md](../docs/QUICKSTART.md)** - быстрый старт для новых пользователей
+- **[docs/MIGRATION_GUIDE.md](../docs/MIGRATION_GUIDE.md)** - руководство по миграции с v1.x
+- **[docs/EXAMPLES.md](../docs/EXAMPLES.md)** - практические примеры использования
+- **[docs/CHANGELOG.md](../docs/CHANGELOG.md)** - история изменений
+- **[docs/RELEASE_NOTES_v2.0.md](../docs/RELEASE_NOTES_v2.0.md)** - что нового в версии 2.0
 - **[sql/README.md](../sql/README.md)** - работа с базой данных
 - **[docs/TRAFFIC_OPTIMIZATION.md](../docs/TRAFFIC_OPTIMIZATION.md)** - оптимизация трафика
 
