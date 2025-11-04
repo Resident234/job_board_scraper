@@ -6,6 +6,7 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Обходит страницы экспертов и извлекает профили
 /// </summary>
+/// TODO надо использовать selenium и авторизовываться
 public sealed class ExpertsScraper : IDisposable
 {
     private readonly SmartHttpClient _httpClient;
