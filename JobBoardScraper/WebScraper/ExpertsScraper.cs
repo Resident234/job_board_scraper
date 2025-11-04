@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 using System.Text.RegularExpressions;
 
 namespace JobBoardScraper.WebScraper;
@@ -6,7 +7,7 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Обходит страницы экспертов и извлекает профили
 /// </summary>
-/// TODO надо использовать selenium и авторизовываться
+/// TODO надо использовать selenium и авторизовываться, сейчас найдет только 700 пользователей
 public sealed class ExpertsScraper : IDisposable
 {
     private readonly SmartHttpClient _httpClient;
@@ -98,18 +99,39 @@ public sealed class ExpertsScraper : IDisposable
                     break;
                 }
 
-                var html = await response.Content.ReadAsStringAsync(ct);
+                // Читаем HTML с правильной кодировкой
+                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                
+                // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
+                var encoding = response.Content.Headers.ContentType?.CharSet != null
+                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                    : System.Text.Encoding.UTF8;
+                
+                var html = encoding.GetString(htmlBytes);
+                
+                // Сохраняем HTML в файл для отладки
+                var savedPath = await HtmlDebug.SaveHtmlAsync(
+                    html, 
+                    "ExpertsScraper", 
+                    "last_page.html",
+                    encoding: encoding,
+                    ct: ct);
+                
+                if (savedPath != null)
+                {
+                    _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
+                }
+                else
+                {
+                    _logger.WriteLine("Не удалось сохранить HTML для отладки.");
+                }
+                
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                 // Ищем карточки экспертов
                 var expertCards = doc.QuerySelectorAll(".expert-card");
                 
-                if (expertCards.Length == 0)
-                {
-                    _logger.WriteLine($"На странице {page} не найдено экспертов. Завершение обхода.");
-                    hasMorePages = false;
-                    break;
-                }
+                _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
 
                 var expertsOnPage = 0;
                 var companiesOnPage = 0;
@@ -200,12 +222,16 @@ public sealed class ExpertsScraper : IDisposable
                 totalCompaniesFound += companiesOnPage;
                 _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов, {companiesOnPage} компаний.");
 
-                // Проверяем наличие следующей страницы
-                var nextPageLink = doc.QuerySelector($"a.page[href*='page={page + 1}']");
-                if (nextPageLink == null)
+                // Пагинация загружается через AJAX, поэтому просто переходим на следующую страницу
+                // Если на странице нет экспертов, значит достигнут конец
+                if (expertsOnPage == 0)
                 {
-                    _logger.WriteLine($"Достигнута последняя страница ({page}).");
+                    _logger.WriteLine($"На странице {page} не найдено экспертов. Достигнута последняя страница.");
                     hasMorePages = false;
+                }
+                else
+                {
+                    _logger.WriteLine($"Переход на страницу {page + 1}...");
                 }
 
                 page++;

@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -170,15 +171,20 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var html = encoding.GetString(htmlBytes);
                 
                 // Сохраняем HTML в файл для отладки
-                try
+                var savedPath = await HtmlDebug.SaveHtmlAsync(
+                    html, 
+                    "CompanyFollowersScraper", 
+                    "last_page.html",
+                    encoding: encoding,
+                    ct: ct);
+                
+                if (savedPath != null)
                 {
-                    var htmlFilePath = Path.Combine(AppConfig.LoggingOutputDirectory, "last_company_followers_page.html");
-                    await File.WriteAllTextAsync(htmlFilePath, html, encoding, ct);
-                    _logger.WriteLine($"HTML сохранён: {htmlFilePath} (кодировка: {encoding.WebName})");
+                    _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.WriteLine($"Не удалось сохранить HTML: {ex.Message}");
+                    _logger.WriteLine("Не удалось сохранить HTML для отладки.");
                 }
                 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
@@ -189,7 +195,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 if (userItems.Length == 0)
                 {
                     _logger.WriteLine($"На странице {page} не найдено пользователей. Завершение обхода компании {companyCode}.");
-                    _logger.WriteLine($"Проверьте селектор в файле: {Path.Combine(AppConfig.LoggingOutputDirectory, "last_company_followers_page.html")}");
+                    _logger.WriteLine($"Проверьте селектор в файле: {Path.Combine(AppConfig.LoggingOutputDirectory, "CompanyFollowersScraper_last_page.html")}");
                     hasMorePages = false;
                     break;
                 }
