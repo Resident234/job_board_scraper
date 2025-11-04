@@ -159,6 +159,14 @@ public sealed class CompanyDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем описание компании
+                string? companyAbout = null;
+                var companyAboutElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyAboutSelector);
+                if (companyAboutElement != null)
+                {
+                    companyAbout = companyAboutElement.TextContent?.Trim();
+                }
+
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                 
@@ -198,9 +206,13 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id и title в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle);
-                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}");
+                // Сохраняем company_id, title и about в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout);
+                
+                var aboutPreview = companyAbout != null 
+                    ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 
+                    : "(не найдено)";
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}");
                 
                 totalSuccess++;
                 totalProcessed++;

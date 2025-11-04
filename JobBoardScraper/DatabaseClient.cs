@@ -332,9 +332,13 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.CompanyDetails:
-                            if (long.TryParse(record.SecondaryValue, out var companyIdDetails))
+                            // Парсим данные из формата "companyId|companyTitle|companyAbout"
+                            var parts = record.SecondaryValue.Split('|');
+                            if (parts.Length >= 3 && long.TryParse(parts[0], out var companyIdDetails))
                             {
-                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: record.TertiaryValue);
+                                var companyTitle = string.IsNullOrEmpty(parts[1]) ? null : parts[1];
+                                var companyAbout = string.IsNullOrEmpty(parts[2]) ? null : parts[2];
+                                DatabaseUpdateCompanyDetails(conn, companyCode: record.PrimaryValue, companyId: companyIdDetails, companyTitle: companyTitle, companyAbout: companyAbout);
                             }
                             break;
                     }
@@ -562,16 +566,17 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id и title в очередь на обновление в базе данных
+    /// Добавить company_id, title и about в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null)
     {
         if (_saveQueue == null) return false;
 
-        // Используем специальный тип записи для обновления company_id и title
-        var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, companyId.ToString(), companyTitle);
+        // Формируем строку с данными: "companyId|companyTitle|companyAbout"
+        var dataString = $"{companyId}|{companyTitle ?? ""}|{companyAbout ?? ""}";
+        var record = new DbRecord(DbRecordType.CompanyDetails, companyCode, dataString);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}");
+        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0))}...");
         
         return true;
     }
@@ -618,9 +623,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id и title для компании
+    /// Обновить company_id, title и about для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -633,18 +638,21 @@ public sealed class DatabaseClient
                 UPDATE habr_companies 
                 SET company_id = @company_id, 
                     title = COALESCE(@title, title),
+                    about = COALESCE(@about, about),
                     updated_at = NOW()
                 WHERE code = @code", conn);
             
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@company_id", companyId);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
             if (rowsAffected > 0)
             {
-                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}");
+                var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
+                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}...");
             }
             else
             {
