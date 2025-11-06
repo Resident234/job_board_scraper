@@ -16,6 +16,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly ConsoleLogger _logger;
     private readonly Regex _companyIdRegex;
     private readonly Regex _employeesRegex;
+    private readonly Regex _followersRegex;
 
     public CompanyDetailScraper(
         SmartHttpClient httpClient,
@@ -30,6 +31,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _interval = interval ?? TimeSpan.FromDays(30);
         _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
         _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
+        _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
         
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
@@ -222,6 +224,34 @@ public sealed class CompanyDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем количество подписчиков
+                int? followers = null;
+                int? wantWork = null;
+                var followersElement = doc.QuerySelector(AppConfig.CompanyDetailFollowersSelector);
+                if (followersElement != null)
+                {
+                    var countElement = followersElement.QuerySelector(AppConfig.CompanyDetailFollowersCountSelector);
+                    if (countElement != null)
+                    {
+                        var countText = countElement.TextContent?.Trim();
+                        if (!string.IsNullOrWhiteSpace(countText))
+                        {
+                            var match = _followersRegex.Match(countText);
+                            if (match.Success && match.Groups.Count >= 3)
+                            {
+                                if (int.TryParse(match.Groups[1].Value, out var follower))
+                                {
+                                    followers = follower;
+                                }
+                                if (int.TryParse(match.Groups[2].Value, out var want))
+                                {
+                                    wantWork = want;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                 
@@ -261,8 +291,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id, title, about, site, rating и employees в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees);
+                // Сохраняем company_id, title, about, site, rating, employees и followers в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 
@@ -270,7 +300,10 @@ public sealed class CompanyDetailScraper : IDisposable
                 var employeesStr = currentEmployees.HasValue && pastEmployees.HasValue 
                     ? $"{currentEmployees}/{pastEmployees}" 
                     : "(не найдено)";
-                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}");
+                var followersStr = followers.HasValue && wantWork.HasValue 
+                    ? $"{followers}/{wantWork}" 
+                    : "(не найдено)";
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}, Подписчики = {followersStr}");
                 
                 totalSuccess++;
                 totalProcessed++;

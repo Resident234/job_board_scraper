@@ -26,7 +26,9 @@ public readonly record struct CompanyDetailsData(
     string? Site,
     decimal? Rating,
     int? CurrentEmployees,
-    int? PastEmployees
+    int? PastEmployees,
+    int? Followers,
+    int? WantWork
 );
 
 public enum InsertMode
@@ -359,7 +361,9 @@ public sealed class DatabaseClient
                                     companySite: details.Site, 
                                     companyRating: details.Rating, 
                                     currentEmployees: details.CurrentEmployees, 
-                                    pastEmployees: details.PastEmployees
+                                    pastEmployees: details.PastEmployees,
+                                    followers: details.Followers,
+                                    wantWork: details.WantWork
                                 );
                             }
                             break;
@@ -588,9 +592,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about, site, rating и employees в очередь на обновление в базе данных
+    /// Добавить company_id, title, about, site, rating, employees и followers в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null)
     {
         if (_saveQueue == null) return false;
 
@@ -602,7 +606,9 @@ public sealed class DatabaseClient
             Site: companySite,
             Rating: companyRating,
             CurrentEmployees: currentEmployees,
-            PastEmployees: pastEmployees
+            PastEmployees: pastEmployees,
+            Followers: followers,
+            WantWork: wantWork
         );
         
         var record = new DbRecord(
@@ -614,7 +620,7 @@ public sealed class DatabaseClient
         _saveQueue.Enqueue(record);
         
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}");
+        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}");
         
         return true;
     }
@@ -661,9 +667,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about, site, rating и employees для компании
+    /// Обновить company_id, title, about, site, rating, employees и followers для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -681,6 +687,8 @@ public sealed class DatabaseClient
                     rating = COALESCE(@rating, rating),
                     current_employees = COALESCE(@current_employees, current_employees),
                     past_employees = COALESCE(@past_employees, past_employees),
+                    followers = COALESCE(@followers, followers),
+                    want_work = COALESCE(@want_work, want_work),
                     updated_at = NOW()
                 WHERE code = @code", conn);
             
@@ -692,13 +700,15 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@current_employees", currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@past_employees", pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@followers", followers.HasValue ? (object)followers.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@want_work", wantWork.HasValue ? (object)wantWork.Value : DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
             if (rowsAffected > 0)
             {
                 var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}");
+                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}");
             }
             else
             {

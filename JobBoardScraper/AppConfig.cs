@@ -185,6 +185,12 @@ public static class AppConfig
     
     public static string CompanyDetailEmployeesRegex => ConfigurationManager.AppSettings["CompanyDetail:EmployeesRegex"] ?? "(\\d+)\\s*/\\s*(\\d+)";
     
+    public static string CompanyDetailFollowersSelector => ConfigurationManager.AppSettings["CompanyDetail:FollowersSelector"] ?? "[data-tooltip='Подписчики и те, кто хочет тут работать']";
+    
+    public static string CompanyDetailFollowersCountSelector => ConfigurationManager.AppSettings["CompanyDetail:FollowersCountSelector"] ?? ".count";
+    
+    public static string CompanyDetailFollowersRegex => ConfigurationManager.AppSettings["CompanyDetail:FollowersRegex"] ?? "(\\d+)\\s*/\\s*(\\d+)";
+    
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования
