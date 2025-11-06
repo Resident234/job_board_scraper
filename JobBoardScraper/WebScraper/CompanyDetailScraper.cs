@@ -7,6 +7,7 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Обходит детальные страницы компаний и извлекает company_id
 /// </summary>
+/// TODO задействовать здесь selenium, тк контент страницы загружается отложено
 public sealed class CompanyDetailScraper : IDisposable
 {
     private readonly SmartHttpClient _httpClient;
