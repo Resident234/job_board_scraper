@@ -171,6 +171,14 @@ public sealed class CompanyDetailScraper : IDisposable
                     companyAbout = companyAboutElement.TextContent?.Trim();
                 }
 
+                // Извлекаем детальное описание компании (очищаем от HTML тегов)
+                string? companyDescription = null;
+                var companyDescriptionElement = doc.QuerySelector(AppConfig.CompanyDetailDescriptionSelector);
+                if (companyDescriptionElement != null)
+                {
+                    companyDescription = companyDescriptionElement.TextContent?.Trim();
+                }
+
                 // Извлекаем ссылку на сайт компании
                 string? companySite = null;
                 var companySiteElement = doc.QuerySelector(AppConfig.CompanyDetailCompanySiteSelector);
@@ -351,8 +359,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
                 }
 
-                // Сохраняем company_id, title, about, site, rating, employees, followers и employees_count в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
+                // Сохраняем company_id, title, about, description, site, rating, employees, followers и employees_count в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 

@@ -205,6 +205,8 @@ public static class AppConfig
     
     public static string CompanyDetailPublicMemberBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:PublicMemberBaseUrl"] ?? "https://career.habr.com/";
     
+    public static string CompanyDetailDescriptionSelector => ConfigurationManager.AppSettings["CompanyDetail:DescriptionSelector"] ?? ".description";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

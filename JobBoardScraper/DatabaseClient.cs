@@ -23,6 +23,7 @@ public readonly record struct CompanyDetailsData(
     long CompanyId,
     string? Title,
     string? About,
+    string? Description,
     string? Site,
     decimal? Rating,
     int? CurrentEmployees,
@@ -358,7 +359,8 @@ public sealed class DatabaseClient
                                     companyCode: record.PrimaryValue, 
                                     companyId: details.CompanyId, 
                                     companyTitle: details.Title, 
-                                    companyAbout: details.About, 
+                                    companyAbout: details.About,
+                                    companyDescription: details.Description,
                                     companySite: details.Site, 
                                     companyRating: details.Rating, 
                                     currentEmployees: details.CurrentEmployees, 
@@ -594,9 +596,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about, site, rating, employees, followers и employees_count в очередь на обновление в базе данных
+    /// Добавить company_id, title, about, description, site, rating, employees, followers и employees_count в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null, string? employeesCount = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companyDescription = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null, string? employeesCount = null)
     {
         if (_saveQueue == null) return false;
 
@@ -605,6 +607,7 @@ public sealed class DatabaseClient
             CompanyId: companyId,
             Title: companyTitle,
             About: companyAbout,
+            Description: companyDescription,
             Site: companySite,
             Rating: companyRating,
             CurrentEmployees: currentEmployees,
@@ -670,9 +673,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about, site, rating, employees, followers и employees_count для компании
+    /// Обновить company_id, title, about, description, site, rating, employees, followers и employees_count для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork, string? employeesCount)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companyDescription, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork, string? employeesCount)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -686,6 +689,7 @@ public sealed class DatabaseClient
                 SET company_id = @company_id, 
                     title = COALESCE(@title, title),
                     about = COALESCE(@about, about),
+                    description = COALESCE(@description, description),
                     site = COALESCE(@site, site),
                     rating = COALESCE(@rating, rating),
                     current_employees = COALESCE(@current_employees, current_employees),
@@ -700,6 +704,7 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@company_id", companyId);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@description", companyDescription ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@current_employees", currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);

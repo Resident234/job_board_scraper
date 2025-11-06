@@ -37,6 +37,10 @@ ADD COLUMN IF NOT EXISTS want_work INTEGER;
 ALTER TABLE habr_companies 
 ADD COLUMN IF NOT EXISTS employees_count TEXT;
 
+-- Добавляем столбец description (детальное описание компании)
+ALTER TABLE habr_companies 
+ADD COLUMN IF NOT EXISTS description TEXT;
+
 -- Добавляем комментарии к столбцам
 COMMENT ON COLUMN habr_companies.company_id IS 'Числовой ID компании из элемента company_fav_button';
 COMMENT ON COLUMN habr_companies.about IS 'Описание компании из элемента company_about';
@@ -47,6 +51,7 @@ COMMENT ON COLUMN habr_companies.past_employees IS 'Все сотрудники 
 COMMENT ON COLUMN habr_companies.followers IS 'Подписчики (первое число из "253 / 318")';
 COMMENT ON COLUMN habr_companies.want_work IS 'Хотят работать (второе число из "253 / 318")';
 COMMENT ON COLUMN habr_companies.employees_count IS 'Размер компании из элемента .employees (например, "Более 5000 человек")';
+COMMENT ON COLUMN habr_companies.description IS 'Детальное описание компании из элемента .description (очищено от HTML тегов)';
 
 -- Создаём индекс на company_id для быстрого поиска
 CREATE INDEX IF NOT EXISTS idx_habr_companies_company_id ON habr_companies(company_id);

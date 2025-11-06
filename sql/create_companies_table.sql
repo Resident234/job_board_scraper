@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS habr_companies (
     title VARCHAR(500),
     company_id BIGINT,
     about TEXT,
+    description TEXT,
     site TEXT,
     rating DECIMAL(3,2),
     current_employees INTEGER,
@@ -22,6 +23,7 @@ COMMENT ON COLUMN habr_companies.url IS 'URL страницы компании';
 COMMENT ON COLUMN habr_companies.title IS 'Название компании';
 COMMENT ON COLUMN habr_companies.company_id IS 'Числовой ID компании из элемента company_fav_button';
 COMMENT ON COLUMN habr_companies.about IS 'Описание компании из элемента company_about';
+COMMENT ON COLUMN habr_companies.description IS 'Детальное описание компании из элемента .description (очищено от HTML тегов)';
 COMMENT ON COLUMN habr_companies.site IS 'Ссылка на сайт компании из элемента company_site';
 COMMENT ON COLUMN habr_companies.rating IS 'Рейтинг компании из элемента span.rating';
 COMMENT ON COLUMN habr_companies.current_employees IS 'Текущие сотрудники (первое число из "847 / 1622")';
