@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS habr_companies (
     followers INTEGER,
     want_work INTEGER,
     employees_count TEXT,
+    habr BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -31,6 +32,7 @@ COMMENT ON COLUMN habr_companies.past_employees IS 'Все сотрудники 
 COMMENT ON COLUMN habr_companies.followers IS 'Подписчики (первое число из "253 / 318")';
 COMMENT ON COLUMN habr_companies.want_work IS 'Хотят работать (второе число из "253 / 318")';
 COMMENT ON COLUMN habr_companies.employees_count IS 'Размер компании из элемента .employees (например, "Более 5000 человек")';
+COMMENT ON COLUMN habr_companies.habr IS 'Ведет ли компания блог на Хабре (проверяется по наличию элемента с текстом "Ведет блог на «Хабре»")';
 
 -- Индексы
 CREATE INDEX IF NOT EXISTS idx_habr_companies_code ON habr_companies(code);

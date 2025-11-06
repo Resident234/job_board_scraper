@@ -211,6 +211,8 @@ public static class AppConfig
     
     public static string CompanyDetailSkillSelector => ConfigurationManager.AppSettings["CompanyDetail:SkillSelector"] ?? "a.skill";
     
+    public static string CompanyDetailHabrBlogText => ConfigurationManager.AppSettings["CompanyDetail:HabrBlogText"] ?? "Ведет блог на «Хабре»";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

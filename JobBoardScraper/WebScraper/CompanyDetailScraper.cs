@@ -381,8 +381,22 @@ public sealed class CompanyDetailScraper : IDisposable
                     _db.EnqueueCompanySkills(code, skills);
                 }
 
-                // Сохраняем company_id, title, about, description, site, rating, employees, followers и employees_count в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
+                // Проверяем, ведет ли компания блог на Хабре
+                bool? habr = null;
+                var allDivs = doc.QuerySelectorAll("div.title");
+                foreach (var div in allDivs)
+                {
+                    var divText = div.TextContent?.Trim();
+                    if (divText == AppConfig.CompanyDetailHabrBlogText)
+                    {
+                        habr = true;
+                        _logger.WriteLine($"Компания ведет блог на Хабре");
+                        break;
+                    }
+                }
+
+                // Сохраняем company_id, title, about, description, site, rating, employees, followers, employees_count и habr в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount, habr);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 

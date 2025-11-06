@@ -31,7 +31,8 @@ public readonly record struct CompanyDetailsData(
     int? PastEmployees,
     int? Followers,
     int? WantWork,
-    string? EmployeesCount
+    string? EmployeesCount,
+    bool? Habr
 );
 
 public enum InsertMode
@@ -369,7 +370,8 @@ public sealed class DatabaseClient
                                     pastEmployees: details.PastEmployees,
                                     followers: details.Followers,
                                     wantWork: details.WantWork,
-                                    employeesCount: details.EmployeesCount
+                                    employeesCount: details.EmployeesCount,
+                                    habr: details.Habr
                                 );
                             }
                             break;
@@ -605,9 +607,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about, description, site, rating, employees, followers и employees_count в очередь на обновление в базе данных
+    /// Добавить company_id, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companyDescription = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null, string? employeesCount = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companyDescription = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null, string? employeesCount = null, bool? habr = null)
     {
         if (_saveQueue == null) return false;
 
@@ -623,7 +625,8 @@ public sealed class DatabaseClient
             PastEmployees: pastEmployees,
             Followers: followers,
             WantWork: wantWork,
-            EmployeesCount: employeesCount
+            EmployeesCount: employeesCount,
+            Habr: habr
         );
         
         var record = new DbRecord(
@@ -682,9 +685,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about, description, site, rating, employees, followers и employees_count для компании
+    /// Обновить company_id, title, about, description, site, rating, employees, followers, employees_count и habr для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companyDescription, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork, string? employeesCount)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companyDescription, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork, string? employeesCount, bool? habr)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -706,6 +709,7 @@ public sealed class DatabaseClient
                     followers = COALESCE(@followers, followers),
                     want_work = COALESCE(@want_work, want_work),
                     employees_count = COALESCE(@employees_count, employees_count),
+                    habr = COALESCE(@habr, habr),
                     updated_at = NOW()
                 WHERE code = @code", conn);
             
@@ -721,6 +725,7 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@followers", followers.HasValue ? (object)followers.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@want_work", wantWork.HasValue ? (object)wantWork.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@employees_count", !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
+            cmd.Parameters.AddWithValue("@habr", habr.HasValue ? (object)habr.Value : DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
