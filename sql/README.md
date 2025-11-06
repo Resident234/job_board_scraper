@@ -16,8 +16,20 @@ psql -U postgres -d jobs -f sql/create_companies_table.sql
 
 **Структура:**
 - `id` - первичный ключ
-- `company_code` - уникальный код компании (например, "standartpark")
-- `company_url` - полный URL компании
+- `code` - уникальный код компании (например, "standartpark")
+- `url` - полный URL компании
+- `title` - название компании
+- `company_id` - числовой ID компании из Habr
+- `about` - краткое описание компании
+- `description` - детальное описание компании
+- `site` - ссылка на сайт компании
+- `rating` - рейтинг компании (DECIMAL 3,2)
+- `current_employees` - текущие сотрудники
+- `past_employees` - все сотрудники
+- `followers` - подписчики
+- `want_work` - хотят работать
+- `employees_count` - размер компании (текст, например "Более 5000 человек")
+- `habr` - ведет ли компания блог на Хабре (boolean)
 - `created_at` - дата создания записи
 - `updated_at` - дата последнего обновления
 
@@ -58,6 +70,47 @@ psql -U postgres -d jobs -f sql/add_expert_columns.sql
 - `work_experience` - стаж работы (например, "9 лет и 9 месяцев")
 
 Также создаёт индексы для быстрого поиска по этим полям.
+
+### 7. Добавление детальных полей для компаний
+```bash
+psql -U postgres -d jobs -f sql/add_company_details_columns.sql
+```
+
+Добавляет дополнительные столбцы в таблицу `habr_companies`:
+- `company_id` - числовой ID компании
+- `about` - краткое описание
+- `description` - детальное описание
+- `site` - ссылка на сайт
+- `rating` - рейтинг компании
+- `current_employees` - текущие сотрудники
+- `past_employees` - все сотрудники
+- `followers` - подписчики
+- `want_work` - хотят работать
+- `employees_count` - размер компании (текст)
+- `habr` - ведет ли блог на Хабре
+
+Также создаёт индексы и уникальное ограничение на `company_id`.
+
+### 8. Таблицы для навыков компаний
+```bash
+psql -U postgres -d jobs -f sql/create_skills_table.sql
+```
+
+Создаёт две таблицы для хранения навыков:
+
+**habr_skills:**
+- `id` - первичный ключ
+- `title` - название навыка (уникальное)
+- `created_at` - дата создания
+
+**habr_company_skills:**
+- `id` - первичный ключ
+- `company_id` - ID компании (FK → habr_companies.id)
+- `skill_id` - ID навыка (FK → habr_skills.id)
+- `created_at` - дата создания
+- Уникальное ограничение на пару (company_id, skill_id)
+
+Связь многие-ко-многим между компаниями и навыками.
 
 ## Использование CategoryScraper
 
@@ -143,4 +196,51 @@ SELECT
     COUNT(slogan) as with_slogan
 FROM habr_resumes 
 WHERE expert = TRUE;
+```
+
+### Получить компании с детальной информацией
+```sql
+SELECT code, title, rating, employees_count, habr, site
+FROM habr_companies 
+WHERE company_id IS NOT NULL
+ORDER BY rating DESC NULLS LAST;
+```
+
+### Получить навыки компании
+```sql
+SELECT c.code, c.title, s.title as skill
+FROM habr_companies c
+JOIN habr_company_skills cs ON c.id = cs.company_id
+JOIN habr_skills s ON cs.skill_id = s.id
+WHERE c.code = 'yandex'
+ORDER BY s.title;
+```
+
+### Топ навыков по количеству компаний
+```sql
+SELECT s.title, COUNT(cs.company_id) as company_count
+FROM habr_skills s
+JOIN habr_company_skills cs ON s.id = cs.skill_id
+GROUP BY s.title
+ORDER BY company_count DESC
+LIMIT 20;
+```
+
+### Компании с блогом на Хабре
+```sql
+SELECT code, title, rating, followers
+FROM habr_companies
+WHERE habr = TRUE
+ORDER BY followers DESC NULLS LAST;
+```
+
+### Статистика по компаниям
+```sql
+SELECT 
+    COUNT(*) as total_companies,
+    COUNT(company_id) as with_details,
+    COUNT(rating) as with_rating,
+    COUNT(habr) FILTER (WHERE habr = TRUE) as with_habr_blog,
+    AVG(rating) as avg_rating
+FROM habr_companies;
 ```

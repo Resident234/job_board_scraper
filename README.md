@@ -21,7 +21,10 @@ psql -U postgres -c "CREATE DATABASE jobs;"
 # 3. Выполнить SQL-скрипты
 psql -U postgres -d jobs -f sql/create_resumes_table.sql
 psql -U postgres -d jobs -f sql/create_companies_table.sql
+psql -U postgres -d jobs -f sql/create_category_root_ids_table.sql
+psql -U postgres -d jobs -f sql/create_skills_table.sql
 psql -U postgres -d jobs -f sql/add_expert_columns.sql
+psql -U postgres -d jobs -f sql/add_company_details_columns.sql
 
 # 4. Запустить приложение
 dotnet run --project JobBoardScraper
@@ -40,4 +43,13 @@ dotnet run --project JobBoardScraper
 - Стаж работы
 - Компания
 
-### 🔧 
+### 🏢 CompanyDetailScraper
+Новый скрапер для детального сбора информации о компаниях:
+- Основная информация (ID, название, описание, сайт, рейтинг)
+- Статистика (сотрудники, подписчики)
+- Контактные лица и сотрудники
+- Связанные компании
+- Навыки компании (с таблицей связей многие-ко-многим)
+- Флаг наличия блога на Хабре
+
+### 🔧 Улучшения 
