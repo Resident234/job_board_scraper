@@ -299,6 +299,58 @@ public sealed class CompanyDetailScraper : IDisposable
                     employeesCount = employeesCountElement.TextContent?.Trim();
                 }
 
+                // Извлекаем контактных лиц компании
+                var publicMembers = doc.QuerySelectorAll(AppConfig.CompanyDetailPublicMemberSelector);
+                var memberCount = 0;
+                var memberHrefRegex = new Regex(AppConfig.CompanyDetailPublicMemberHrefRegex, RegexOptions.Compiled);
+                
+                foreach (var member in publicMembers)
+                {
+                    try
+                    {
+                        // Извлекаем имя
+                        var nameElement = member.QuerySelector(AppConfig.CompanyDetailPublicMemberNameSelector);
+                        var memberName = nameElement?.TextContent?.Trim();
+                        
+                        // Извлекаем код из href
+                        var href = member.GetAttribute("href");
+                        if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(memberName))
+                            continue;
+                        
+                        var hrefMatch = memberHrefRegex.Match(href);
+                        if (!hrefMatch.Success)
+                            continue;
+                        
+                        var memberCode = hrefMatch.Groups[1].Value;
+                        
+                        // Формируем полную ссылку
+                        var memberLink = AppConfig.CompanyDetailPublicMemberBaseUrl + memberCode;
+                        
+                        // Сохраняем в БД (title = имя, code = код, link = полная ссылка)
+                        // Используем UpdateIfExists чтобы обновить title если запись уже существует
+                        _db.EnqueueResume(
+                            link: memberLink,
+                            title: memberName,
+                            slogan: null,
+                            mode: InsertMode.UpdateIfExists,
+                            code: memberCode,
+                            expert: null,
+                            workExperience: null
+                        );
+                        
+                        memberCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.WriteLine($"Ошибка при обработке контактного лица: {ex.Message}");
+                    }
+                }
+                
+                if (memberCount > 0)
+                {
+                    _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
+                }
+
                 // Сохраняем company_id, title, about, site, rating, employees, followers и employees_count в БД
                 _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
                 

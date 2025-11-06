@@ -197,6 +197,14 @@ public static class AppConfig
     
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
+    public static string CompanyDetailPublicMemberSelector => ConfigurationManager.AppSettings["CompanyDetail:PublicMemberSelector"] ?? "a.company-public-member";
+    
+    public static string CompanyDetailPublicMemberNameSelector => ConfigurationManager.AppSettings["CompanyDetail:PublicMemberNameSelector"] ?? ".company-public-member__name";
+    
+    public static string CompanyDetailPublicMemberHrefRegex => ConfigurationManager.AppSettings["CompanyDetail:PublicMemberHrefRegex"] ?? "^/([^/]+)$";
+    
+    public static string CompanyDetailPublicMemberBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:PublicMemberBaseUrl"] ?? "https://career.habr.com/";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     
