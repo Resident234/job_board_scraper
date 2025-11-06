@@ -411,6 +411,55 @@ public sealed class CompanyDetailScraper : IDisposable
                     _logger.WriteLine($"Найдено сотрудников: {employeeCount}");
                 }
 
+                // Извлекаем связанные компании из списка
+                var relatedCompanyCount = 0;
+                var inlineCompaniesList = doc.QuerySelector(AppConfig.CompanyDetailInlineCompaniesListSelector);
+                if (inlineCompaniesList != null)
+                {
+                    var companyItems = inlineCompaniesList.QuerySelectorAll(AppConfig.CompanyDetailCompanyItemSelector);
+                    var companyHrefRegex = new Regex(AppConfig.CompanyDetailCompanyHrefRegex, RegexOptions.Compiled);
+                    
+                    foreach (var companyItem in companyItems)
+                    {
+                        try
+                        {
+                            // Извлекаем название компании и ссылку
+                            var titleLink = companyItem.QuerySelector(AppConfig.CompanyDetailCompanyTitleLinkSelector);
+                            if (titleLink == null)
+                                continue;
+                            
+                            var companyName = titleLink.TextContent?.Trim();
+                            var href = titleLink.GetAttribute("href");
+                            
+                            if (string.IsNullOrWhiteSpace(href))
+                                continue;
+                            
+                            var hrefMatch = companyHrefRegex.Match(href);
+                            if (!hrefMatch.Success)
+                                continue;
+                            
+                            var companyCode = hrefMatch.Groups[1].Value;
+                            
+                            // Формируем полную ссылку
+                            var companyUrl = AppConfig.CompanyDetailCompanyBaseUrl + companyCode;
+                            
+                            // Сохраняем в БД (code = код, url = полная ссылка, title = название)
+                            _db.EnqueueCompany(companyCode, companyUrl, companyName);
+                            
+                            relatedCompanyCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.WriteLine($"Ошибка при обработке связанной компании: {ex.Message}");
+                        }
+                    }
+                }
+                
+                if (relatedCompanyCount > 0)
+                {
+                    _logger.WriteLine($"Найдено связанных компаний: {relatedCompanyCount}");
+                }
+
                 // Извлекаем навыки компании
                 var skills = new List<string>();
                 var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);

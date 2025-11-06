@@ -221,6 +221,16 @@ public static class AppConfig
     
     public static string CompanyDetailUserBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:UserBaseUrl"] ?? "https://career.habr.com/";
     
+    public static string CompanyDetailInlineCompaniesListSelector => ConfigurationManager.AppSettings["CompanyDetail:InlineCompaniesListSelector"] ?? ".inline_companies_list";
+    
+    public static string CompanyDetailCompanyItemSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyItemSelector"] ?? ".company_item";
+    
+    public static string CompanyDetailCompanyTitleLinkSelector => ConfigurationManager.AppSettings["CompanyDetail:CompanyTitleLinkSelector"] ?? "a.title";
+    
+    public static string CompanyDetailCompanyHrefRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyHrefRegex"] ?? "/companies/([^/]+)";
+    
+    public static string CompanyDetailCompanyBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:CompanyBaseUrl"] ?? "https://career.habr.com/companies/";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     
