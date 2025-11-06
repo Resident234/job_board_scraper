@@ -216,14 +216,14 @@ public sealed class CompanyDetailScraper : IDisposable
                         var countText = countElement.TextContent?.Trim();
                         if (!string.IsNullOrWhiteSpace(countText))
                         {
-                            var match = _employeesRegex.Match(countText);
-                            if (match.Success && match.Groups.Count >= 3)
+                            var employeesMatch = _employeesRegex.Match(countText);
+                            if (employeesMatch.Success && employeesMatch.Groups.Count >= 3)
                             {
-                                if (int.TryParse(match.Groups[1].Value, out var current))
+                                if (int.TryParse(employeesMatch.Groups[1].Value, out var current))
                                 {
                                     currentEmployees = current;
                                 }
-                                if (int.TryParse(match.Groups[2].Value, out var past))
+                                if (int.TryParse(employeesMatch.Groups[2].Value, out var past))
                                 {
                                     pastEmployees = past;
                                 }
@@ -244,14 +244,14 @@ public sealed class CompanyDetailScraper : IDisposable
                         var countText = countElement.TextContent?.Trim();
                         if (!string.IsNullOrWhiteSpace(countText))
                         {
-                            var match = _followersRegex.Match(countText);
-                            if (match.Success && match.Groups.Count >= 3)
+                            var followersMatch = _followersRegex.Match(countText);
+                            if (followersMatch.Success && followersMatch.Groups.Count >= 3)
                             {
-                                if (int.TryParse(match.Groups[1].Value, out var follower))
+                                if (int.TryParse(followersMatch.Groups[1].Value, out var follower))
                                 {
                                     followers = follower;
                                 }
-                                if (int.TryParse(match.Groups[2].Value, out var want))
+                                if (int.TryParse(followersMatch.Groups[2].Value, out var want))
                                 {
                                     wantWork = want;
                                 }
@@ -281,8 +281,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 }
 
                 // Извлекаем числовой ID из атрибута id
-                var match = _companyIdRegex.Match(elementId);
-                if (!match.Success)
+                var companyIdMatch = _companyIdRegex.Match(elementId);
+                if (!companyIdMatch.Success)
                 {
                     _logger.WriteLine($"Компания {code}: не удалось извлечь ID из '{elementId}'. Пропуск.");
                     totalSkipped++;
@@ -290,7 +290,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                var companyIdStr = match.Groups[1].Value;
+                var companyIdStr = companyIdMatch.Groups[1].Value;
                 if (!long.TryParse(companyIdStr, out var companyId))
                 {
                     _logger.WriteLine($"Компания {code}: не удалось преобразовать '{companyIdStr}' в число. Пропуск.");

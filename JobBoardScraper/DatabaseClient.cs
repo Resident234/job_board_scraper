@@ -754,7 +754,6 @@ public sealed class DatabaseClient
     /// </summary>
     [Obsolete("Use EnqueueResume instead")]
     public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
-}
 
     /// <summary>
     /// Добавить навыки компании в очередь на запись в базу данных
