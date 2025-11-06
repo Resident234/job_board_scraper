@@ -191,6 +191,10 @@ public static class AppConfig
     
     public static string CompanyDetailFollowersRegex => ConfigurationManager.AppSettings["CompanyDetail:FollowersRegex"] ?? "(\\d+)\\s*/\\s*(\\d+)";
     
+    public static string CompanyDetailEmployeesCountElementSelector => ConfigurationManager.AppSettings["CompanyDetail:EmployeesCountElementSelector"] ?? ".employees";
+    
+    public static string CompanyDetailEmployeesCountRegex => ConfigurationManager.AppSettings["CompanyDetail:EmployeesCountRegex"] ?? "(\\d+)";
+    
     public static string CompanyDetailCompanyIdRegex => ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
     
     // Настройки логирования

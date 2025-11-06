@@ -291,8 +291,16 @@ public sealed class CompanyDetailScraper : IDisposable
                     continue;
                 }
 
-                // Сохраняем company_id, title, about, site, rating, employees и followers в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork);
+                // Извлекаем размер компании (текст целиком)
+                string? employeesCount = null;
+                var employeesCountElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesCountElementSelector);
+                if (employeesCountElement != null)
+                {
+                    employeesCount = employeesCountElement.TextContent?.Trim();
+                }
+
+                // Сохраняем company_id, title, about, site, rating, employees, followers и employees_count в БД
+                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
                 
                 var aboutPreview = companyAbout != null 
                     ? companyAbout.Substring(0, Math.Min(50, companyAbout.Length)) + "..." 
@@ -303,7 +311,7 @@ public sealed class CompanyDetailScraper : IDisposable
                 var followersStr = followers.HasValue && wantWork.HasValue 
                     ? $"{followers}/{wantWork}" 
                     : "(не найдено)";
-                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}, Подписчики = {followersStr}");
+                _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}, Подписчики = {followersStr}, Размер = {employeesCount ?? "(не найдено)"}");
                 
                 totalSuccess++;
                 totalProcessed++;
