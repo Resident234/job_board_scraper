@@ -16,7 +16,7 @@
 
 ## Архитектура
 
-Приложение запускает шесть параллельных процессов:
+Приложение запускает семь параллельных процессов:
 
 1. **BruteForceUsernameScraper** - перебор всех возможных имен пользователей (a-z, 0-9, -, _)
 2. **ResumeListPageScraper** - периодический обход страницы со списком резюме (каждые 10 минут)
@@ -24,6 +24,7 @@
 4. **CategoryScraper** - периодический сбор category_root_id из select элемента (раз в неделю)
 5. **CompanyFollowersScraper** - периодический обход подписчиков компаний (каждые 5 дней)
 6. **ExpertsScraper** - периодический обход экспертов (каждые 4 дня)
+7. **CompanyDetailScraper** - периодический обход детальных страниц компаний (раз в 30 дней)
 
 ## Конфигурация
 
@@ -40,9 +41,11 @@
 <add key="Companies:Enabled" value="false" />
 <add key="Category:Enabled" value="false" />
 <add key="CompanyFollowers:Enabled" value="true" />
+<add key="Experts:Enabled" value="true" />
+<add key="CompanyDetail:Enabled" value="false" />
 ```
 
-**По умолчанию включен только `CompanyFollowersScraper`**, остальные отключены.
+**По умолчанию включены `CompanyFollowersScraper` и `ExpertsScraper`**, остальные отключены.
 
 При запуске приложение выведет статус каждого скрапера:
 ```
@@ -156,6 +159,58 @@
    - Использует режим `UpdateIfExists` для обновления существующих записей
    - Добавляет поля: `code`, `expert`, `work_experience`
 
+### CompanyDetailScraper
+- `CompanyDetail:Enabled` - включить/отключить скрапер (по умолчанию: `false`)
+- `CompanyDetail:TimeoutSeconds` - таймаут HTTP-запроса в секундах (по умолчанию: `60`)
+- `CompanyDetail:EnableRetry` - включить автоматические повторы (по умолчанию: `true`)
+- `CompanyDetail:EnableTrafficMeasuring` - включить измерение трафика (по умолчанию: `true`)
+- `CompanyDetail:OutputMode` - режим вывода: `ConsoleOnly`, `FileOnly`, `Both`
+
+#### Логика обхода CompanyDetailScraper
+
+Скрапер выполняется раз в 30 дней и обходит детальные страницы всех компаний из БД:
+
+1. **Загрузка списка компаний** - получает все `code` и `url` из таблицы `habr_companies`
+2. **Обход детальных страниц** - для каждой компании извлекает:
+
+   **Основная информация:**
+   - **company_id** - числовой ID из атрибута `id="company_fav_button_{ID}"`
+   - **title** - название компании из `.company_name > a`
+   - **about** - краткое описание из `.company_about`
+   - **description** - детальное описание из `.description` (очищено от HTML)
+   - **site** - ссылка на сайт из `.company_site > a`
+   - **rating** - рейтинг компании из `span.rating`
+   - **employees_count** - размер компании из `.employees` (например, "Более 5000 человек")
+   - **habr** - флаг наличия блога на Хабре (проверяется по тексту "Ведет блог на «Хабре»")
+
+   **Статистика:**
+   - **current_employees / past_employees** - из элемента с tooltip "Текущие и все сотрудники" (формат: "847 / 1622")
+   - **followers / want_work** - из элемента с tooltip "Подписчики и те, кто хочет тут работать" (формат: "253 / 318")
+
+   **Контактные лица** (`.company-public-member`):
+   - Извлекает имя из `.company-public-member__name`
+   - Извлекает код из атрибута `href`
+   - Формирует полную ссылку
+   - Сохраняет в `habr_resumes` с режимом `UpdateIfExists` (обновляет title если запись существует)
+
+   **Сотрудники** (`.company_users_list > a.user`):
+   - Извлекает код пользователя из атрибута `href`
+   - Формирует полную ссылку
+   - Сохраняет в `habr_resumes` с режимом `SkipIfExists` (без title, только code и link)
+
+   **Связанные компании** (`.inline_companies_list > .company_item`):
+   - Извлекает название из `a.title`
+   - Извлекает код из атрибута `href`
+   - Формирует полную ссылку
+   - Сохраняет в `habr_companies` (обновляет если существует)
+
+   **Навыки** (`.skills > a.skill`):
+   - Извлекает все навыки компании
+   - Сохраняет в таблицу `habr_skills`
+   - Создаёт связи в таблице `habr_company_skills` (многие-ко-многим)
+
+3. **Сохранение в БД** - обновляет все поля в таблице `habr_companies` используя `COALESCE` (сохраняет существующие значения если новые NULL)
+
 ### Logging
 - `Logging:OutputDirectory` - директория для лог-файлов (по умолчанию: `./logs`)
 
@@ -167,11 +222,20 @@
 Перед запуском необходимо создать таблицы:
 
 ```bash
+# Таблица для резюме
+psql -U postgres -d jobs -f sql/create_resumes_table.sql
+
 # Таблица для компаний
 psql -U postgres -d jobs -f sql/create_companies_table.sql
 
 # Таблица для категорий
 psql -U postgres -d jobs -f sql/create_category_root_ids_table.sql
+
+# Таблица для навыков и связей
+psql -U postgres -d jobs -f sql/create_skills_table.sql
+
+# Дополнительные поля для компаний (если таблица уже существует)
+psql -U postgres -d jobs -f sql/add_company_details_columns.sql
 
 # Индексы для резюме
 psql -U postgres -d jobs -f sql/create_index.sql
@@ -179,10 +243,42 @@ psql -U postgres -d jobs -f sql/create_index.sql
 
 ### Структура таблиц
 
-**habr_companies**
-- `company_code` - уникальный код компании
-- `company_url` - полный URL компании
+**habr_resumes**
+- `link` - полный URL профиля (уникальный)
+- `title` - имя пользователя
+- `slogan` - слоган/специализация
+- `code` - код пользователя из URL
+- `expert` - флаг эксперта
+- `work_experience` - стаж работы
 - `created_at`, `updated_at` - временные метки
+
+**habr_companies**
+- `code` - уникальный код компании
+- `url` - полный URL компании
+- `title` - название компании
+- `company_id` - числовой ID компании
+- `about` - краткое описание
+- `description` - детальное описание
+- `site` - ссылка на сайт
+- `rating` - рейтинг компании
+- `current_employees` - текущие сотрудники
+- `past_employees` - все сотрудники
+- `followers` - подписчики
+- `want_work` - хотят работать
+- `employees_count` - размер компании (текст)
+- `habr` - ведет ли блог на Хабре
+- `created_at`, `updated_at` - временные метки
+
+**habr_skills**
+- `id` - уникальный идентификатор
+- `title` - название навыка (уникальное)
+- `created_at` - временная метка
+
+**habr_company_skills**
+- `company_id` - ID компании (FK → habr_companies.id)
+- `skill_id` - ID навыка (FK → habr_skills.id)
+- `created_at` - временная метка
+- Уникальное ограничение на пару (company_id, skill_id)
 
 **habr_category_root_ids**
 - `category_id` - уникальный идентификатор категории
