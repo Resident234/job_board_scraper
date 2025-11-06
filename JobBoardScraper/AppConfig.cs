@@ -207,6 +207,10 @@ public static class AppConfig
     
     public static string CompanyDetailDescriptionSelector => ConfigurationManager.AppSettings["CompanyDetail:DescriptionSelector"] ?? ".description";
     
+    public static string CompanyDetailSkillsContainerSelector => ConfigurationManager.AppSettings["CompanyDetail:SkillsContainerSelector"] ?? ".skills";
+    
+    public static string CompanyDetailSkillSelector => ConfigurationManager.AppSettings["CompanyDetail:SkillSelector"] ?? "a.skill";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

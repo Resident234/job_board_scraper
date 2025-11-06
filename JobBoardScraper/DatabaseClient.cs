@@ -13,7 +13,8 @@ public enum DbRecordType
     Company,
     CategoryRootId,
     CompanyId,
-    CompanyDetails
+    CompanyDetails,
+    CompanySkills
 }
 
 /// <summary>
@@ -55,7 +56,8 @@ public readonly record struct DbRecord(
     string? Code = null,
     bool? Expert = null,
     string? WorkExperience = null,
-    CompanyDetailsData? CompanyDetails = null);
+    CompanyDetailsData? CompanyDetails = null,
+    List<string>? Skills = null);
 
 public sealed class DatabaseClient
 {
@@ -369,6 +371,13 @@ public sealed class DatabaseClient
                                     wantWork: details.WantWork,
                                     employeesCount: details.EmployeesCount
                                 );
+                            }
+                            break;
+                        case DbRecordType.CompanySkills:
+                            // Обрабатываем навыки компании
+                            if (record.Skills != null && record.Skills.Count > 0)
+                            {
+                                DatabaseInsertCompanySkills(conn, companyCode: record.PrimaryValue, skills: record.Skills);
                             }
                             break;
                     }
@@ -740,4 +749,104 @@ public sealed class DatabaseClient
     /// </summary>
     [Obsolete("Use EnqueueResume instead")]
     public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
+}
+
+    /// <summary>
+    /// Добавить навыки компании в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompanySkills(string companyCode, List<string> skills)
+    {
+        if (_saveQueue == null) return false;
+        if (skills == null || skills.Count == 0) return false;
+
+        var record = new DbRecord(DbRecordType.CompanySkills, companyCode, "", Skills: skills);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Вставить или обновить навыки компании
+    /// </summary>
+    public void DatabaseInsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+        if (skills == null || skills.Count == 0) return;
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Получаем ID компании по коду
+            int? companyId = null;
+            using (var cmdGetCompany = new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
+            {
+                cmdGetCompany.Parameters.AddWithValue("@code", companyCode);
+                var result = cmdGetCompany.ExecuteScalar();
+                if (result != null)
+                {
+                    companyId = Convert.ToInt32(result);
+                }
+            }
+
+            if (!companyId.HasValue)
+            {
+                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД. Пропуск навыков.");
+                return;
+            }
+
+            // Удаляем старые связи навыков для этой компании
+            using (var cmdDelete = new NpgsqlCommand("DELETE FROM habr_company_skills WHERE company_id = @company_id", conn))
+            {
+                cmdDelete.Parameters.AddWithValue("@company_id", companyId.Value);
+                cmdDelete.ExecuteNonQuery();
+            }
+
+            // Добавляем навыки
+            int addedCount = 0;
+            foreach (var skillTitle in skills)
+            {
+                if (string.IsNullOrWhiteSpace(skillTitle)) continue;
+
+                // Вставляем навык в таблицу habr_skills (если его нет)
+                int skillId;
+                using (var cmdInsertSkill = new NpgsqlCommand(@"
+                    INSERT INTO habr_skills (title, created_at)
+                    VALUES (@title, NOW())
+                    ON CONFLICT (title) 
+                    DO UPDATE SET title = EXCLUDED.title
+                    RETURNING id", conn))
+                {
+                    cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
+                    var result = cmdInsertSkill.ExecuteScalar();
+                    skillId = Convert.ToInt32(result);
+                }
+
+                // Связываем навык с компанией
+                using (var cmdLinkSkill = new NpgsqlCommand(@"
+                    INSERT INTO habr_company_skills (company_id, skill_id, created_at)
+                    VALUES (@company_id, @skill_id, NOW())
+                    ON CONFLICT (company_id, skill_id) DO NOTHING", conn))
+                {
+                    cmdLinkSkill.Parameters.AddWithValue("@company_id", companyId.Value);
+                    cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
+                    cmdLinkSkill.ExecuteNonQuery();
+                }
+
+                addedCount++;
+            }
+
+            Console.WriteLine($"[DB] Добавлено {addedCount} навыков для компании {companyCode}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД при добавлении навыков для {companyCode}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
+        }
+    }
 }

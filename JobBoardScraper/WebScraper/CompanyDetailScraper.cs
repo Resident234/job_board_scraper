@@ -359,6 +359,28 @@ public sealed class CompanyDetailScraper : IDisposable
                     _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
                 }
 
+                // Извлекаем навыки компании
+                var skills = new List<string>();
+                var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
+                if (skillsContainer != null)
+                {
+                    var skillElements = skillsContainer.QuerySelectorAll(AppConfig.CompanyDetailSkillSelector);
+                    foreach (var skillElement in skillElements)
+                    {
+                        var skillTitle = skillElement.TextContent?.Trim();
+                        if (!string.IsNullOrWhiteSpace(skillTitle))
+                        {
+                            skills.Add(skillTitle);
+                        }
+                    }
+                }
+
+                if (skills.Count > 0)
+                {
+                    _logger.WriteLine($"Найдено навыков: {skills.Count}");
+                    _db.EnqueueCompanySkills(code, skills);
+                }
+
                 // Сохраняем company_id, title, about, description, site, rating, employees, followers и employees_count в БД
                 _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount);
                 

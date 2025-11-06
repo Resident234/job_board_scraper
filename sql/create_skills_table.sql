@@ -1,0 +1,31 @@
+-- Таблица навыков
+CREATE TABLE IF NOT EXISTS habr_skills (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Комментарии к столбцам
+COMMENT ON COLUMN habr_skills.title IS 'Название навыка';
+
+-- Индекс для быстрого поиска по названию
+CREATE INDEX IF NOT EXISTS idx_habr_skills_title ON habr_skills(title);
+
+-- Связующая таблица для связи многие-ко-многим между компаниями и навыками
+CREATE TABLE IF NOT EXISTS habr_company_skills (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL,
+    skill_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_company FOREIGN KEY (company_id) REFERENCES habr_companies(id) ON DELETE CASCADE,
+    CONSTRAINT fk_skill FOREIGN KEY (skill_id) REFERENCES habr_skills(id) ON DELETE CASCADE,
+    CONSTRAINT unique_company_skill UNIQUE (company_id, skill_id)
+);
+
+-- Комментарии к столбцам
+COMMENT ON COLUMN habr_company_skills.company_id IS 'ID компании из таблицы habr_companies';
+COMMENT ON COLUMN habr_company_skills.skill_id IS 'ID навыка из таблицы habr_skills';
+
+-- Индексы для быстрого поиска
+CREATE INDEX IF NOT EXISTS idx_habr_company_skills_company ON habr_company_skills(company_id);
+CREATE INDEX IF NOT EXISTS idx_habr_company_skills_skill ON habr_company_skills(skill_id);
