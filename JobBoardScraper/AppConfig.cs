@@ -213,6 +213,14 @@ public static class AppConfig
     
     public static string CompanyDetailHabrBlogText => ConfigurationManager.AppSettings["CompanyDetail:HabrBlogText"] ?? "Ведет блог на «Хабре»";
     
+    public static string CompanyDetailUsersListSelector => ConfigurationManager.AppSettings["CompanyDetail:UsersListSelector"] ?? ".company_users_list";
+    
+    public static string CompanyDetailUserLinkSelector => ConfigurationManager.AppSettings["CompanyDetail:UserLinkSelector"] ?? "a.user";
+    
+    public static string CompanyDetailUserHrefRegex => ConfigurationManager.AppSettings["CompanyDetail:UserHrefRegex"] ?? "^/([^/]+)$";
+    
+    public static string CompanyDetailUserBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:UserBaseUrl"] ?? "https://career.habr.com/";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

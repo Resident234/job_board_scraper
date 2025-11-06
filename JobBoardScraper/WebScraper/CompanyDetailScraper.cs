@@ -359,6 +359,58 @@ public sealed class CompanyDetailScraper : IDisposable
                     _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
                 }
 
+                // Извлекаем сотрудников компании из списка
+                var employeeCount = 0;
+                var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
+                if (usersList != null)
+                {
+                    var userLinks = usersList.QuerySelectorAll(AppConfig.CompanyDetailUserLinkSelector);
+                    var userHrefRegex = new Regex(AppConfig.CompanyDetailUserHrefRegex, RegexOptions.Compiled);
+                    
+                    foreach (var userLink in userLinks)
+                    {
+                        try
+                        {
+                            // Извлекаем код из href
+                            var href = userLink.GetAttribute("href");
+                            if (string.IsNullOrWhiteSpace(href))
+                                continue;
+                            
+                            var hrefMatch = userHrefRegex.Match(href);
+                            if (!hrefMatch.Success)
+                                continue;
+                            
+                            var userCode = hrefMatch.Groups[1].Value;
+                            
+                            // Формируем полную ссылку
+                            var userFullLink = AppConfig.CompanyDetailUserBaseUrl + userCode;
+                            
+                            // Сохраняем в БД (code = код, link = полная ссылка, без title)
+                            // Используем SkipIfExists чтобы не дублировать записи
+                            _db.EnqueueResume(
+                                link: userFullLink,
+                                title: "", // Не сохраняем title для сотрудников
+                                slogan: null,
+                                mode: InsertMode.SkipIfExists,
+                                code: userCode,
+                                expert: null,
+                                workExperience: null
+                            );
+                            
+                            employeeCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.WriteLine($"Ошибка при обработке сотрудника: {ex.Message}");
+                        }
+                    }
+                }
+                
+                if (employeeCount > 0)
+                {
+                    _logger.WriteLine($"Найдено сотрудников: {employeeCount}");
+                }
+
                 // Извлекаем навыки компании
                 var skills = new List<string>();
                 var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
