@@ -231,6 +231,45 @@ public static class AppConfig
     
     public static string CompanyDetailCompanyBaseUrl => ConfigurationManager.AppSettings["CompanyDetail:CompanyBaseUrl"] ?? "https://career.habr.com/companies/";
     
+    // Настройки для UserProfileScraper
+    public static bool UserProfileEnabled => bool.TryParse(ConfigurationManager.AppSettings["UserProfile:Enabled"], out var value) ? value : false;
+    
+    public static TimeSpan UserProfileTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["UserProfile:TimeoutSeconds"], out var value) ? value : 60;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+    
+    public static bool UserProfileEnableRetry => bool.TryParse(ConfigurationManager.AppSettings["UserProfile:EnableRetry"], out var value) ? value : true;
+    
+    public static bool UserProfileEnableTrafficMeasuring => bool.TryParse(ConfigurationManager.AppSettings["UserProfile:EnableTrafficMeasuring"], out var value) ? value : true;
+    
+    public static OutputMode UserProfileOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["UserProfile:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+    
+    public static string UserProfileFriendsUrlTemplate => ConfigurationManager.AppSettings["UserProfile:FriendsUrlTemplate"] ?? "https://career.habr.com/{0}/friends";
+    
+    public static string UserProfilePageTitleSelector => ConfigurationManager.AppSettings["UserProfile:PageTitleSelector"] ?? "h1.page-title__title";
+    
+    public static string UserProfileExpertSelector => ConfigurationManager.AppSettings["UserProfile:ExpertSelector"] ?? ".user-page-sidebar__is-expert";
+    
+    public static string UserProfileMetaSelector => ConfigurationManager.AppSettings["UserProfile:MetaSelector"] ?? ".user-page-sidebar__meta";
+    
+    public static string UserProfileInlineListSelector => ConfigurationManager.AppSettings["UserProfile:InlineListSelector"] ?? ".inline-list";
+    
+    public static string UserProfileCareerSelector => ConfigurationManager.AppSettings["UserProfile:CareerSelector"] ?? ".user-page-sidebar__career";
+    
+    public static string UserProfileSalaryRegex => ConfigurationManager.AppSettings["UserProfile:SalaryRegex"] ?? "От\\s+([\\d\\s]+)\\s*₽";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

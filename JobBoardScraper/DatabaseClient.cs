@@ -14,7 +14,8 @@ public enum DbRecordType
     CategoryRootId,
     CompanyId,
     CompanyDetails,
-    CompanySkills
+    CompanySkills,
+    UserProfile
 }
 
 /// <summary>
@@ -380,6 +381,21 @@ public sealed class DatabaseClient
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
                                 DatabaseInsertCompanySkills(conn, companyCode: record.PrimaryValue, skills: record.Skills);
+                            }
+                            break;
+                        case DbRecordType.UserProfile:
+                            // Обрабатываем профиль пользователя
+                            {
+                                var userName = record.SecondaryValue;
+                                var levelTitle = record.TertiaryValue;
+                                var infoTech = record.Code;
+                                var isExpert = record.Expert;
+                                int? salary = null;
+                                if (!string.IsNullOrWhiteSpace(record.WorkExperience) && int.TryParse(record.WorkExperience, out var salaryValue))
+                                {
+                                    salary = salaryValue;
+                                }
+                                DatabaseUpdateUserProfile(conn, userCode: record.PrimaryValue, userName: userName, isExpert: isExpert, levelTitle: levelTitle, infoTech: infoTech, salary: salary);
                             }
                             break;
                     }
@@ -853,4 +869,137 @@ public sealed class DatabaseClient
             Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
         }
     }
+}
+
+    /// <summary>
+    /// Получить все коды пользователей из таблицы habr_resumes
+    /// </summary>
+    public List<string> GetAllUserCodes(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var userCodes = new List<string>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(
+                "SELECT code FROM habr_resumes WHERE code IS NOT NULL ORDER BY code", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var code = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(code))
+                {
+                    userCodes.Add(code);
+                }
+            }
+
+            Console.WriteLine($"[DB] Загружено {userCodes.Count} кодов пользователей из БД");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка при получении кодов пользователей: {ex.Message}");
+        }
+
+        return userCodes;
+    }
+
+    /// <summary>
+    /// Добавить информацию о профиле пользователя в очередь на обновление
+    /// </summary>
+    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userCode)) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.UserProfile,
+            PrimaryValue: userCode,
+            SecondaryValue: userName ?? "",
+            TertiaryValue: levelTitle,
+            Code: infoTech,
+            Expert: isExpert,
+            WorkExperience: salary?.ToString()
+        );
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}");
+        
+        return true;
+    }
+
+
+
+    /// <summary>
+    /// Обновить информацию о профиле пользователя
+    /// </summary>
+    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userCode)) throw new ArgumentException("User code must not be empty.", nameof(userCode));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Получаем или создаём level_id
+            int? levelId = null;
+            if (!string.IsNullOrWhiteSpace(levelTitle))
+            {
+                using (var cmdLevel = new NpgsqlCommand(@"
+                    INSERT INTO habr_levels (title, created_at)
+                    VALUES (@title, NOW())
+                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
+                    RETURNING id", conn))
+                {
+                    cmdLevel.Parameters.AddWithValue("@title", levelTitle);
+                    var result = cmdLevel.ExecuteScalar();
+                    if (result != null)
+                    {
+                        levelId = Convert.ToInt32(result);
+                    }
+                }
+            }
+
+            // Обновляем профиль пользователя
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes 
+                SET title = COALESCE(@title, title),
+                    expert = COALESCE(@expert, expert),
+                    level_id = COALESCE(@level_id, level_id),
+                    info_tech = COALESCE(@info_tech, info_tech),
+                    salary = COALESCE(@salary, salary)
+                WHERE code = @code", conn);
+            
+            cmd.Parameters.AddWithValue("@code", userCode);
+            cmd.Parameters.AddWithValue("@title", userName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@expert", isExpert ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
+            
+            int rowsAffected = cmd.ExecuteNonQuery();
+            
+            if (rowsAffected > 0)
+            {
+                Console.WriteLine($"[DB] Обновлён профиль для {userCode}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}");
+            }
+            else
+            {
+                Console.WriteLine($"[DB] Пользователь {userCode} не найден в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для пользователя {userCode}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении профиля {userCode}: {ex.Message}");
+        }
+    }
+
+
 }
