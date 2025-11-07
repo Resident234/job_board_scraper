@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS habr_resumes
     info_tech text COLLATE pg_catalog."default",
     salary integer,
     last_visit text COLLATE pg_catalog."default",
+    public boolean,
     viewed bit(1),
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 ),
     CONSTRAINT habr_resumes_pkey PRIMARY KEY (id),
@@ -37,6 +38,7 @@ COMMENT ON COLUMN habr_resumes.level_id IS 'ID уровня специалист
 COMMENT ON COLUMN habr_resumes.info_tech IS 'Техническая информация о специализации (например, "Product manager | B2B SaaS • Менеджер продукта")';
 COMMENT ON COLUMN habr_resumes.salary IS 'Желаемая зарплата в рублях (только число)';
 COMMENT ON COLUMN habr_resumes.last_visit IS 'Последний визит (например, "5 дней назад")';
+COMMENT ON COLUMN habr_resumes.public IS 'Публичность профиля (true - публичный, false - приватный)';
 COMMENT ON COLUMN habr_resumes.viewed IS 'Флаг просмотра записи';
 
 -- Index: ix_habr_resumes_viewed_id

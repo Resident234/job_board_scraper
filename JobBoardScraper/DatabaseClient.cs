@@ -36,6 +36,20 @@ public readonly record struct CompanyDetailsData(
     bool? Habr
 );
 
+/// <summary>
+/// Структура для хранения данных профиля пользователя
+/// </summary>
+public readonly record struct UserProfileData(
+    string? UserName,
+    bool? IsExpert,
+    string? LevelTitle,
+    string? InfoTech,
+    int? Salary,
+    string? WorkExperience,
+    string? LastVisit,
+    bool? IsPublic
+);
+
 public enum InsertMode
 {
     /// <summary>
@@ -59,7 +73,8 @@ public readonly record struct DbRecord(
     bool? Expert = null,
     string? WorkExperience = null,
     CompanyDetailsData? CompanyDetails = null,
-    List<string>? Skills = null);
+    List<string>? Skills = null,
+    UserProfileData? UserProfile = null);
 
 public sealed class DatabaseClient
 {
@@ -385,35 +400,21 @@ public sealed class DatabaseClient
                             break;
                         case DbRecordType.UserProfile:
                             // Обрабатываем профиль пользователя
+                            if (record.UserProfile.HasValue)
                             {
-                                var userName = record.SecondaryValue;
-                                var levelTitle = record.TertiaryValue;
-                                var infoTech = record.Code;
-                                var isExpert = record.Expert;
-                                
-                                // Разбираем составную строку: "salary|workExperience|lastVisit"
-                                int? salary = null;
-                                string? workExperience = null;
-                                string? lastVisit = null;
-                                
-                                if (!string.IsNullOrWhiteSpace(record.WorkExperience))
-                                {
-                                    var parts = record.WorkExperience.Split('|');
-                                    if (parts.Length >= 1 && int.TryParse(parts[0], out var salaryValue))
-                                    {
-                                        salary = salaryValue;
-                                    }
-                                    if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]))
-                                    {
-                                        workExperience = parts[1];
-                                    }
-                                    if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[2]))
-                                    {
-                                        lastVisit = parts[2];
-                                    }
-                                }
-                                
-                                DatabaseUpdateUserProfile(conn, userCode: record.PrimaryValue, userName: userName, isExpert: isExpert, levelTitle: levelTitle, infoTech: infoTech, salary: salary, workExperience: workExperience, lastVisit: lastVisit);
+                                var profile = record.UserProfile.Value;
+                                DatabaseUpdateUserProfile(
+                                    conn, 
+                                    userCode: record.PrimaryValue, 
+                                    userName: profile.UserName, 
+                                    isExpert: profile.IsExpert, 
+                                    levelTitle: profile.LevelTitle, 
+                                    infoTech: profile.InfoTech, 
+                                    salary: profile.Salary, 
+                                    workExperience: profile.WorkExperience, 
+                                    lastVisit: profile.LastVisit,
+                                    isPublic: profile.IsPublic
+                                );
                             }
                             break;
                     }
@@ -929,25 +930,31 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить информацию о профиле пользователя в очередь на обновление
     /// </summary>
-    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null)
+    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userCode)) return false;
 
-        // Используем поле WorkExperience для передачи составной строки: "salary|workExperience|lastVisit"
-        var compositeData = $"{salary}|{workExperience}|{lastVisit}";
+        // Создаём структуру с данными профиля
+        var profileData = new UserProfileData(
+            UserName: userName,
+            IsExpert: isExpert,
+            LevelTitle: levelTitle,
+            InfoTech: infoTech,
+            Salary: salary,
+            WorkExperience: workExperience,
+            LastVisit: lastVisit,
+            IsPublic: isPublic
+        );
         
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
             PrimaryValue: userCode,
-            SecondaryValue: userName ?? "",
-            TertiaryValue: levelTitle,
-            Code: infoTech,
-            Expert: isExpert,
-            WorkExperience: compositeData
+            SecondaryValue: "",
+            UserProfile: profileData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
+        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
         
         return true;
     }
@@ -955,7 +962,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить информацию о профиле пользователя
     /// </summary>
-    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null)
+    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userCode)) throw new ArgumentException("User code must not be empty.", nameof(userCode));
@@ -992,7 +999,8 @@ public sealed class DatabaseClient
                     info_tech = COALESCE(@info_tech, info_tech),
                     salary = COALESCE(@salary, salary),
                     work_experience = COALESCE(@work_experience, work_experience),
-                    last_visit = COALESCE(@last_visit, last_visit)
+                    last_visit = COALESCE(@last_visit, last_visit),
+                    public = COALESCE(@public, public)
                 WHERE code = @code", conn);
             
             cmd.Parameters.AddWithValue("@code", userCode);
@@ -1003,6 +1011,7 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             

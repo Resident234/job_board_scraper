@@ -144,12 +144,29 @@ public sealed class UserProfileScraper : IDisposable
 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                // Извлекаем имя пользователя
+                // Извлекаем имя пользователя и определяем публичность профиля
                 string? userName = null;
+                bool isPublic = false;
                 var pageTitleElement = doc.QuerySelector(AppConfig.UserProfilePageTitleSelector);
                 if (pageTitleElement != null)
                 {
                     userName = pageTitleElement.TextContent?.Trim();
+                    // Если имя найдено, профиль публичный
+                    if (!string.IsNullOrWhiteSpace(userName))
+                    {
+                        isPublic = true;
+                    }
+                }
+
+                // Если профиль приватный (редирект на главную), сохраняем только флаг и продолжаем
+                if (!isPublic)
+                {
+                    _logger.WriteLine($"Пользователь {userCode}: Приватный профиль (редирект)");
+                    _db.EnqueueUserProfile(userCode, null, null, null, null, null, null, null, false);
+                    totalSuccess++;
+                    totalProcessed++;
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+                    continue;
                 }
 
                 // Проверяем, является ли пользователь экспертом
@@ -238,10 +255,10 @@ public sealed class UserProfileScraper : IDisposable
                     }
                 }
 
-                // Сохраняем информацию о пользователе
-                _db.EnqueueUserProfile(userCode, userName, isExpert, levelTitle, infoTech, salary, workExperience, lastVisit);
+                // Сохраняем информацию о пользователе (публичный профиль)
+                _db.EnqueueUserProfile(userCode, userName, isExpert, levelTitle, infoTech, salary, workExperience, lastVisit, true);
                 
-                _logger.WriteLine($"Пользователь {userCode}: Имя = {userName ?? "(не найдено)"}, Эксперт = {isExpert?.ToString() ?? "нет"}, Уровень = {levelTitle ?? "(не найдено)"}, Зарплата = {salary?.ToString() ?? "(не найдено)"}, Опыт = {workExperience ?? "(не найдено)"}, Последний визит = {lastVisit ?? "(не найдено)"}");
+                _logger.WriteLine($"Пользователь {userCode}: Имя = {userName ?? "(не найдено)"}, Эксперт = {isExpert?.ToString() ?? "нет"}, Уровень = {levelTitle ?? "(не найдено)"}, Зарплата = {salary?.ToString() ?? "(не найдено)"}, Опыт = {workExperience ?? "(не найдено)"}, Последний визит = {lastVisit ?? "(не найдено)"}, Публичный = true");
                 
                 totalSuccess++;
                 totalProcessed++;
