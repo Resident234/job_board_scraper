@@ -72,10 +72,14 @@
 - [x] `Category:Enabled`
 - [x] `CompanyFollowers:Enabled`
 - [x] `Experts:Enabled`
+- [x] `CompanyDetail:Enabled`
+- [x] `UserProfile:Enabled`
 
 ### 4.2 Обновление AppConfig.cs
 - [x] Добавлены свойства для всех `{Scraper}:Enabled`
 - [x] Добавлены свойства для настроек ExpertsScraper
+- [x] Добавлены свойства для настроек CompanyDetailScraper
+- [x] Добавлены свойства для настроек UserProfileScraper
 - [x] Добавлены свойства для статистики трафика
 
 ### 4.3 Обновление Program.cs
@@ -109,7 +113,71 @@
 - [x] Запуск в фоновом режиме
 - [x] Настраиваемый интервал (по умолчанию: 4 дня)
 
-## ✅ 6. Расширение структуры базы данных
+## ✅ 7. CompanyDetailScraper - скрапер детальных страниц компаний
+
+### 7.1 Создание скрапера
+- [x] Создан класс `CompanyDetailScraper.cs`
+- [x] Обход детальных страниц компаний
+- [x] Извлечение company_id из кнопки избранного
+- [x] Извлечение title, about, description, site, rating
+- [x] Извлечение количества сотрудников и подписчиков
+- [x] Извлечение навыков компании
+- [x] Извлечение публичных сотрудников
+- [x] Использование `ConsoleLogger`
+- [x] Использование `SmartHttpClient`
+
+### 7.2 Расширение структуры базы данных
+- [x] Создан `sql/add_company_details_columns.sql`
+- [x] Добавлены столбцы: company_id, title, about, description, site, rating
+- [x] Добавлены столбцы: current_employees, past_employees, followers, want_work
+- [x] Добавлены столбцы: employees_count, habr
+- [x] Создана таблица habr_skills
+- [x] Создана таблица habr_company_skills (связь многие-ко-многим)
+
+### 7.3 Интеграция в Program.cs
+- [x] Создание `SmartHttpClient` для CompanyDetailScraper
+- [x] Инициализация CompanyDetailScraper
+- [x] Запуск в фоновом режиме
+- [x] Настраиваемый интервал (по умолчанию: 30 дней)
+
+## ✅ 8. UserProfileScraper - скрапер профилей пользователей
+
+### 8.1 Создание скрапера
+- [x] Создан класс `UserProfileScraper.cs`
+- [x] Обход профилей пользователей через /friends URL
+- [x] Извлечение имени пользователя
+- [x] Определение статуса эксперта
+- [x] Извлечение уровня (Junior, Middle, Senior и т.д.)
+- [x] Извлечение технической информации
+- [x] Извлечение зарплатных ожиданий
+- [x] Извлечение опыта работы
+- [x] Извлечение даты последнего визита
+- [x] Определение публичности профиля
+- [x] Использование `ConsoleLogger`
+- [x] Использование `SmartHttpClient`
+
+### 8.2 Расширение структуры базы данных
+- [x] Создана таблица `habr_levels` для хранения уровней
+- [x] Создан `sql/create_levels_table.sql`
+- [x] Создан `sql/add_user_profile_columns.sql`
+- [x] Добавлены столбцы: user_name, level_id, info_tech, salary
+- [x] Добавлены столбцы: last_visit, public
+- [x] Создан внешний ключ на habr_levels
+
+### 8.3 Обновление DatabaseClient
+- [x] Добавлена структура `UserProfileData`
+- [x] Метод `EnqueueUserProfile` для добавления в очередь
+- [x] Метод `DatabaseUpdateUserProfile` для обновления профиля
+- [x] Метод `GetAllUsernames` для получения списка пользователей
+- [x] Автоматическое создание уровней при необходимости
+
+### 8.4 Интеграция в Program.cs
+- [x] Создание `SmartHttpClient` для UserProfileScraper
+- [x] Инициализация UserProfileScraper
+- [x] Запуск в фоновом режиме
+- [x] Настраиваемый интервал (по умолчанию: 30 дней)
+
+## ✅ 6. Расширение структуры базы данных для экспертов
 
 ### 6.1 Новые столбцы в habr_resumes
 - [x] Столбец `code` (TEXT) - код пользователя
@@ -130,14 +198,14 @@
 - [x] Поддержка режима `UpdateIfExists` для экспертов
 - [x] Вывод информации о экспертах в логи
 
-## ✅ 7. Документация
+## ✅ 9. Документация
 
 ### 7.1 Основная документация
 - [x] Обновлён `README.md` с описанием ExpertsScraper
 - [x] Добавлена секция про SmartHttpClient
 - [x] Добавлена секция про систему измерения трафика
 - [x] Добавлена секция про управление скраперами
-- [x] Обновлена архитектура (6 процессов вместо 5)
+- [x] Обновлена архитектура (8 процессов вместо 5)
 
 ### 7.2 SQL документация
 - [x] Обновлён `sql/README.md`
@@ -154,7 +222,7 @@
 ### 7.4 Техническая документация
 - [x] `docs/TRAFFIC_OPTIMIZATION.md` - оптимизация трафика
 
-## ✅ 8. Тестирование и проверка
+## ✅ 10. Тестирование и проверка
 
 ### 8.1 Компиляция
 - [x] Проверка компиляции всех файлов
@@ -179,11 +247,17 @@
 3. `JobBoardScraper/SmartHttpClient.cs`
 4. `JobBoardScraper/TrafficStatistics.cs`
 5. `JobBoardScraper/WebScraper/ExpertsScraper.cs`
-6. `sql/add_expert_columns.sql`
-7. `MIGRATION_GUIDE.md`
-8. `QUICKSTART.md`
-9. `CHANGELOG.md`
-10. `IMPLEMENTATION_CHECKLIST.md`
+6. `JobBoardScraper/WebScraper/CompanyDetailScraper.cs`
+7. `JobBoardScraper/WebScraper/UserProfileScraper.cs`
+8. `sql/add_expert_columns.sql`
+9. `sql/add_company_details_columns.sql`
+10. `sql/create_levels_table.sql`
+11. `sql/add_user_profile_columns.sql`
+12. `docs/USER_PROFILE_SCRAPER.md`
+13. `MIGRATION_GUIDE.md`
+14. `QUICKSTART.md`
+15. `CHANGELOG.md`
+16. `IMPLEMENTATION_CHECKLIST.md`
 
 ### Удалённые файлы
 1. `JobBoardScraper/HttpRetry.cs`
@@ -213,14 +287,19 @@
 5. ✅ Проблемы с кодировкой HTML
 6. ✅ Отсутствие данных о экспертах
 7. ✅ Ограниченная структура БД
+8. ✅ Отсутствие детальной информации о компаниях
+9. ✅ Отсутствие информации о профилях пользователей
 
 ### Новые возможности
 1. ✅ Сбор данных экспертов с career.habr.com
-2. ✅ Измерение и статистика HTTP-трафика
-3. ✅ Гибкое управление скраперами
-4. ✅ Независимое логирование для каждого скрапера
-5. ✅ Универсальная обёртка SmartHttpClient
-6. ✅ Расширенная структура БД с поддержкой экспертов
+2. ✅ Сбор детальной информации о компаниях (company_id, рейтинг, навыки и т.д.)
+3. ✅ Сбор информации о профилях пользователей (уровень, зарплата, опыт и т.д.)
+4. ✅ Измерение и статистика HTTP-трафика
+5. ✅ Гибкое управление скраперами
+6. ✅ Независимое логирование для каждого скрапера
+7. ✅ Универсальная обёртка SmartHttpClient
+8. ✅ Расширенная структура БД с поддержкой экспертов, компаний и профилей
+9. ✅ Определение публичности профилей пользователей
 
 ### Улучшения качества кода
 1. ✅ Удаление дублирования кода

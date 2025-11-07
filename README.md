@@ -25,6 +25,8 @@ psql -U postgres -d jobs -f sql/create_category_root_ids_table.sql
 psql -U postgres -d jobs -f sql/create_skills_table.sql
 psql -U postgres -d jobs -f sql/add_expert_columns.sql
 psql -U postgres -d jobs -f sql/add_company_details_columns.sql
+psql -U postgres -d jobs -f sql/create_levels_table.sql
+psql -U postgres -d jobs -f sql/add_user_profile_columns.sql
 
 # 4. Запустить приложение
 dotnet run --project JobBoardScraper
@@ -51,5 +53,16 @@ dotnet run --project JobBoardScraper
 - Связанные компании
 - Навыки компании (с таблицей связей многие-ко-многим)
 - Флаг наличия блога на Хабре
+
+### 👤 UserProfileScraper
+Новый скрапер для сбора детальной информации о профилях пользователей:
+- Имя пользователя
+- Статус эксперта
+- Уровень (Junior, Middle, Senior и т.д.)
+- Техническая информация
+- Зарплатные ожидания
+- Опыт работы
+- Дата последнего визита
+- Определение публичности профиля
 
 ### 🔧 Улучшения 

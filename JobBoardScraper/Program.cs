@@ -4,7 +4,7 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает семь параллельных процессов:
+/// Запускает восемь параллельных процессов:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
 /// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
@@ -12,6 +12,7 @@ namespace JobBoardScraper;
 /// 5. CompanyFollowersScraper - периодический обход подписчиков компаний (каждые 5 дней)
 /// 6. ExpertsScraper - периодический обход экспертов (каждые 4 дня)
 /// 7. CompanyDetailScraper - периодический обход детальных страниц компаний для извлечения company_id (раз в месяц)
+/// 8. UserProfileScraper - периодический обход профилей пользователей для извлечения детальной информации (раз в месяц)
 /// TODO при переборе прогресс выводить, там где известно заранее число элементов
 /// </summary>
 class Program
@@ -233,6 +234,38 @@ class Program
         else
         {
             Console.WriteLine("[Program] CompanyDetailScraper: ОТКЛЮЧЕН");
+        }
+
+        // Процесс 8: Периодический обход профилей пользователей
+        if (AppConfig.UserProfileEnabled)
+        {
+            Console.WriteLine("[Program] UserProfileScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода UserProfileScraper: {AppConfig.UserProfileOutputMode}");
+            Console.WriteLine($"[Program] Timeout UserProfileScraper: {AppConfig.UserProfileTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var userProfileBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.UserProfileTimeout.TotalSeconds);
+            
+            var userProfileHttpClient = new SmartHttpClient(
+                userProfileBaseHttpClient, 
+                "UserProfileScraper", 
+                trafficStats,
+                enableRetry: AppConfig.UserProfileEnableRetry,
+                enableTrafficMeasuring: AppConfig.UserProfileEnableTrafficMeasuring,
+                timeout: AppConfig.UserProfileTimeout);
+            var userProfileScraper = new UserProfileScraper(
+                userProfileHttpClient,
+                db,
+                getUsernames: () => db.GetAllUsernames(conn),
+                interval: TimeSpan.FromDays(30),
+                outputMode: AppConfig.UserProfileOutputMode);
+
+            _ = userProfileScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] UserProfileScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей

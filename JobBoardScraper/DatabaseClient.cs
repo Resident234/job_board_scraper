@@ -1033,4 +1033,40 @@ public sealed class DatabaseClient
             Console.WriteLine($"[DB] Неожиданная ошибка при обновлении профиля {userCode}: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Получить все коды пользователей (usernames) из таблицы habr_resumes
+    /// </summary>
+    public List<string> GetAllUsernames(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var usernames = new List<string>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(
+                "SELECT code FROM habr_resumes WHERE code IS NOT NULL ORDER BY code", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var code = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(code))
+                {
+                    usernames.Add(code);
+                }
+            }
+
+            Console.WriteLine($"[DB] Загружено {usernames.Count} usernames из БД");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка при получении usernames: {ex.Message}");
+        }
+
+        return usernames;
+    }
 }
