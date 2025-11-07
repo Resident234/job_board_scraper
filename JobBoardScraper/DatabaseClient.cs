@@ -390,12 +390,30 @@ public sealed class DatabaseClient
                                 var levelTitle = record.TertiaryValue;
                                 var infoTech = record.Code;
                                 var isExpert = record.Expert;
+                                
+                                // Разбираем составную строку: "salary|workExperience|lastVisit"
                                 int? salary = null;
-                                if (!string.IsNullOrWhiteSpace(record.WorkExperience) && int.TryParse(record.WorkExperience, out var salaryValue))
+                                string? workExperience = null;
+                                string? lastVisit = null;
+                                
+                                if (!string.IsNullOrWhiteSpace(record.WorkExperience))
                                 {
-                                    salary = salaryValue;
+                                    var parts = record.WorkExperience.Split('|');
+                                    if (parts.Length >= 1 && int.TryParse(parts[0], out var salaryValue))
+                                    {
+                                        salary = salaryValue;
+                                    }
+                                    if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]))
+                                    {
+                                        workExperience = parts[1];
+                                    }
+                                    if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[2]))
+                                    {
+                                        lastVisit = parts[2];
+                                    }
                                 }
-                                DatabaseUpdateUserProfile(conn, userCode: record.PrimaryValue, userName: userName, isExpert: isExpert, levelTitle: levelTitle, infoTech: infoTech, salary: salary);
+                                
+                                DatabaseUpdateUserProfile(conn, userCode: record.PrimaryValue, userName: userName, isExpert: isExpert, levelTitle: levelTitle, infoTech: infoTech, salary: salary, workExperience: workExperience, lastVisit: lastVisit);
                             }
                             break;
                     }
@@ -869,7 +887,8 @@ public sealed class DatabaseClient
             Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
         }
     }
-}
+
+
 
     /// <summary>
     /// Получить все коды пользователей из таблицы habr_resumes
@@ -910,11 +929,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить информацию о профиле пользователя в очередь на обновление
     /// </summary>
-    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary)
+    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userCode)) return false;
 
+        // Используем поле WorkExperience для передачи составной строки: "salary|workExperience|lastVisit"
+        var compositeData = $"{salary}|{workExperience}|{lastVisit}";
+        
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
             PrimaryValue: userCode,
@@ -922,20 +944,18 @@ public sealed class DatabaseClient
             TertiaryValue: levelTitle,
             Code: infoTech,
             Expert: isExpert,
-            WorkExperience: salary?.ToString()
+            WorkExperience: compositeData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}");
+        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
         
         return true;
     }
 
-
-
     /// <summary>
     /// Обновить информацию о профиле пользователя
     /// </summary>
-    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary)
+    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userCode)) throw new ArgumentException("User code must not be empty.", nameof(userCode));
@@ -970,7 +990,9 @@ public sealed class DatabaseClient
                     expert = COALESCE(@expert, expert),
                     level_id = COALESCE(@level_id, level_id),
                     info_tech = COALESCE(@info_tech, info_tech),
-                    salary = COALESCE(@salary, salary)
+                    salary = COALESCE(@salary, salary),
+                    work_experience = COALESCE(@work_experience, work_experience),
+                    last_visit = COALESCE(@last_visit, last_visit)
                 WHERE code = @code", conn);
             
             cmd.Parameters.AddWithValue("@code", userCode);
@@ -979,12 +1001,14 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
             
             int rowsAffected = cmd.ExecuteNonQuery();
             
             if (rowsAffected > 0)
             {
-                Console.WriteLine($"[DB] Обновлён профиль для {userCode}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}");
+                Console.WriteLine($"[DB] Обновлён профиль для {userCode}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
             }
             else
             {
@@ -1000,6 +1024,4 @@ public sealed class DatabaseClient
             Console.WriteLine($"[DB] Неожиданная ошибка при обновлении профиля {userCode}: {ex.Message}");
         }
     }
-
-
 }

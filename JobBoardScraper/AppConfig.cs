@@ -270,6 +270,12 @@ public static class AppConfig
     
     public static string UserProfileSalaryRegex => ConfigurationManager.AppSettings["UserProfile:SalaryRegex"] ?? "От\\s+([\\d\\s]+)\\s*₽";
     
+    public static string UserProfileBasicSectionSelector => ConfigurationManager.AppSettings["UserProfile:BasicSectionSelector"] ?? ".basic-section";
+    
+    public static string UserProfileWorkExperienceRegex => ConfigurationManager.AppSettings["UserProfile:WorkExperienceRegex"] ?? "Опыт работы:</span>\\s*(.+?)\\s*</div>";
+    
+    public static string UserProfileLastVisitRegex => ConfigurationManager.AppSettings["UserProfile:LastVisitRegex"] ?? "Последний визит:</span>\\s*(.+?)\\s*</div>";
+    
     // Настройки логирования
     public static string LoggingOutputDirectory => ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
     

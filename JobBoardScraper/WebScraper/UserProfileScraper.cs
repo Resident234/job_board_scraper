@@ -15,6 +15,8 @@ public sealed class UserProfileScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Regex _salaryRegex;
+    private readonly Regex _workExperienceRegex;
+    private readonly Regex _lastVisitRegex;
 
     public UserProfileScraper(
         SmartHttpClient httpClient,
@@ -28,6 +30,8 @@ public sealed class UserProfileScraper : IDisposable
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
         _interval = interval ?? TimeSpan.FromDays(30);
         _salaryRegex = new Regex(AppConfig.UserProfileSalaryRegex, RegexOptions.Compiled);
+        _workExperienceRegex = new Regex(AppConfig.UserProfileWorkExperienceRegex, RegexOptions.Compiled);
+        _lastVisitRegex = new Regex(AppConfig.UserProfileLastVisitRegex, RegexOptions.Compiled);
         
         _logger = new ConsoleLogger("UserProfileScraper");
         _logger.SetOutputMode(outputMode);
@@ -210,10 +214,33 @@ public sealed class UserProfileScraper : IDisposable
                     }
                 }
 
+                // Извлекаем опыт работы и последний визит из секции .basic-section
+                string? workExperience = null;
+                string? lastVisit = null;
+                var basicSectionElement = doc.QuerySelector(AppConfig.UserProfileBasicSectionSelector);
+                if (basicSectionElement != null)
+                {
+                    var sectionHtml = basicSectionElement.InnerHtml;
+                    
+                    // Извлекаем опыт работы
+                    var workExpMatch = _workExperienceRegex.Match(sectionHtml);
+                    if (workExpMatch.Success && workExpMatch.Groups.Count >= 2)
+                    {
+                        workExperience = workExpMatch.Groups[1].Value.Trim();
+                    }
+                    
+                    // Извлекаем последний визит
+                    var lastVisitMatch = _lastVisitRegex.Match(sectionHtml);
+                    if (lastVisitMatch.Success && lastVisitMatch.Groups.Count >= 2)
+                    {
+                        lastVisit = lastVisitMatch.Groups[1].Value.Trim();
+                    }
+                }
+
                 // Сохраняем информацию о пользователе
-                _db.EnqueueUserProfile(userCode, userName, isExpert, levelTitle, infoTech, salary);
+                _db.EnqueueUserProfile(userCode, userName, isExpert, levelTitle, infoTech, salary, workExperience, lastVisit);
                 
-                _logger.WriteLine($"Пользователь {userCode}: Имя = {userName ?? "(не найдено)"}, Эксперт = {isExpert?.ToString() ?? "нет"}, Уровень = {levelTitle ?? "(не найдено)"}, Зарплата = {salary?.ToString() ?? "(не найдено)"}");
+                _logger.WriteLine($"Пользователь {userCode}: Имя = {userName ?? "(не найдено)"}, Эксперт = {isExpert?.ToString() ?? "нет"}, Уровень = {levelTitle ?? "(не найдено)"}, Зарплата = {salary?.ToString() ?? "(не найдено)"}, Опыт = {workExperience ?? "(не найдено)"}, Последний визит = {lastVisit ?? "(не найдено)"}");
                 
                 totalSuccess++;
                 totalProcessed++;

@@ -13,10 +13,15 @@ ADD COLUMN IF NOT EXISTS info_tech TEXT;
 ALTER TABLE habr_resumes 
 ADD COLUMN IF NOT EXISTS salary INTEGER;
 
+-- Добавляем столбец last_visit (последний визит)
+ALTER TABLE habr_resumes 
+ADD COLUMN IF NOT EXISTS last_visit TEXT;
+
 -- Добавляем комментарии к столбцам
 COMMENT ON COLUMN habr_resumes.level_id IS 'ID уровня специалиста из таблицы habr_levels (FK)';
 COMMENT ON COLUMN habr_resumes.info_tech IS 'Техническая информация о специализации (например, "Product manager | B2B SaaS • Менеджер продукта")';
 COMMENT ON COLUMN habr_resumes.salary IS 'Желаемая зарплата в рублях (только число)';
+COMMENT ON COLUMN habr_resumes.last_visit IS 'Последний визит (например, "5 дней назад")';
 
 -- Создаём индекс на level_id для быстрого поиска
 CREATE INDEX IF NOT EXISTS idx_habr_resumes_level_id ON habr_resumes(level_id);
