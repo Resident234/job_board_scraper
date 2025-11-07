@@ -6,6 +6,7 @@ namespace JobBoardScraper.WebScraper;
 
 /// <summary>
 /// Обходит профили пользователей и извлекает детальную информацию
+/// TODO нужен selenium
 /// </summary>
 public sealed class UserProfileScraper : IDisposable
 {
