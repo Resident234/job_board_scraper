@@ -258,6 +258,7 @@ class Program
                 userProfileHttpClient,
                 db,
                 getUserCodes: () => db.GetAllUserLinks(conn),
+                controller: controller,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.UserProfileOutputMode);
 
