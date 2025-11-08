@@ -997,7 +997,7 @@ public sealed class DatabaseClient
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes 
                 SET code = COALESCE(@code, code),
-                    user_name = COALESCE(@user_name, user_name),
+                    title = COALESCE(@title, title),
                     expert = COALESCE(@expert, expert),
                     level_id = COALESCE(@level_id, level_id),
                     info_tech = COALESCE(@info_tech, info_tech),
@@ -1009,7 +1009,7 @@ public sealed class DatabaseClient
             
             cmd.Parameters.AddWithValue("@link", userLink);
             cmd.Parameters.AddWithValue("@code", userCode ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@user_name", userName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@title", userName ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@expert", isExpert ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
