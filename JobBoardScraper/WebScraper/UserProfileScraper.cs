@@ -87,11 +87,11 @@ public sealed class UserProfileScraper : IDisposable
     {
         _logger.WriteLine("Начало обхода профилей пользователей...");
         
-        // Получаем список кодов пользователей из БД
-        var userCodes = _getUserCodes();
-        _logger.WriteLine($"Загружено {userCodes.Count} пользователей из БД.");
+        // Получаем список ссылок пользователей из БД
+        var userLinks = _getUserCodes();
+        _logger.WriteLine($"Загружено {userLinks.Count} пользователей из БД.");
 
-        if (userCodes.Count == 0)
+        if (userLinks.Count == 0)
         {
             _logger.WriteLine("Нет пользователей для обработки.");
             return;
@@ -102,15 +102,26 @@ public sealed class UserProfileScraper : IDisposable
         var totalFailed = 0;
         var totalSkipped = 0;
 
-        foreach (var userCode in userCodes)
+        foreach (var userLink in userLinks)
         {
             if (ct.IsCancellationRequested)
                 break;
 
             try
             {
-                var friendsUrl = AppConfig.UserProfileFriendsUrlTemplate.Replace("{0}", userCode);
-                _logger.WriteLine($"Обработка пользователя: {userCode} -> {friendsUrl}");
+                // Извлекаем userCode из ссылки (например, из "https://career.habr.com/username" получаем "username")
+                var userCode = userLink.TrimEnd('/').Split('/').LastOrDefault();
+                if (string.IsNullOrWhiteSpace(userCode))
+                {
+                    _logger.WriteLine($"Не удалось извлечь код пользователя из ссылки: {userLink}. Пропуск.");
+                    totalSkipped++;
+                    totalProcessed++;
+                    continue;
+                }
+
+                // Формируем URL для /friends, добавляя /friends к исходной ссылке
+                var friendsUrl = userLink.TrimEnd('/') + "/friends";
+                _logger.WriteLine($"Обработка пользователя: {userLink} -> {friendsUrl}");
 
                 var response = await _httpClient.GetAsync(friendsUrl, ct);
                 
@@ -161,8 +172,8 @@ public sealed class UserProfileScraper : IDisposable
                 // Если профиль приватный (редирект на главную), сохраняем только флаг и продолжаем
                 if (!isPublic)
                 {
-                    _logger.WriteLine($"Пользователь {userCode}: Приватный профиль (редирект)");
-                    _db.EnqueueUserProfile(userCode, null, null, null, null, null, null, null, false);
+                    _logger.WriteLine($"Пользователь {userLink}: Приватный профиль (редирект)");
+                    _db.EnqueueUserProfile(userLink, userCode, null, null, null, null, null, null, null, false);
                     totalSuccess++;
                     totalProcessed++;
                     await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
@@ -256,9 +267,28 @@ public sealed class UserProfileScraper : IDisposable
                 }
 
                 // Сохраняем информацию о пользователе (публичный профиль)
-                _db.EnqueueUserProfile(userCode, userName, isExpert, levelTitle, infoTech, salary, workExperience, lastVisit, true);
+                _db.EnqueueUserProfile(
+                    userLink,
+                    userCode,
+                    userName, 
+                    isExpert, 
+                    levelTitle, 
+                    infoTech, 
+                    salary, 
+                    workExperience, 
+                    lastVisit, 
+                    true
+                );
                 
-                _logger.WriteLine($"Пользователь {userCode}: Имя = {userName ?? "(не найдено)"}, Эксперт = {isExpert?.ToString() ?? "нет"}, Уровень = {levelTitle ?? "(не найдено)"}, Зарплата = {salary?.ToString() ?? "(не найдено)"}, Опыт = {workExperience ?? "(не найдено)"}, Последний визит = {lastVisit ?? "(не найдено)"}, Публичный = true");
+                _logger.WriteLine($"Пользователь {userLink} (code={userCode}):");
+                _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
+                _logger.WriteLine($"  Эксперт: {(isExpert == true ? "Да" : "Нет")}");
+                _logger.WriteLine($"  Уровень: {levelTitle ?? "(не найдено)"}");
+                _logger.WriteLine($"  Техническая информация: {infoTech ?? "(не найдено)"}");
+                _logger.WriteLine($"  Зарплата: {(salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)")}");
+                _logger.WriteLine($"  Опыт работы: {workExperience ?? "(не найдено)"}");
+                _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
+                _logger.WriteLine($"  Публичный профиль: Да");
                 
                 totalSuccess++;
                 totalProcessed++;

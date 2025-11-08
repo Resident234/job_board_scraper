@@ -40,6 +40,7 @@ public readonly record struct CompanyDetailsData(
 /// Структура для хранения данных профиля пользователя
 /// </summary>
 public readonly record struct UserProfileData(
+    string? UserCode,
     string? UserName,
     bool? IsExpert,
     string? LevelTitle,
@@ -405,7 +406,8 @@ public sealed class DatabaseClient
                                 var profile = record.UserProfile.Value;
                                 DatabaseUpdateUserProfile(
                                     conn, 
-                                    userCode: record.PrimaryValue, 
+                                    userLink: record.PrimaryValue,
+                                    userCode: profile.UserCode,
                                     userName: profile.UserName, 
                                     isExpert: profile.IsExpert, 
                                     levelTitle: profile.LevelTitle, 
@@ -930,13 +932,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить информацию о профиле пользователя в очередь на обновление
     /// </summary>
-    public bool EnqueueUserProfile(string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
+    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
     {
         if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userCode)) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
 
         // Создаём структуру с данными профиля
         var profileData = new UserProfileData(
+            UserCode: userCode,
             UserName: userName,
             IsExpert: isExpert,
             LevelTitle: levelTitle,
@@ -949,12 +952,12 @@ public sealed class DatabaseClient
         
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
-            PrimaryValue: userCode,
+            PrimaryValue: userLink,
             SecondaryValue: "",
             UserProfile: profileData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] UserProfile: {userCode} -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
+        Console.WriteLine($"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
         
         return true;
     }
@@ -962,10 +965,10 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить информацию о профиле пользователя
     /// </summary>
-    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
+    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userLink, string? userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userCode)) throw new ArgumentException("User code must not be empty.", nameof(userCode));
+        if (string.IsNullOrWhiteSpace(userLink)) throw new ArgumentException("User link must not be empty.", nameof(userLink));
 
         try
         {
@@ -990,10 +993,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            // Обновляем профиль пользователя
+            // Обновляем профиль пользователя по link
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes 
-                SET title = COALESCE(@title, title),
+                SET code = COALESCE(@code, code),
+                    user_name = COALESCE(@user_name, user_name),
                     expert = COALESCE(@expert, expert),
                     level_id = COALESCE(@level_id, level_id),
                     info_tech = COALESCE(@info_tech, info_tech),
@@ -1001,10 +1005,11 @@ public sealed class DatabaseClient
                     work_experience = COALESCE(@work_experience, work_experience),
                     last_visit = COALESCE(@last_visit, last_visit),
                     public = COALESCE(@public, public)
-                WHERE code = @code", conn);
+                WHERE link = @link", conn);
             
-            cmd.Parameters.AddWithValue("@code", userCode);
-            cmd.Parameters.AddWithValue("@title", userName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@code", userCode ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@user_name", userName ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@expert", isExpert ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
@@ -1017,16 +1022,16 @@ public sealed class DatabaseClient
             
             if (rowsAffected > 0)
             {
-                Console.WriteLine($"[DB] Обновлён профиль для {userCode}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
+                Console.WriteLine($"[DB] Обновлён профиль для {userLink}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
             }
             else
             {
-                Console.WriteLine($"[DB] Пользователь {userCode} не найден в БД.");
+                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД.");
             }
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для пользователя {userCode}: {dbEx.Message}");
+            Console.WriteLine($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
@@ -1035,38 +1040,38 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Получить все коды пользователей (usernames) из таблицы habr_resumes
+    /// Получить все ссылки пользователей из таблицы habr_resumes
     /// </summary>
-    public List<string> GetAllUsernames(NpgsqlConnection conn)
+    public List<string> GetAllUserLinks(NpgsqlConnection conn)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
-        var usernames = new List<string>();
+        var userLinks = new List<string>();
 
         try
         {
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
-                "SELECT code FROM habr_resumes WHERE code IS NOT NULL ORDER BY code", conn);
+                "SELECT link FROM habr_resumes WHERE link IS NOT NULL ORDER BY link", conn);
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                var code = reader.GetString(0);
-                if (!string.IsNullOrWhiteSpace(code))
+                var link = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(link))
                 {
-                    usernames.Add(code);
+                    userLinks.Add(link);
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {usernames.Count} usernames из БД");
+            Console.WriteLine($"[DB] Загружено {userLinks.Count} ссылок пользователей из БД");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении usernames: {ex.Message}");
+            Console.WriteLine($"[DB] Ошибка при получении ссылок пользователей: {ex.Message}");
         }
 
-        return usernames;
+        return userLinks;
     }
 }
