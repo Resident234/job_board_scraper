@@ -250,26 +250,41 @@ public sealed class UserProfileScraper : IDisposable
                         }
                     }
 
-                    // Извлекаем опыт работы и последний визит из секции .basic-section
+                    // Извлекаем опыт работы и последний визит из всех секций .basic-section
                     string? workExperience = null;
                     string? lastVisit = null;
-                    var basicSectionElement = doc.QuerySelector(AppConfig.UserProfileBasicSectionSelector);
-                    if (basicSectionElement != null)
+                    var basicSectionElements = doc.QuerySelectorAll(AppConfig.UserProfileBasicSectionSelector);
+                    foreach (var basicSectionElement in basicSectionElements)
                     {
-                        var sectionHtml = basicSectionElement.InnerHtml;
-                        
-                        // Извлекаем опыт работы
-                        var workExpMatch = _workExperienceRegex.Match(sectionHtml);
-                        if (workExpMatch.Success && workExpMatch.Groups.Count >= 2)
+                        // Ищем все div элементы в секции
+                        var divElements = basicSectionElement.QuerySelectorAll("div");
+                        foreach (var div in divElements)
                         {
-                            workExperience = workExpMatch.Groups[1].Value.Trim();
-                        }
-                        
-                        // Извлекаем последний визит
-                        var lastVisitMatch = _lastVisitRegex.Match(sectionHtml);
-                        if (lastVisitMatch.Success && lastVisitMatch.Groups.Count >= 2)
-                        {
-                            lastVisit = lastVisitMatch.Groups[1].Value.Trim();
+                            var textContent = div.TextContent?.Trim();
+                            if (string.IsNullOrWhiteSpace(textContent))
+                                continue;
+                            
+                            // Проверяем на опыт работы
+                            if (textContent.Contains("Опыт работы:"))
+                            {
+                                // Извлекаем текст после "Опыт работы:"
+                                var parts = textContent.Split(new[] { "Опыт работы:" }, StringSplitOptions.None);
+                                if (parts.Length > 1)
+                                {
+                                    workExperience = parts[1].Trim();
+                                }
+                            }
+                            
+                            // Проверяем на последний визит
+                            if (textContent.Contains("Последний визит:"))
+                            {
+                                // Извлекаем текст после "Последний визит:"
+                                var parts = textContent.Split(new[] { "Последний визит:" }, StringSplitOptions.None);
+                                if (parts.Length > 1)
+                                {
+                                    lastVisit = parts[1].Trim();
+                                }
+                            }
                         }
                     }
 
