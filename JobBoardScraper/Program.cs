@@ -257,7 +257,7 @@ class Program
             var userProfileScraper = new UserProfileScraper(
                 userProfileHttpClient,
                 db,
-                getUsernames: () => db.GetAllUsernames(conn),
+                getUserCodes: () => db.GetAllUsernames(conn),
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.UserProfileOutputMode);
 
