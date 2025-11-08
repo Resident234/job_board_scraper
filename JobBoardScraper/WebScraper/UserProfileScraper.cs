@@ -7,6 +7,7 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Обходит профили пользователей и извлекает детальную информацию
 /// TODO нужен selenium, некоторые профили закрыты настройками приватности
+/// TODO вывод информации надо сделать такой же, как в BruteForceUsernameScraper, то есть количество параллельных потоков и тд 
 /// </summary>
 public sealed class UserProfileScraper : IDisposable
 {
