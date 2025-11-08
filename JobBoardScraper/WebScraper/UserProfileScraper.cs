@@ -140,17 +140,20 @@ public sealed class UserProfileScraper : IDisposable
                     : System.Text.Encoding.UTF8;
                 var html = encoding.GetString(htmlBytes);
                 
-                // Сохраняем HTML в файл для отладки
-                var savedPath = await HtmlDebug.SaveHtmlAsync(
-                    html, 
-                    "UserProfileScraper", 
-                    "last_page.html",
-                    encoding: encoding,
-                    ct: ct);
-                
-                if (savedPath != null)
+                // Сохраняем HTML в файл для отладки (если включено)
+                if (AppConfig.UserProfileSaveHtml)
                 {
-                    _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
+                    var savedPath = await HtmlDebug.SaveHtmlAsync(
+                        html, 
+                        "UserProfileScraper", 
+                        "last_page.html",
+                        encoding: encoding,
+                        ct: ct);
+                    
+                    if (savedPath != null)
+                    {
+                        _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
+                    }
                 }
 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
