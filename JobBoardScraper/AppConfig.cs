@@ -293,9 +293,7 @@ public static class AppConfig
     
     // Настройки базы данных
     public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ?? "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
-}
-    public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ?? "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
-    
+   
     // Настройки сохранения HTML для отладки
     public static bool ExpertsSaveHtml => bool.TryParse(ConfigurationManager.AppSettings["Experts:SaveHtml"], out var value) && value;
     public static bool CompanyDetailSaveHtml => bool.TryParse(ConfigurationManager.AppSettings["CompanyDetail:SaveHtml"], out var value) && value;
