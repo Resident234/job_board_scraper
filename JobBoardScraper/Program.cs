@@ -4,7 +4,7 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает восемь параллельных процессов:
+/// Запускает девять параллельных процессов:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
 /// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
@@ -13,6 +13,7 @@ namespace JobBoardScraper;
 /// 6. ExpertsScraper - периодический обход экспертов (каждые 4 дня)
 /// 7. CompanyDetailScraper - периодический обход детальных страниц компаний для извлечения company_id (раз в месяц)
 /// 8. UserProfileScraper - периодический обход профилей пользователей для извлечения детальной информации (раз в месяц)
+/// 9. UserFriendsScraper - периодический обход списков друзей пользователей для сбора ссылок (раз в месяц)
 /// TODO при переборе прогресс выводить, там где известно заранее число элементов
 /// </summary>
 class Program
@@ -267,6 +268,39 @@ class Program
         else
         {
             Console.WriteLine("[Program] UserProfileScraper: ОТКЛЮЧЕН");
+        }
+
+        // Процесс 9: Периодический обход списков друзей пользователей
+        if (AppConfig.UserFriendsEnabled)
+        {
+            Console.WriteLine("[Program] UserFriendsScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода UserFriendsScraper: {AppConfig.UserFriendsOutputMode}");
+            Console.WriteLine($"[Program] Timeout UserFriendsScraper: {AppConfig.UserFriendsTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var userFriendsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.UserFriendsTimeout.TotalSeconds);
+            
+            var userFriendsHttpClient = new SmartHttpClient(
+                userFriendsBaseHttpClient, 
+                "UserFriendsScraper", 
+                trafficStats,
+                enableRetry: AppConfig.UserFriendsEnableRetry,
+                enableTrafficMeasuring: AppConfig.UserFriendsEnableTrafficMeasuring,
+                timeout: AppConfig.UserFriendsTimeout);
+            var userFriendsScraper = new UserFriendsScraper(
+                userFriendsHttpClient,
+                db,
+                getUserCodes: () => db.GetAllUserLinks(conn, onlyPublic: AppConfig.UserFriendsOnlyPublic),
+                controller: controller,
+                interval: TimeSpan.FromDays(30),
+                outputMode: AppConfig.UserFriendsOutputMode);
+
+            _ = userFriendsScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] UserFriendsScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей

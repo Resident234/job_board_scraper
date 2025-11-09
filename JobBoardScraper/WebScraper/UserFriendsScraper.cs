@@ -1,0 +1,162 @@
+using JobBoardScraper.Helper.ConsoleHelper;
+
+namespace JobBoardScraper.WebScraper;
+
+/// <summary>
+/// Обходит страницы /friends пользователей и собирает ссылки на их друзей
+/// </summary>
+public sealed class UserFriendsScraper : IDisposable
+{
+    private readonly SmartHttpClient _httpClient;
+    private readonly DatabaseClient _db;
+    private readonly Func<List<string>> _getUserCodes;
+    private readonly AdaptiveConcurrencyController _controller;
+    private readonly TimeSpan _interval;
+    private readonly ConsoleLogger _logger;
+
+    public UserFriendsScraper(
+        SmartHttpClient httpClient,
+        DatabaseClient db,
+        Func<List<string>> getUserCodes,
+        AdaptiveConcurrencyController controller,
+        TimeSpan? interval = null,
+        OutputMode outputMode = OutputMode.ConsoleOnly)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
+        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _interval = interval ?? TimeSpan.FromDays(30);
+        
+        _logger = new ConsoleLogger("UserFriendsScraper");
+        _logger.SetOutputMode(outputMode);
+        _logger.WriteLine($"Инициализация UserFriendsScraper с режимом вывода: {outputMode}");
+    }
+
+    public void Dispose()
+    {
+        _logger?.Dispose();
+    }
+
+    public Task StartAsync(CancellationToken ct)
+    {
+        return Task.Run(() => LoopAsync(ct), ct);
+    }
+
+    private async Task LoopAsync(CancellationToken ct)
+    {
+        await RunOnceSafe(ct);
+
+        using var timer = new PeriodicTimer(_interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await RunOnceSafe(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Остановка — ок
+        }
+    }
+
+    private async Task RunOnceSafe(CancellationToken ct)
+    {
+        try
+        {
+            await ScrapeAllUserFriendsAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Остановка — ок
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"Ошибка: {ex.Message}");
+        }
+    }
+
+    private async Task ScrapeAllUserFriendsAsync(CancellationToken ct)
+    {
+        _logger.WriteLine("Начало обхода списков друзей пользователей...");
+        
+        var userLinks = _getUserCodes();
+        _logger.WriteLine($"Загружено {userLinks.Count} пользователей из БД.");
+
+        if (userLinks.Count == 0)
+        {
+            _logger.WriteLine("Нет пользователей для обработки.");
+            return;
+        }
+
+        var totalProcessed = 0;
+        var totalFriendsFound = 0;
+
+        await AdaptiveForEach.ForEachAdaptiveAsync(
+            source: userLinks,
+            body: async userLink =>
+        {
+            try
+            {
+                var friendsUrl = userLink.TrimEnd('/') + "/friends";
+                _logger.WriteLine($"Обработка: {friendsUrl}");
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var response = await _httpClient.GetAsync(friendsUrl, ct);
+                sw.Stop();
+                _controller.ReportLatency(sw.Elapsed);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.WriteLine($"Ошибка {response.StatusCode} для {friendsUrl}");
+                    Interlocked.Increment(ref totalProcessed);
+                    return;
+                }
+
+                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                var encoding = response.Content.Headers.ContentType?.CharSet != null
+                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                    : System.Text.Encoding.UTF8;
+                var html = encoding.GetString(htmlBytes);
+                
+                var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+                // Ищем друзей по селектору
+                var friendLinks = doc.QuerySelectorAll(AppConfig.UserFriendsFriendLinkSelector);
+                var friendsCount = 0;
+                
+                foreach (var friendLink in friendLinks)
+                {
+                    var href = friendLink.GetAttribute("href");
+                    if (string.IsNullOrWhiteSpace(href))
+                        continue;
+
+                    // Формируем полную ссылку
+                    var fullLink = AppConfig.UserFriendsBaseUrl + href;
+                    
+                    // Извлекаем код пользователя из href
+                    var userCode = href.TrimStart('/');
+                    
+                    // Сохраняем в БД
+                    _db.EnqueueResume(fullLink, userCode, mode: InsertMode.SkipIfExists, code: userCode);
+                    friendsCount++;
+                }
+
+                _logger.WriteLine($"Найдено {friendsCount} друзей для {userLink}");
+                Interlocked.Add(ref totalFriendsFound, friendsCount);
+                Interlocked.Increment(ref totalProcessed);
+            }
+            catch (Exception ex)
+            {
+                _logger.WriteLine($"Ошибка при обработке {userLink}: {ex.Message}");
+                Interlocked.Increment(ref totalProcessed);
+            }
+        },
+        controller: _controller,
+        ct: ct
+        );
+        
+        _logger.WriteLine($"Обход завершён. Обработано: {totalProcessed}, найдено друзей: {totalFriendsFound}");
+    }
+}

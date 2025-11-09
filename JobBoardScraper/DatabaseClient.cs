@@ -130,10 +130,10 @@ public sealed class DatabaseClient
 
     // Вставка ссылки, заголовка страницы, слогана и дополнительных полей
     public void DatabaseInsert(
-        NpgsqlConnection conn, 
-        string link, 
-        string title, 
-        string? slogan = null, 
+        NpgsqlConnection conn,
+        string link,
+        string title,
+        string? slogan = null,
         string? code = null,
         bool? expert = null,
         string? workExperience = null,
@@ -156,18 +156,19 @@ public sealed class DatabaseClient
                 }
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) VALUES (@link, @title, @slogan, @code, @expert, @work_experience)", conn);
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) VALUES (@link, @title, @slogan, @code, @expert, @work_experience)",
+                    conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
-                
+
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" + 
-                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                    (expert == true ? " | ЭКСПЕРТ" : ""));
+                Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" +
+                                  (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                                  (expert == true ? " | ЭКСПЕРТ" : ""));
             }
             else // UpdateIfExists
             {
@@ -187,11 +188,11 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
-                
+
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" + 
-                    (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                    (expert == true ? " | ЭКСПЕРТ" : ""));
+                Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" +
+                                  (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                                  (expert == true ? " | ЭКСПЕРТ" : ""));
             }
         }
         catch (PostgresException pgEx) when
@@ -252,10 +253,12 @@ public sealed class DatabaseClient
     }
 
     // Вставка компании
-    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl, string? companyTitle = null)
+    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl,
+        string? companyTitle = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+        if (string.IsNullOrWhiteSpace(companyCode))
+            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
 
         try
         {
@@ -269,14 +272,14 @@ public sealed class DatabaseClient
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
                     updated_at = NOW()", conn);
-            
+
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
-            
+
             int rowsAffected = cmd.ExecuteNonQuery();
             Console.WriteLine($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
-                (companyTitle != null ? $" | {companyTitle}" : ""));
+                              (companyTitle != null ? $" | {companyTitle}" : ""));
         }
         catch (NpgsqlException dbEx)
         {
@@ -292,7 +295,8 @@ public sealed class DatabaseClient
     public void DatabaseInsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(categoryId)) throw new ArgumentException("Category ID must not be empty.", nameof(categoryId));
+        if (string.IsNullOrWhiteSpace(categoryId))
+            throw new ArgumentException("Category ID must not be empty.", nameof(categoryId));
 
         try
         {
@@ -305,10 +309,10 @@ public sealed class DatabaseClient
                 DO UPDATE SET 
                     category_name = EXCLUDED.category_name,
                     updated_at = NOW()", conn);
-            
+
             cmd.Parameters.AddWithValue("@id", categoryId);
             cmd.Parameters.AddWithValue("@name", categoryName ?? (object)DBNull.Value);
-            
+
             int rowsAffected = cmd.ExecuteNonQuery();
             Console.WriteLine($"[DB] Записано в БД (category_root_ids): {categoryId} -> {categoryName}");
         }
@@ -348,26 +352,29 @@ public sealed class DatabaseClient
                     switch (record.Type)
                     {
                         case DbRecordType.Resume:
-                            DatabaseInsert(conn, 
-                                link: record.PrimaryValue, 
-                                title: record.SecondaryValue, 
-                                slogan: record.TertiaryValue, 
+                            DatabaseInsert(conn,
+                                link: record.PrimaryValue,
+                                title: record.SecondaryValue,
+                                slogan: record.TertiaryValue,
                                 code: record.Code,
                                 expert: record.Expert,
                                 workExperience: record.WorkExperience,
                                 mode: record.Mode);
                             break;
                         case DbRecordType.Company:
-                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue, companyUrl: record.SecondaryValue, companyTitle: record.TertiaryValue);
+                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue,
+                                companyUrl: record.SecondaryValue, companyTitle: record.TertiaryValue);
                             break;
                         case DbRecordType.CategoryRootId:
-                            DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue, categoryName: record.SecondaryValue);
+                            DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue,
+                                categoryName: record.SecondaryValue);
                             break;
                         case DbRecordType.CompanyId:
                             if (long.TryParse(record.SecondaryValue, out var companyId))
                             {
                                 DatabaseUpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
                             }
+
                             break;
                         case DbRecordType.CompanyDetails:
                             // Используем структуру CompanyDetailsData
@@ -375,15 +382,15 @@ public sealed class DatabaseClient
                             {
                                 var details = record.CompanyDetails.Value;
                                 DatabaseUpdateCompanyDetails(
-                                    conn, 
-                                    companyCode: record.PrimaryValue, 
-                                    companyId: details.CompanyId, 
-                                    companyTitle: details.Title, 
+                                    conn,
+                                    companyCode: record.PrimaryValue,
+                                    companyId: details.CompanyId,
+                                    companyTitle: details.Title,
                                     companyAbout: details.About,
                                     companyDescription: details.Description,
-                                    companySite: details.Site, 
-                                    companyRating: details.Rating, 
-                                    currentEmployees: details.CurrentEmployees, 
+                                    companySite: details.Site,
+                                    companyRating: details.Rating,
+                                    currentEmployees: details.CurrentEmployees,
                                     pastEmployees: details.PastEmployees,
                                     followers: details.Followers,
                                     wantWork: details.WantWork,
@@ -391,13 +398,16 @@ public sealed class DatabaseClient
                                     habr: details.Habr
                                 );
                             }
+
                             break;
                         case DbRecordType.CompanySkills:
                             // Обрабатываем навыки компании
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                DatabaseInsertCompanySkills(conn, companyCode: record.PrimaryValue, skills: record.Skills);
+                                DatabaseInsertCompanySkills(conn, companyCode: record.PrimaryValue,
+                                    skills: record.Skills);
                             }
+
                             break;
                         case DbRecordType.UserProfile:
                             // Обрабатываем профиль пользователя
@@ -405,19 +415,20 @@ public sealed class DatabaseClient
                             {
                                 var profile = record.UserProfile.Value;
                                 DatabaseUpdateUserProfile(
-                                    conn, 
+                                    conn,
                                     userLink: record.PrimaryValue,
                                     userCode: profile.UserCode,
-                                    userName: profile.UserName, 
-                                    isExpert: profile.IsExpert, 
-                                    levelTitle: profile.LevelTitle, 
-                                    infoTech: profile.InfoTech, 
-                                    salary: profile.Salary, 
-                                    workExperience: profile.WorkExperience, 
+                                    userName: profile.UserName,
+                                    isExpert: profile.IsExpert,
+                                    levelTitle: profile.LevelTitle,
+                                    infoTech: profile.InfoTech,
+                                    salary: profile.Salary,
+                                    workExperience: profile.WorkExperience,
                                     lastVisit: profile.LastVisit,
                                     isPublic: profile.IsPublic
                                 );
                             }
+
                             break;
                     }
                 }
@@ -470,9 +481,9 @@ public sealed class DatabaseClient
     /// Добавить резюме в очередь на запись в базу данных
     /// </summary>
     public bool EnqueueResume(
-        string link, 
-        string title, 
-        string? slogan = null, 
+        string link,
+        string title,
+        string? slogan = null,
         InsertMode mode = InsertMode.SkipIfExists,
         string? code = null,
         bool? expert = null,
@@ -482,10 +493,10 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode, code, expert, workExperience);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Resume ({mode}): {title} -> {link}" + 
-            (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-            (expert == true ? " | ЭКСПЕРТ" : ""));
-        
+        Console.WriteLine($"[DB Queue] Resume ({mode}): {title} -> {link}" +
+                          (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                          (expert == true ? " | ЭКСПЕРТ" : ""));
+
         return true;
     }
 
@@ -499,8 +510,8 @@ public sealed class DatabaseClient
         var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl, companyTitle);
         _saveQueue.Enqueue(record);
         Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}" +
-            (companyTitle != null ? $" | {companyTitle}" : ""));
-        
+                          (companyTitle != null ? $" | {companyTitle}" : ""));
+
         return true;
     }
 
@@ -514,7 +525,7 @@ public sealed class DatabaseClient
         var record = new DbRecord(DbRecordType.CategoryRootId, categoryId, categoryName);
         _saveQueue.Enqueue(record);
         Console.WriteLine($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
-        
+
         return true;
     }
 
@@ -611,7 +622,7 @@ public sealed class DatabaseClient
             {
                 var code = reader.GetString(0);
                 var url = reader.GetString(1);
-                
+
                 if (!string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(url))
                 {
                     companies.Add((code, url));
@@ -639,14 +650,17 @@ public sealed class DatabaseClient
         var record = new DbRecord(DbRecordType.CompanyId, companyCode, companyId.ToString());
         _saveQueue.Enqueue(record);
         Console.WriteLine($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
-        
+
         return true;
     }
 
     /// <summary>
     /// Добавить company_id, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle, string? companyAbout = null, string? companyDescription = null, string? companySite = null, decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null, int? wantWork = null, string? employeesCount = null, bool? habr = null)
+    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle,
+        string? companyAbout = null, string? companyDescription = null, string? companySite = null,
+        decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null,
+        int? wantWork = null, string? employeesCount = null, bool? habr = null)
     {
         if (_saveQueue == null) return false;
 
@@ -665,18 +679,19 @@ public sealed class DatabaseClient
             EmployeesCount: employeesCount,
             Habr: habr
         );
-        
+
         var record = new DbRecord(
-            Type: DbRecordType.CompanyDetails, 
-            PrimaryValue: companyCode, 
+            Type: DbRecordType.CompanyDetails,
+            PrimaryValue: companyCode,
             SecondaryValue: "", // Не используется для CompanyDetails
             CompanyDetails: companyDetails
         );
         _saveQueue.Enqueue(record);
-        
+
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Console.WriteLine($"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
-        
+        Console.WriteLine(
+            $"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
+
         return true;
     }
 
@@ -686,7 +701,8 @@ public sealed class DatabaseClient
     public void DatabaseUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+        if (string.IsNullOrWhiteSpace(companyCode))
+            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
 
         try
         {
@@ -696,12 +712,12 @@ public sealed class DatabaseClient
                 UPDATE habr_companies 
                 SET company_id = @company_id, updated_at = NOW()
                 WHERE code = @code", conn);
-            
+
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@company_id", companyId);
-            
+
             int rowsAffected = cmd.ExecuteNonQuery();
-            
+
             if (rowsAffected > 0)
             {
                 Console.WriteLine($"[DB] Обновлён company_id для {companyCode}: {companyId}");
@@ -724,10 +740,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить company_id, title, about, description, site, rating, employees, followers, employees_count и habr для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId, string? companyTitle, string? companyAbout, string? companyDescription, string? companySite, decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork, string? employeesCount, bool? habr)
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId,
+        string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
+        decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
+        string? employeesCount, bool? habr)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+        if (string.IsNullOrWhiteSpace(companyCode))
+            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
 
         try
         {
@@ -749,7 +769,7 @@ public sealed class DatabaseClient
                     habr = COALESCE(@habr, habr),
                     updated_at = NOW()
                 WHERE code = @code", conn);
-            
+
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@company_id", companyId);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
@@ -757,19 +777,23 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@description", companyDescription ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@current_employees", currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@past_employees", pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@current_employees",
+                currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@past_employees",
+                pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@followers", followers.HasValue ? (object)followers.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@want_work", wantWork.HasValue ? (object)wantWork.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@employees_count", !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
+            cmd.Parameters.AddWithValue("@employees_count",
+                !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
             cmd.Parameters.AddWithValue("@habr", habr.HasValue ? (object)habr.Value : DBNull.Value);
-            
+
             int rowsAffected = cmd.ExecuteNonQuery();
-            
+
             if (rowsAffected > 0)
             {
                 var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Console.WriteLine($"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
+                Console.WriteLine(
+                    $"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
             }
             else
             {
@@ -803,7 +827,7 @@ public sealed class DatabaseClient
         var record = new DbRecord(DbRecordType.CompanySkills, companyCode, "", Skills: skills);
         _saveQueue.Enqueue(record);
         Console.WriteLine($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
-        
+
         return true;
     }
 
@@ -813,7 +837,8 @@ public sealed class DatabaseClient
     public void DatabaseInsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode)) throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
+        if (string.IsNullOrWhiteSpace(companyCode))
+            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
         if (skills == null || skills.Count == 0) return;
 
         try
@@ -822,7 +847,8 @@ public sealed class DatabaseClient
 
             // Получаем ID компании по коду
             int? companyId = null;
-            using (var cmdGetCompany = new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
+            using (var cmdGetCompany =
+                   new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
             {
                 cmdGetCompany.Parameters.AddWithValue("@code", companyCode);
                 var result = cmdGetCompany.ExecuteScalar();
@@ -839,7 +865,8 @@ public sealed class DatabaseClient
             }
 
             // Удаляем старые связи навыков для этой компании
-            using (var cmdDelete = new NpgsqlCommand("DELETE FROM habr_company_skills WHERE company_id = @company_id", conn))
+            using (var cmdDelete =
+                   new NpgsqlCommand("DELETE FROM habr_company_skills WHERE company_id = @company_id", conn))
             {
                 cmdDelete.Parameters.AddWithValue("@company_id", companyId.Value);
                 cmdDelete.ExecuteNonQuery();
@@ -890,9 +917,7 @@ public sealed class DatabaseClient
             Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
         }
     }
-
-
-
+    
     /// <summary>
     /// Получить все коды пользователей из таблицы habr_resumes
     /// </summary>
@@ -932,7 +957,9 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить информацию о профиле пользователя в очередь на обновление
     /// </summary>
-    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
+    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert,
+        string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null,
+        bool? isPublic = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
@@ -949,7 +976,7 @@ public sealed class DatabaseClient
             LastVisit: lastVisit,
             IsPublic: isPublic
         );
-        
+
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
             PrimaryValue: userLink,
@@ -957,18 +984,22 @@ public sealed class DatabaseClient
             UserProfile: profileData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
-        
+        Console.WriteLine(
+            $"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
+
         return true;
     }
 
     /// <summary>
     /// Обновить информацию о профиле пользователя
     /// </summary>
-    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userLink, string? userCode, string? userName, bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null, bool? isPublic = null)
+    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userLink, string? userCode, string? userName,
+        bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null,
+        string? lastVisit = null, bool? isPublic = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink)) throw new ArgumentException("User link must not be empty.", nameof(userLink));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
 
         try
         {
@@ -1006,7 +1037,7 @@ public sealed class DatabaseClient
                     last_visit = COALESCE(@last_visit, last_visit),
                     public = COALESCE(@public, public)
                 WHERE link = @link", conn);
-            
+
             cmd.Parameters.AddWithValue("@link", userLink);
             cmd.Parameters.AddWithValue("@code", userCode ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@title", userName ?? (object)DBNull.Value);
@@ -1017,12 +1048,14 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
-            
+
             int rowsAffected = cmd.ExecuteNonQuery();
-            
+
             if (rowsAffected > 0)
             {
-                Console.WriteLine($"[DB] Обновлён профиль для {userLink}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
+                //TODO сюда в вывод все поля добавить
+                Console.WriteLine(
+                    $"[DB] Обновлён профиль для {userLink}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
             }
             else
             {
@@ -1040,9 +1073,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Получить все ссылки пользователей из таблицы habr_resumes
+    /// Получить ссылки пользователей с опциональным фильтром по публичности
     /// </summary>
-    public List<string> GetAllUserLinks(NpgsqlConnection conn)
+    public List<string> GetAllUserLinks(NpgsqlConnection conn, bool onlyPublic = false)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
@@ -1052,8 +1085,11 @@ public sealed class DatabaseClient
         {
             DatabaseEnsureConnectionOpen(conn);
 
-            using var cmd = new NpgsqlCommand(
-                "SELECT link FROM habr_resumes WHERE link IS NOT NULL ORDER BY link", conn);
+            var query = onlyPublic
+                ? "SELECT link FROM habr_resumes WHERE link IS NOT NULL AND public = true ORDER BY link"
+                : "SELECT link FROM habr_resumes WHERE link IS NOT NULL ORDER BY link";
+
+            using var cmd = new NpgsqlCommand(query, conn);
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -1065,7 +1101,8 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {userLinks.Count} ссылок пользователей из БД");
+            var filterText = onlyPublic ? " (только публичные)" : "";
+            Console.WriteLine($"[DB] Загружено {userLinks.Count} ссылок пользователей из БД{filterText}");
         }
         catch (Exception ex)
         {
