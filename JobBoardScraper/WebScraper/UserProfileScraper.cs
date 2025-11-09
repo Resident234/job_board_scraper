@@ -129,27 +129,22 @@ public sealed class UserProfileScraper : IDisposable
                     var friendsUrl = userLink.TrimEnd('/') + "/friends";
 
                     _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
-                    try
+                    
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var response = await _httpClient.GetAsync(friendsUrl, ct);
+                    sw.Stop();
+                    _controller.ReportLatency(sw.Elapsed);
+                    
+                    double elapsedSeconds = sw.Elapsed.TotalSeconds;
+                    int completed = Interlocked.Increment(ref totalProcessed);
+                    double percent = completed * 100.0 / totalLinks;
+                    _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                    
+                    if (!response.IsSuccessStatusCode)
                     {
-                        var sw = System.Diagnostics.Stopwatch.StartNew();
-                        var response = await _httpClient.GetAsync(friendsUrl, ct);
-                        sw.Stop();
-                        _controller.ReportLatency(sw.Elapsed);
-                        
-                        double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                        int completed = Interlocked.Increment(ref totalProcessed);
-                        double percent = completed * 100.0 / totalLinks;
-                        _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
-                        
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            Interlocked.Increment(ref totalSkipped);
-                            return;
-                        }
-                    }
-                    finally
-                    {
+                        Interlocked.Increment(ref totalSkipped);
                         _activeRequests.TryRemove(userLink, out _);
+                        return;
                     }
 
                     // Читаем HTML с правильной кодировкой
@@ -331,6 +326,10 @@ public sealed class UserProfileScraper : IDisposable
                 {
                     _logger.WriteLine($"Ошибка при обработке пользователя {userLink}: {ex.Message}");
                     Interlocked.Increment(ref totalFailed);
+                }
+                finally
+                {
+                    _activeRequests.TryRemove(userLink, out _);
                 }
             },
             controller: _controller,
