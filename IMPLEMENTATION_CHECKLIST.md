@@ -1,6 +1,6 @@
-# Чек-лист реализации ExpertsScraper и связанных изменений
+# Чек-лист реализации новых скраперов и связанных изменений
 
-Этот документ содержит полный список выполненных задач в рамках обновления до версии 2.0.
+Этот документ содержит полный список выполненных задач в рамках обновления до версии 2.0, включая ExpertsScraper, CompanyDetailScraper, UserProfileScraper и UserResumeDetailScraper.
 
 ## ✅ 1. Рефакторинг системы логирования
 
@@ -177,7 +177,60 @@
 - [x] Запуск в фоновом режиме
 - [x] Настраиваемый интервал (по умолчанию: 30 дней)
 
-## ✅ 6. Расширение структуры базы данных для экспертов
+## ✅ 9. UserResumeDetailScraper - скрапер детальной информации резюме
+
+### 9.1 Создание скрапера
+- [x] Создан класс `UserResumeDetailScraper.cs`
+- [x] Обход страниц резюме пользователей
+- [x] Извлечение текста "О себе" (about)
+- [x] Извлечение списка навыков (skills)
+- [x] Использование `ConsoleLogger`
+- [x] Использование `SmartHttpClient`
+- [x] Использование `AdaptiveConcurrencyController`
+
+### 9.2 Расширение структуры базы данных
+- [x] Создан `sql/add_user_about_column.sql`
+- [x] Добавлен столбец `about` (TEXT) в habr_resumes
+- [x] Создан `sql/create_user_skills_table.sql`
+- [x] Создана таблица `habr_user_skills` (связь многие-ко-многим)
+- [x] Создан внешний ключ на habr_resumes
+- [x] Создан внешний ключ на habr_skills
+- [x] Создан уникальный индекс (user_id, skill_id)
+
+### 9.3 Обновление DatabaseClient
+- [x] Добавлены типы `DbRecordType.UserAbout` и `DbRecordType.UserSkills`
+- [x] Метод `EnqueueUserResumeDetail` для добавления в очередь
+- [x] Метод `DatabaseUpdateUserAbout` для обновления текста "О себе"
+- [x] Метод `DatabaseInsertUserSkills` для вставки навыков
+- [x] Обработка UserAbout и UserSkills в `StartWriterTask`
+
+### 9.4 Обновление AppConfig.cs
+- [x] Добавлены настройки `UserResumeDetail:Enabled`
+- [x] Добавлены настройки `UserResumeDetail:TimeoutSeconds`
+- [x] Добавлены настройки `UserResumeDetail:EnableRetry`
+- [x] Добавлены настройки `UserResumeDetail:EnableTrafficMeasuring`
+- [x] Добавлены настройки `UserResumeDetail:OutputMode`
+- [x] Добавлены селекторы `UserResumeDetail:ContentSelector`
+- [x] Добавлены селекторы `UserResumeDetail:SkillSelector`
+
+### 9.5 Обновление App.config
+- [x] Добавлена секция UserResumeDetailScraper Settings
+- [x] Настроены все параметры с значениями по умолчанию
+- [x] Добавлены CSS-селекторы для парсинга
+
+### 9.6 Интеграция в Program.cs
+- [x] Создание `SmartHttpClient` для UserResumeDetailScraper
+- [x] Инициализация UserResumeDetailScraper
+- [x] Запуск в фоновом режиме
+- [x] Настраиваемый интервал (по умолчанию: 30 дней)
+- [x] Обновлён комментарий (10 процессов вместо 9)
+
+### 9.7 Документация
+- [x] Создан `docs/USER_RESUME_DETAIL_SCRAPER.md`
+- [x] Обновлён `README.md` с описанием UserResumeDetailScraper
+- [x] Обновлён `IMPLEMENTATION_CHECKLIST.md`
+
+## ✅ 10. Расширение структуры базы данных для экспертов
 
 ### 6.1 Новые столбцы в habr_resumes
 - [x] Столбец `code` (TEXT) - код пользователя
@@ -198,43 +251,43 @@
 - [x] Поддержка режима `UpdateIfExists` для экспертов
 - [x] Вывод информации о экспертах в логи
 
-## ✅ 9. Документация
+## ✅ 11. Документация
 
-### 7.1 Основная документация
+### 11.1 Основная документация
 - [x] Обновлён `README.md` с описанием ExpertsScraper
 - [x] Добавлена секция про SmartHttpClient
 - [x] Добавлена секция про систему измерения трафика
 - [x] Добавлена секция про управление скраперами
 - [x] Обновлена архитектура (8 процессов вместо 5)
 
-### 7.2 SQL документация
+### 11.2 SQL документация
 - [x] Обновлён `sql/README.md`
 - [x] Добавлена секция про столбцы экспертов
 - [x] Добавлены примеры SQL-запросов для экспертов
 - [x] Добавлена статистика по экспертам
 
-### 7.3 Руководства
+### 11.3 Руководства
 - [x] Создан `MIGRATION_GUIDE.md` - руководство по миграции
 - [x] Создан `QUICKSTART.md` - быстрый старт
 - [x] Создан `CHANGELOG.md` - история изменений
 - [x] Создан `IMPLEMENTATION_CHECKLIST.md` - этот документ
 
-### 7.4 Техническая документация
+### 11.4 Техническая документация
 - [x] `docs/TRAFFIC_OPTIMIZATION.md` - оптимизация трафика
 
-## ✅ 10. Тестирование и проверка
+## ✅ 12. Тестирование и проверка
 
-### 8.1 Компиляция
+### 12.1 Компиляция
 - [x] Проверка компиляции всех файлов
 - [x] Отсутствие ошибок в getDiagnostics
 - [x] Проверка всех зависимостей
 
-### 8.2 Конфигурация
+### 12.2 Конфигурация
 - [x] Все настройки добавлены в `App.config`
 - [x] Все настройки добавлены в `AppConfig.cs`
 - [x] Значения по умолчанию корректны
 
-### 8.3 SQL-скрипты
+### 12.3 SQL-скрипты
 - [x] Все скрипты используют `IF NOT EXISTS`
 - [x] Скрипты безопасны для повторного выполнения
 - [x] Индексы созданы корректно
@@ -249,15 +302,19 @@
 5. `JobBoardScraper/WebScraper/ExpertsScraper.cs`
 6. `JobBoardScraper/WebScraper/CompanyDetailScraper.cs`
 7. `JobBoardScraper/WebScraper/UserProfileScraper.cs`
-8. `sql/add_expert_columns.sql`
-9. `sql/add_company_details_columns.sql`
-10. `sql/create_levels_table.sql`
-11. `sql/add_user_profile_columns.sql`
-12. `docs/USER_PROFILE_SCRAPER.md`
-13. `MIGRATION_GUIDE.md`
-14. `QUICKSTART.md`
-15. `CHANGELOG.md`
-16. `IMPLEMENTATION_CHECKLIST.md`
+8. `JobBoardScraper/WebScraper/UserResumeDetailScraper.cs`
+9. `sql/add_expert_columns.sql`
+10. `sql/add_company_details_columns.sql`
+11. `sql/create_levels_table.sql`
+12. `sql/add_user_profile_columns.sql`
+13. `sql/add_user_about_column.sql`
+14. `sql/create_user_skills_table.sql`
+15. `docs/USER_PROFILE_SCRAPER.md`
+16. `docs/USER_RESUME_DETAIL_SCRAPER.md`
+17. `MIGRATION_GUIDE.md`
+18. `QUICKSTART.md`
+19. `CHANGELOG.md`
+20. `IMPLEMENTATION_CHECKLIST.md`
 
 ### Удалённые файлы
 1. `JobBoardScraper/HttpRetry.cs`
@@ -289,17 +346,20 @@
 7. ✅ Ограниченная структура БД
 8. ✅ Отсутствие детальной информации о компаниях
 9. ✅ Отсутствие информации о профилях пользователей
+10. ✅ Отсутствие информации "О себе" и навыков из резюме
 
 ### Новые возможности
 1. ✅ Сбор данных экспертов с career.habr.com
 2. ✅ Сбор детальной информации о компаниях (company_id, рейтинг, навыки и т.д.)
 3. ✅ Сбор информации о профилях пользователей (уровень, зарплата, опыт и т.д.)
-4. ✅ Измерение и статистика HTTP-трафика
-5. ✅ Гибкое управление скраперами
-6. ✅ Независимое логирование для каждого скрапера
-7. ✅ Универсальная обёртка SmartHttpClient
-8. ✅ Расширенная структура БД с поддержкой экспертов, компаний и профилей
-9. ✅ Определение публичности профилей пользователей
+4. ✅ Сбор текста "О себе" и навыков из резюме пользователей
+5. ✅ Измерение и статистика HTTP-трафика
+6. ✅ Гибкое управление скраперами
+7. ✅ Независимое логирование для каждого скрапера
+8. ✅ Универсальная обёртка SmartHttpClient
+9. ✅ Расширенная структура БД с поддержкой экспертов, компаний, профилей и навыков
+10. ✅ Определение публичности профилей пользователей
+11. ✅ Таблица связей многие-ко-многим для навыков пользователей
 
 ### Улучшения качества кода
 1. ✅ Удаление дублирования кода

@@ -4,7 +4,7 @@ namespace JobBoardScraper;
 
 /// <summary>
 /// Точка входа приложения.
-/// Запускает девять параллельных процессов:
+/// Запускает десять параллельных процессов:
 /// 1. BruteForceUsernameScraper - перебор всех возможных имен пользователей
 /// 2. ResumeListPageScraper - периодический обход страницы со списком резюме (каждые 10 минут)
 /// 3. CompanyListScraper - периодический обход списка компаний (раз в неделю)
@@ -14,6 +14,7 @@ namespace JobBoardScraper;
 /// 7. CompanyDetailScraper - периодический обход детальных страниц компаний для извлечения company_id (раз в месяц)
 /// 8. UserProfileScraper - периодический обход профилей пользователей для извлечения детальной информации (раз в месяц)
 /// 9. UserFriendsScraper - периодический обход списков друзей пользователей для сбора ссылок (раз в месяц)
+/// 10. UserResumeDetailScraper - периодический обход резюме пользователей для извлечения "О себе" и навыков (раз в месяц)
 /// TODO при переборе прогресс выводить, там где известно заранее число элементов
 /// </summary>
 class Program
@@ -301,6 +302,39 @@ class Program
         else
         {
             Console.WriteLine("[Program] UserFriendsScraper: ОТКЛЮЧЕН");
+        }
+
+        // Процесс 10: Периодический обход резюме пользователей для извлечения "О себе" и навыков
+        if (AppConfig.UserResumeDetailEnabled)
+        {
+            Console.WriteLine("[Program] UserResumeDetailScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
+            Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var userResumeDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.UserResumeDetailTimeout.TotalSeconds);
+            
+            var userResumeDetailHttpClient = new SmartHttpClient(
+                userResumeDetailBaseHttpClient, 
+                "UserResumeDetailScraper", 
+                trafficStats,
+                enableRetry: AppConfig.UserResumeDetailEnableRetry,
+                enableTrafficMeasuring: AppConfig.UserResumeDetailEnableTrafficMeasuring,
+                timeout: AppConfig.UserResumeDetailTimeout);
+            var userResumeDetailScraper = new UserResumeDetailScraper(
+                userResumeDetailHttpClient,
+                db,
+                getUserCodes: () => db.GetAllUserLinks(conn),
+                controller: controller,
+                interval: TimeSpan.FromDays(30),
+                outputMode: AppConfig.UserResumeDetailOutputMode);
+
+            _ = userResumeDetailScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] UserResumeDetailScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей

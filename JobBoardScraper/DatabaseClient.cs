@@ -15,7 +15,9 @@ public enum DbRecordType
     CompanyId,
     CompanyDetails,
     CompanySkills,
-    UserProfile
+    UserProfile,
+    UserAbout,
+    UserSkills
 }
 
 /// <summary>
@@ -429,6 +431,15 @@ public sealed class DatabaseClient
                                 );
                             }
 
+                            break;
+                        case DbRecordType.UserAbout:
+                            DatabaseUpdateUserAbout(conn, userLink: record.PrimaryValue, about: record.SecondaryValue);
+                            break;
+                        case DbRecordType.UserSkills:
+                            if (record.Skills != null && record.Skills.Count > 0)
+                            {
+                                DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                            }
                             break;
                     }
                 }
@@ -1110,5 +1121,175 @@ public sealed class DatabaseClient
         }
 
         return userLinks;
+    }
+
+    
+    /// <summary>
+    /// Добавить детальную информацию о резюме пользователя в очередь
+    /// </summary>
+    public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // Для about используем структуру UserProfileData (можно расширить позже)
+        // Для skills используем отдельную запись
+        
+        // Обновляем about
+        if (!string.IsNullOrWhiteSpace(about))
+        {
+            var record = new DbRecord(
+                Type: DbRecordType.UserAbout,
+                PrimaryValue: userLink,
+                SecondaryValue: about
+            );
+            _saveQueue.Enqueue(record);
+        }
+        
+        // Добавляем навыки
+        if (skills != null && skills.Count > 0)
+        {
+            var skillsRecord = new DbRecord(
+                Type: DbRecordType.UserSkills,
+                PrimaryValue: userLink,
+                SecondaryValue: "",
+                Skills: skills
+            );
+            _saveQueue.Enqueue(skillsRecord);
+        }
+        
+        Console.WriteLine($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}");
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Обновить информацию "О себе" для пользователя
+    /// </summary>
+    public void DatabaseUpdateUserAbout(NpgsqlConnection conn, string userLink, string? about)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes 
+                SET about = @about
+                WHERE link = @link", conn);
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                var aboutPreview = about?.Substring(0, Math.Min(50, about.Length)) ?? "";
+                Console.WriteLine($"[DB] Обновлено 'О себе' для {userLink}: {aboutPreview}...");
+            }
+            else
+            {
+                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Вставить или обновить навыки пользователя
+    /// </summary>
+    public void DatabaseInsertUserSkills(NpgsqlConnection conn, string userLink, List<string> skills)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+        if (skills == null || skills.Count == 0) return;
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Получаем ID пользователя по ссылке
+            int? userId = null;
+            using (var cmdGetUser =
+                   new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+            {
+                cmdGetUser.Parameters.AddWithValue("@link", userLink);
+                var result = cmdGetUser.ExecuteScalar();
+                if (result != null)
+                {
+                    userId = Convert.ToInt32(result);
+                }
+            }
+
+            if (!userId.HasValue)
+            {
+                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД. Пропуск навыков.");
+                return;
+            }
+
+            // Удаляем старые связи навыков для этого пользователя
+            using (var cmdDelete =
+                   new NpgsqlCommand("DELETE FROM habr_user_skills WHERE user_id = @user_id", conn))
+            {
+                cmdDelete.Parameters.AddWithValue("@user_id", userId.Value);
+                cmdDelete.ExecuteNonQuery();
+            }
+
+            // Добавляем навыки
+            int addedCount = 0;
+            foreach (var skillTitle in skills)
+            {
+                if (string.IsNullOrWhiteSpace(skillTitle)) continue;
+
+                // Вставляем навык в таблицу habr_skills (если его нет)
+                int skillId;
+                using (var cmdInsertSkill = new NpgsqlCommand(@"
+                    INSERT INTO habr_skills (title, created_at)
+                    VALUES (@title, NOW())
+                    ON CONFLICT (title) 
+                    DO UPDATE SET title = EXCLUDED.title
+                    RETURNING id", conn))
+                {
+                    cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
+                    var result = cmdInsertSkill.ExecuteScalar();
+                    skillId = Convert.ToInt32(result);
+                }
+
+                // Связываем навык с пользователем
+                using (var cmdLinkSkill = new NpgsqlCommand(@"
+                    INSERT INTO habr_user_skills (user_id, skill_id, created_at)
+                    VALUES (@user_id, @skill_id, NOW())
+                    ON CONFLICT (user_id, skill_id) DO NOTHING", conn))
+                {
+                    cmdLinkSkill.Parameters.AddWithValue("@user_id", userId.Value);
+                    cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
+                    cmdLinkSkill.ExecuteNonQuery();
+                }
+
+                addedCount++;
+            }
+
+            Console.WriteLine($"[DB] Добавлено {addedCount} навыков для пользователя {userLink}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД при добавлении навыков для {userLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
+        }
     }
 }

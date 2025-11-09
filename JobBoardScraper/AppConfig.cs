@@ -471,4 +471,43 @@ public static class AppConfig
 
     public static string UserFriendsFriendLinkSelector =>
         ConfigurationManager.AppSettings["UserFriends:FriendLinkSelector"] ?? "a.link-comp.user-list-item__link";
+
+    // Настройки для UserResumeDetailScraper
+    public static bool UserResumeDetailEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["UserResumeDetail:Enabled"], out var value) && value;
+
+    public static TimeSpan UserResumeDetailTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["UserResumeDetail:TimeoutSeconds"], out var value)
+                ? value
+                : 60;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+
+    public static bool UserResumeDetailEnableRetry =>
+        bool.TryParse(ConfigurationManager.AppSettings["UserResumeDetail:EnableRetry"], out var value) ? value : true;
+
+    public static bool UserResumeDetailEnableTrafficMeasuring =>
+        bool.TryParse(ConfigurationManager.AppSettings["UserResumeDetail:EnableTrafficMeasuring"], out var value)
+            ? value
+            : true;
+
+    public static OutputMode UserResumeDetailOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["UserResumeDetail:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+
+    public static string UserResumeDetailContentSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:ContentSelector"] ??
+        ".content-section.content-section--appearance-resume";
+
+    public static string UserResumeDetailSkillSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:SkillSelector"] ?? ".skills-list-show-item";
 }
