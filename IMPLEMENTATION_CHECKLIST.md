@@ -184,6 +184,10 @@
 - [x] Обход страниц резюме пользователей
 - [x] Извлечение текста "О себе" (about)
 - [x] Извлечение списка навыков (skills)
+- [x] Извлечение опыта работы (experience)
+- [x] Парсинг информации о компаниях (код, URL, название, описание, размер)
+- [x] Парсинг должностей и продолжительности работы
+- [x] Парсинг навыков с ID из опыта работы
 - [x] Использование `ConsoleLogger`
 - [x] Использование `SmartHttpClient`
 - [x] Использование `AdaptiveConcurrencyController`
@@ -196,13 +200,23 @@
 - [x] Создан внешний ключ на habr_resumes
 - [x] Создан внешний ключ на habr_skills
 - [x] Создан уникальный индекс (user_id, skill_id)
+- [x] Создан `sql/create_user_experience_table.sql`
+- [x] Создана таблица `habr_user_experience` для опыта работы
+- [x] Создан `sql/create_user_experience_skills_table.sql`
+- [x] Создана таблица `habr_user_experience_skills` (связь многие-ко-многим)
 
 ### 9.3 Обновление DatabaseClient
-- [x] Добавлены типы `DbRecordType.UserAbout` и `DbRecordType.UserSkills`
+- [x] Добавлены типы `DbRecordType.UserAbout`, `DbRecordType.UserSkills` и `DbRecordType.UserExperience`
+- [x] Добавлена структура `UserExperienceData`
 - [x] Метод `EnqueueUserResumeDetail` для добавления в очередь
 - [x] Метод `DatabaseUpdateUserAbout` для обновления текста "О себе"
 - [x] Метод `DatabaseInsertUserSkills` для вставки навыков
-- [x] Обработка UserAbout и UserSkills в `StartWriterTask`
+- [x] Метод `EnqueueUserExperience` для добавления опыта работы в очередь
+- [x] Метод `DatabaseInsertUserExperience` для вставки опыта работы
+- [x] Обработка UserAbout, UserSkills и UserExperience в `StartWriterTask`
+- [x] Автоматическое создание/обновление компаний при добавлении опыта
+- [x] Каскадное удаление старых записей опыта перед вставкой новых
+- [x] Флаг `IsFirstRecord` для оптимизации удаления (только для первой записи)
 
 ### 9.4 Обновление AppConfig.cs
 - [x] Добавлены настройки `UserResumeDetail:Enabled`
@@ -309,12 +323,14 @@
 12. `sql/add_user_profile_columns.sql`
 13. `sql/add_user_about_column.sql`
 14. `sql/create_user_skills_table.sql`
-15. `docs/USER_PROFILE_SCRAPER.md`
-16. `docs/USER_RESUME_DETAIL_SCRAPER.md`
-17. `MIGRATION_GUIDE.md`
-18. `QUICKSTART.md`
-19. `CHANGELOG.md`
-20. `IMPLEMENTATION_CHECKLIST.md`
+15. `sql/create_user_experience_table.sql`
+16. `sql/create_user_experience_skills_table.sql`
+17. `docs/USER_PROFILE_SCRAPER.md`
+18. `docs/USER_RESUME_DETAIL_SCRAPER.md`
+19. `MIGRATION_GUIDE.md`
+20. `QUICKSTART.md`
+21. `CHANGELOG.md`
+22. `IMPLEMENTATION_CHECKLIST.md`
 
 ### Удалённые файлы
 1. `JobBoardScraper/HttpRetry.cs`

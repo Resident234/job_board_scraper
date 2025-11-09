@@ -17,7 +17,8 @@ public enum DbRecordType
     CompanySkills,
     UserProfile,
     UserAbout,
-    UserSkills
+    UserSkills,
+    UserExperience
 }
 
 /// <summary>
@@ -53,6 +54,23 @@ public readonly record struct UserProfileData(
     bool? IsPublic
 );
 
+/// <summary>
+/// Структура для хранения данных об опыте работы
+/// </summary>
+public readonly record struct UserExperienceData(
+    string UserLink,
+    string? CompanyCode,
+    string? CompanyUrl,
+    string? CompanyTitle,
+    string? CompanyAbout,
+    string? CompanySize,
+    string? Position,
+    string? Duration,
+    string? Description,
+    List<(int? SkillId, string SkillName)>? Skills,
+    bool IsFirstRecord = false
+);
+
 public enum InsertMode
 {
     /// <summary>
@@ -77,7 +95,8 @@ public readonly record struct DbRecord(
     string? WorkExperience = null,
     CompanyDetailsData? CompanyDetails = null,
     List<string>? Skills = null,
-    UserProfileData? UserProfile = null);
+    UserProfileData? UserProfile = null,
+    UserExperienceData? UserExperience = null);
 
 public sealed class DatabaseClient
 {
@@ -439,6 +458,13 @@ public sealed class DatabaseClient
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
                                 DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                            }
+                            break;
+                        case DbRecordType.UserExperience:
+                            if (record.UserExperience.HasValue)
+                            {
+                                var exp = record.UserExperience.Value;
+                                DatabaseInsertUserExperience(conn, exp);
                             }
                             break;
                     }
@@ -1290,6 +1316,199 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
+        }
+    }
+
+
+    /// <summary>
+    /// Добавить опыт работы пользователя в очередь
+    /// </summary>
+    public bool EnqueueUserExperience(UserExperienceData experienceData)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.UserExperience,
+            PrimaryValue: "",
+            SecondaryValue: "",
+            UserExperience: experienceData
+        );
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] UserExperience: {experienceData.UserLink} -> Company={experienceData.CompanyCode}, Position={experienceData.Position}, Skills={experienceData.Skills?.Count ?? 0}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Вставить опыт работы пользователя
+    /// </summary>
+    public void DatabaseInsertUserExperience(NpgsqlConnection conn, UserExperienceData exp)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(exp.UserLink))
+            throw new ArgumentException("User link must not be empty.", nameof(exp));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Получаем ID пользователя по ссылке
+            int? userId = null;
+            using (var cmdGetUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+            {
+                cmdGetUser.Parameters.AddWithValue("@link", exp.UserLink);
+                var result = cmdGetUser.ExecuteScalar();
+                if (result != null)
+                {
+                    userId = Convert.ToInt32(result);
+                }
+            }
+
+            if (!userId.HasValue)
+            {
+                Console.WriteLine($"[DB] Пользователь {exp.UserLink} не найден в БД. Пропуск опыта работы.");
+                return;
+            }
+
+            // Обрабатываем компанию
+            int? companyId = null;
+            if (!string.IsNullOrWhiteSpace(exp.CompanyCode))
+            {
+                // Ищем компанию по коду
+                using (var cmdGetCompany = new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
+                {
+                    cmdGetCompany.Parameters.AddWithValue("@code", exp.CompanyCode);
+                    var result = cmdGetCompany.ExecuteScalar();
+                    if (result != null)
+                    {
+                        companyId = Convert.ToInt32(result);
+
+                        // Обновляем информацию о компании
+                        using (var cmdUpdateCompany = new NpgsqlCommand(@"
+                            UPDATE habr_companies 
+                            SET url = COALESCE(@url, url),
+                                title = COALESCE(@title, title),
+                                about = COALESCE(@about, about),
+                                employees_count = COALESCE(@employees_count, employees_count),
+                                updated_at = NOW()
+                            WHERE id = @id", conn))
+                        {
+                            cmdUpdateCompany.Parameters.AddWithValue("@id", companyId.Value);
+                            cmdUpdateCompany.Parameters.AddWithValue("@url", exp.CompanyUrl ?? (object)DBNull.Value);
+                            cmdUpdateCompany.Parameters.AddWithValue("@title", exp.CompanyTitle ?? (object)DBNull.Value);
+                            cmdUpdateCompany.Parameters.AddWithValue("@about", exp.CompanyAbout ?? (object)DBNull.Value);
+                            cmdUpdateCompany.Parameters.AddWithValue("@employees_count", exp.CompanySize ?? (object)DBNull.Value);
+                            cmdUpdateCompany.ExecuteNonQuery();
+                        }
+                    }
+                    else
+                    {
+                        // Добавляем новую компанию
+                        using (var cmdInsertCompany = new NpgsqlCommand(@"
+                            INSERT INTO habr_companies (code, url, title, about, employees_count, created_at, updated_at)
+                            VALUES (@code, @url, @title, @about, @employees_count, NOW(), NOW())
+                            RETURNING id", conn))
+                        {
+                            cmdInsertCompany.Parameters.AddWithValue("@code", exp.CompanyCode);
+                            cmdInsertCompany.Parameters.AddWithValue("@url", exp.CompanyUrl ?? (object)DBNull.Value);
+                            cmdInsertCompany.Parameters.AddWithValue("@title", exp.CompanyTitle ?? (object)DBNull.Value);
+                            cmdInsertCompany.Parameters.AddWithValue("@about", exp.CompanyAbout ?? (object)DBNull.Value);
+                            cmdInsertCompany.Parameters.AddWithValue("@employees_count", exp.CompanySize ?? (object)DBNull.Value);
+                            var result = cmdInsertCompany.ExecuteScalar();
+                            if (result != null)
+                            {
+                                companyId = Convert.ToInt32(result);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Удаляем старые записи опыта работы для этого пользователя (только для первой записи)
+            // Каскадное удаление автоматически удалит связанные записи из habr_user_experience_skills
+            if (exp.IsFirstRecord)
+            {
+                using (var cmdDelete = new NpgsqlCommand("DELETE FROM habr_user_experience WHERE user_id = @user_id", conn))
+                {
+                    cmdDelete.Parameters.AddWithValue("@user_id", userId.Value);
+                    int deletedCount = cmdDelete.ExecuteNonQuery();
+                    if (deletedCount > 0)
+                    {
+                        Console.WriteLine($"[DB] Удалено {deletedCount} старых записей опыта работы для пользователя {exp.UserLink}");
+                    }
+                }
+            }
+
+            // Добавляем запись опыта работы
+            int experienceId;
+            using (var cmdInsertExperience = new NpgsqlCommand(@"
+                INSERT INTO habr_user_experience (user_id, company_id, position, duration, description, created_at, updated_at)
+                VALUES (@user_id, @company_id, @position, @duration, @description, NOW(), NOW())
+                RETURNING id", conn))
+            {
+                cmdInsertExperience.Parameters.AddWithValue("@user_id", userId.Value);
+                cmdInsertExperience.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
+                cmdInsertExperience.Parameters.AddWithValue("@position", exp.Position ?? (object)DBNull.Value);
+                cmdInsertExperience.Parameters.AddWithValue("@duration", exp.Duration ?? (object)DBNull.Value);
+                cmdInsertExperience.Parameters.AddWithValue("@description", exp.Description ?? (object)DBNull.Value);
+                var result = cmdInsertExperience.ExecuteScalar();
+                experienceId = Convert.ToInt32(result);
+            }
+
+            // Добавляем навыки
+            if (exp.Skills != null && exp.Skills.Count > 0)
+            {
+                foreach (var (skillId, skillName) in exp.Skills)
+                {
+                    if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                    // Ищем или создаём навык
+                    int actualSkillId;
+                    using (var cmdGetSkill = new NpgsqlCommand("SELECT id FROM habr_skills WHERE title = @title LIMIT 1", conn))
+                    {
+                        cmdGetSkill.Parameters.AddWithValue("@title", skillName.Trim());
+                        var result = cmdGetSkill.ExecuteScalar();
+                        if (result != null)
+                        {
+                            actualSkillId = Convert.ToInt32(result);
+                        }
+                        else
+                        {
+                            // Создаём новый навык
+                            using (var cmdInsertSkill = new NpgsqlCommand(@"
+                                INSERT INTO habr_skills (title, created_at)
+                                VALUES (@title, NOW())
+                                RETURNING id", conn))
+                            {
+                                cmdInsertSkill.Parameters.AddWithValue("@title", skillName.Trim());
+                                var insertResult = cmdInsertSkill.ExecuteScalar();
+                                actualSkillId = Convert.ToInt32(insertResult);
+                            }
+                        }
+                    }
+
+                    // Связываем навык с опытом работы
+                    using (var cmdLinkSkill = new NpgsqlCommand(@"
+                        INSERT INTO habr_user_experience_skills (experience_id, skill_id, created_at)
+                        VALUES (@experience_id, @skill_id, NOW())
+                        ON CONFLICT (experience_id, skill_id) DO NOTHING", conn))
+                    {
+                        cmdLinkSkill.Parameters.AddWithValue("@experience_id", experienceId);
+                        cmdLinkSkill.Parameters.AddWithValue("@skill_id", actualSkillId);
+                        cmdLinkSkill.ExecuteNonQuery();
+                    }
+                }
+            }
+
+            Console.WriteLine($"[DB] Добавлен опыт работы для {exp.UserLink}: Company={exp.CompanyTitle}, Position={exp.Position}, Skills={exp.Skills?.Count ?? 0}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД при добавлении опыта работы для {exp.UserLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении опыта работы для {exp.UserLink}: {ex.Message}");
         }
     }
 }

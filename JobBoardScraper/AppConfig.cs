@@ -510,4 +510,44 @@ public static class AppConfig
 
     public static string UserResumeDetailSkillSelector =>
         ConfigurationManager.AppSettings["UserResumeDetail:SkillSelector"] ?? ".skills-list-show-item";
+
+    public static string UserResumeDetailExperienceContainerSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:ExperienceContainerSelector"] ??
+        ".job-experience-item__positions";
+
+    public static string UserResumeDetailExperienceItemSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:ExperienceItemSelector"] ?? ".job-experience-item";
+
+    public static string UserResumeDetailCompanyLinkSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:CompanyLinkSelector"] ??
+        "a.link-comp.link-comp--appearance-dark";
+
+    public static string UserResumeDetailCompanyAboutSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:CompanyAboutSelector"] ??
+        ".job-experience-item__subtitle";
+
+    public static string UserResumeDetailPositionSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:PositionSelector"] ?? ".job-position__title";
+
+    public static string UserResumeDetailDurationSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:DurationSelector"] ?? ".job-position__duration";
+
+    public static string UserResumeDetailDescriptionSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:DescriptionSelector"] ?? ".job-position__message";
+
+    public static string UserResumeDetailTagsSelector =>
+        ConfigurationManager.AppSettings["UserResumeDetail:TagsSelector"] ?? ".job-position__tags";
+
+    public static string UserResumeDetailCompanyCodeRegex =>
+        ConfigurationManager.AppSettings["UserResumeDetail:CompanyCodeRegex"] ?? "/companies/([^/?]+)";
+
+    public static string UserResumeDetailSkillIdRegex =>
+        ConfigurationManager.AppSettings["UserResumeDetail:SkillIdRegex"] ?? @"skills%5B%5D=(\d+)";
+
+    public static string UserResumeDetailCompanyUrlTemplate =>
+        ConfigurationManager.AppSettings["UserResumeDetail:CompanyUrlTemplate"] ??
+        "https://career.habr.com/companies/{0}";
+
+    public static string UserResumeDetailCompanySizeUrlPattern =>
+        ConfigurationManager.AppSettings["UserResumeDetail:CompanySizeUrlPattern"] ?? "/companies?sz=";
 }

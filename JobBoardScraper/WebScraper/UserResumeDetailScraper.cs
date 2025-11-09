@@ -150,12 +150,149 @@ public sealed class UserResumeDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем опыт работы
+                var experienceCount = 0;
+                var isFirstExperience = true;
+                var experienceContainer = doc.QuerySelector(AppConfig.UserResumeDetailExperienceContainerSelector);
+                if (experienceContainer != null)
+                {
+                    var experienceItems = experienceContainer.QuerySelectorAll(AppConfig.UserResumeDetailExperienceItemSelector);
+                    foreach (var item in experienceItems)
+                    {
+                        try
+                        {
+                            // Извлекаем информацию о компании
+                            string? companyCode = null;
+                            string? companyUrl = null;
+                            string? companyTitle = null;
+                            var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
+                            if (companyLink != null)
+                            {
+                                companyUrl = companyLink.GetAttribute("href");
+                                companyTitle = companyLink.TextContent?.Trim();
+                                
+                                // Извлекаем код компании из URL
+                                if (!string.IsNullOrWhiteSpace(companyUrl))
+                                {
+                                    var match = System.Text.RegularExpressions.Regex.Match(companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
+                                    if (match.Success)
+                                    {
+                                        companyCode = match.Groups[1].Value;
+                                        companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
+                                    }
+                                }
+                            }
+
+                            // Извлекаем описание компании
+                            string? companyAbout = null;
+                            var aboutElement = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector);
+                            if (aboutElement != null)
+                            {
+                                companyAbout = aboutElement.TextContent?.Trim();
+                            }
+
+                            // Извлекаем размер компании
+                            string? companySize = null;
+                            var sizeLinks = item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector);
+                            foreach (var link in sizeLinks)
+                            {
+                                var href = link.GetAttribute("href");
+                                if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
+                                {
+                                    companySize = link.TextContent?.Trim();
+                                    break;
+                                }
+                            }
+
+                            // Извлекаем должность
+                            string? position = null;
+                            var positionElement = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector);
+                            if (positionElement != null)
+                            {
+                                position = positionElement.TextContent?.Trim();
+                                // Очищаем от лишних пробелов
+                                if (!string.IsNullOrWhiteSpace(position))
+                                {
+                                    position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
+                                }
+                            }
+
+                            // Извлекаем продолжительность работы
+                            string? duration = null;
+                            var durationElement = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector);
+                            if (durationElement != null)
+                            {
+                                duration = durationElement.TextContent?.Trim();
+                            }
+
+                            // Извлекаем описание работы
+                            string? description = null;
+                            var descriptionElement = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector);
+                            if (descriptionElement != null)
+                            {
+                                description = descriptionElement.TextContent?.Trim();
+                            }
+
+                            // Извлекаем навыки
+                            var experienceSkills = new List<(int? SkillId, string SkillName)>();
+                            var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
+                            if (tagsContainer != null)
+                            {
+                                var skillLinks = tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector);
+                                foreach (var skillLink in skillLinks)
+                                {
+                                    var skillName = skillLink.TextContent?.Trim();
+                                    if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                                    // Извлекаем ID навыка из URL
+                                    int? skillId = null;
+                                    var skillHref = skillLink.GetAttribute("href");
+                                    if (!string.IsNullOrWhiteSpace(skillHref))
+                                    {
+                                        var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
+                                        if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
+                                        {
+                                            skillId = id;
+                                        }
+                                    }
+
+                                    experienceSkills.Add((skillId, skillName));
+                                }
+                            }
+
+                            // Создаём структуру данных и добавляем в очередь
+                            var experienceData = new UserExperienceData(
+                                UserLink: userLink,
+                                CompanyCode: companyCode,
+                                CompanyUrl: companyUrl,
+                                CompanyTitle: companyTitle,
+                                CompanyAbout: companyAbout,
+                                CompanySize: companySize,
+                                Position: position,
+                                Duration: duration,
+                                Description: description,
+                                Skills: experienceSkills,
+                                IsFirstRecord: isFirstExperience
+                            );
+
+                            _db.EnqueueUserExperience(experienceData);
+                            experienceCount++;
+                            isFirstExperience = false;
+                        }
+                        catch (Exception expEx)
+                        {
+                            _logger.WriteLine($"Ошибка при парсинге опыта работы для {userLink}: {expEx.Message}");
+                        }
+                    }
+                }
+
                 // Сохраняем информацию
                 _db.EnqueueUserResumeDetail(userLink, about, skills);
                 
                 _logger.WriteLine($"Пользователь {userLink}:");
                 _logger.WriteLine($"  О себе: {(string.IsNullOrWhiteSpace(about) ? "(не найдено)" : $"{about.Substring(0, Math.Min(100, about.Length))}...")}");
                 _logger.WriteLine($"  Навыки: {skills.Count} шт.");
+                _logger.WriteLine($"  Опыт работы: {experienceCount} записей");
                 
                 Interlocked.Increment(ref totalSuccess);
             }
