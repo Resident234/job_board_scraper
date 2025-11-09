@@ -103,54 +103,85 @@ public sealed class UserFriendsScraper : IDisposable
             _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
             try
             {
-                var friendsUrl = userLink.TrimEnd('/') + "/friends";
+                int page = 1;
+                int totalFriendsForUser = 0;
+                bool hasMorePages = true;
 
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var response = await _httpClient.GetAsync(friendsUrl, ct);
-                sw.Stop();
-                _controller.ReportLatency(sw.Elapsed);
-                
-                double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                int completed = Interlocked.Increment(ref totalProcessed);
-                double percent = completed * 100.0 / totalLinks;
-                _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
-                
-                if (!response.IsSuccessStatusCode)
+                // Перебираем страницы, пока находим друзей
+                while (hasMorePages && !ct.IsCancellationRequested)
                 {
-                    return;
+                    var friendsUrl = page == 1 
+                        ? userLink.TrimEnd('/') + "/friends"
+                        : userLink.TrimEnd('/') + $"/friends?page={page}";
+
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var response = await _httpClient.GetAsync(friendsUrl, ct);
+                    sw.Stop();
+                    _controller.ReportLatency(sw.Elapsed);
+                    
+                    double elapsedSeconds = sw.Elapsed.TotalSeconds;
+                    
+                    if (page == 1)
+                    {
+                        int completed = Interlocked.Increment(ref totalProcessed);
+                        double percent = completed * 100.0 / totalLinks;
+                        _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"HTTP запрос {friendsUrl} (страница {page}): {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}.");
+                    }
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        break;
+                    }
+
+                    var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                    var encoding = response.Content.Headers.ContentType?.CharSet != null
+                        ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                        : System.Text.Encoding.UTF8;
+                    var html = encoding.GetString(htmlBytes);
+                    
+                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+                    // Ищем друзей по селектору
+                    var friendLinks = doc.QuerySelectorAll(AppConfig.UserFriendsFriendLinkSelector);
+                    var friendsOnPage = 0;
+                    
+                    foreach (var friendLink in friendLinks)
+                    {
+                        var href = friendLink.GetAttribute("href");
+                        if (string.IsNullOrWhiteSpace(href))
+                            continue;
+
+                        // Формируем полную ссылку
+                        var fullLink = AppConfig.UserFriendsBaseUrl + href;
+                        
+                        // Извлекаем код пользователя из href
+                        var userCode = href.TrimStart('/');
+                        
+                        // Сохраняем в БД: если запись существует по link, обновляем code
+                        _db.EnqueueResume(fullLink, title: "", mode: InsertMode.UpdateIfExists, code: userCode);
+                        friendsOnPage++;
+                    }
+
+                    totalFriendsForUser += friendsOnPage;
+                    
+                    if (friendsOnPage == 0)
+                    {
+                        hasMorePages = false;
+                        _logger.WriteLine($"Страница {page} пуста, завершаем обход для {userLink}");
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"Найдено {friendsOnPage} друзей на странице {page} для {userLink}");
+                        page++;
+                    }
                 }
 
-                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                var encoding = response.Content.Headers.ContentType?.CharSet != null
-                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                    : System.Text.Encoding.UTF8;
-                var html = encoding.GetString(htmlBytes);
-                
-                var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                // Ищем друзей по селектору
-                var friendLinks = doc.QuerySelectorAll(AppConfig.UserFriendsFriendLinkSelector);
-                var friendsCount = 0;
-                
-                foreach (var friendLink in friendLinks)
-                {
-                    var href = friendLink.GetAttribute("href");
-                    if (string.IsNullOrWhiteSpace(href))
-                        continue;
-
-                    // Формируем полную ссылку
-                    var fullLink = AppConfig.UserFriendsBaseUrl + href;
-                    
-                    // Извлекаем код пользователя из href
-                    var userCode = href.TrimStart('/');
-                    
-                    // Сохраняем в БД: если запись существует по link, обновляем code
-                    _db.EnqueueResume(fullLink, title: "", mode: InsertMode.UpdateIfExists, code: userCode);
-                    friendsCount++;
-                }
-
-                _logger.WriteLine($"Найдено {friendsCount} друзей для {userLink}");
-                Interlocked.Add(ref totalFriendsFound, friendsCount);
+                _logger.WriteLine($"Всего найдено {totalFriendsForUser} друзей для {userLink} ({page - 1} страниц)");
+                Interlocked.Add(ref totalFriendsFound, totalFriendsForUser);
             }
             catch (Exception ex)
             {
