@@ -1,5 +1,6 @@
 using JobBoardScraper.Helper.ConsoleHelper;
 using JobBoardScraper.Helper.Utils;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace JobBoardScraper.WebScraper;
@@ -7,7 +8,6 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Обходит профили пользователей и извлекает детальную информацию
 /// TODO нужен selenium, некоторые профили закрыты настройками приватности
-/// TODO вывод информации надо сделать такой же, как в BruteForceUsernameScraper, то есть количество параллельных потоков и тд 
 /// TODO для всех таблиц время обновления записи добавить
 /// </summary>
 public sealed class UserProfileScraper : IDisposable
@@ -21,6 +21,7 @@ public sealed class UserProfileScraper : IDisposable
     private readonly Regex _salaryRegex;
     private readonly Regex _workExperienceRegex;
     private readonly Regex _lastVisitRegex;
+    private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
 
     public UserProfileScraper(
         SmartHttpClient httpClient,
@@ -94,9 +95,10 @@ public sealed class UserProfileScraper : IDisposable
         
         // Получаем список ссылок пользователей из БД
         var userLinks = _getUserCodes();
-        _logger.WriteLine($"Загружено {userLinks.Count} пользователей из БД.");
+        var totalLinks = userLinks.Count;
+        _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
-        if (userLinks.Count == 0)
+        if (totalLinks == 0)
         {
             _logger.WriteLine("Нет пользователей для обработки.");
             return;
@@ -125,19 +127,29 @@ public sealed class UserProfileScraper : IDisposable
 
                     // Формируем URL для /friends, добавляя /friends к исходной ссылке
                     var friendsUrl = userLink.TrimEnd('/') + "/friends";
-                    _logger.WriteLine($"Обработка пользователя: {userLink} -> {friendsUrl}");
 
-                    var sw = System.Diagnostics.Stopwatch.StartNew();
-                    var response = await _httpClient.GetAsync(friendsUrl, ct);
-                    sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
-                    
-                    if (!response.IsSuccessStatusCode)
+                    _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
+                    try
                     {
-                        _logger.WriteLine($"Пользователь {userCode} вернул код {response.StatusCode}. Пропуск.");
-                        Interlocked.Increment(ref totalSkipped);
-                        Interlocked.Increment(ref totalProcessed);
-                        return;
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var response = await _httpClient.GetAsync(friendsUrl, ct);
+                        sw.Stop();
+                        _controller.ReportLatency(sw.Elapsed);
+                        
+                        double elapsedSeconds = sw.Elapsed.TotalSeconds;
+                        int completed = Interlocked.Increment(ref totalProcessed);
+                        double percent = completed * 100.0 / totalLinks;
+                        _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                        
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            Interlocked.Increment(ref totalSkipped);
+                            return;
+                        }
+                    }
+                    finally
+                    {
+                        _activeRequests.TryRemove(userLink, out _);
                     }
 
                     // Читаем HTML с правильной кодировкой
@@ -185,7 +197,6 @@ public sealed class UserProfileScraper : IDisposable
                         _logger.WriteLine($"Пользователь {userLink}: Приватный профиль (редирект)");
                         _db.EnqueueUserProfile(userLink, userCode, null, null, null, null, null, null, null, false);
                         Interlocked.Increment(ref totalSuccess);
-                        Interlocked.Increment(ref totalProcessed);
                         return;
                     }
 
@@ -315,13 +326,11 @@ public sealed class UserProfileScraper : IDisposable
                     _logger.WriteLine($"  Публичный профиль: Да");
                     
                     Interlocked.Increment(ref totalSuccess);
-                    Interlocked.Increment(ref totalProcessed);
                 }
                 catch (Exception ex)
                 {
                     _logger.WriteLine($"Ошибка при обработке пользователя {userLink}: {ex.Message}");
                     Interlocked.Increment(ref totalFailed);
-                    Interlocked.Increment(ref totalProcessed);
                 }
             },
             controller: _controller,

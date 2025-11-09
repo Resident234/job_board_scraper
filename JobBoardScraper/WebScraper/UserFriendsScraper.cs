@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using System.Collections.Concurrent;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -13,6 +14,7 @@ public sealed class UserFriendsScraper : IDisposable
     private readonly AdaptiveConcurrencyController _controller;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
+    private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
 
     public UserFriendsScraper(
         SmartHttpClient httpClient,
@@ -82,9 +84,10 @@ public sealed class UserFriendsScraper : IDisposable
         _logger.WriteLine("Начало обхода списков друзей пользователей...");
         
         var userLinks = _getUserCodes();
-        _logger.WriteLine($"Загружено {userLinks.Count} пользователей из БД.");
+        var totalLinks = userLinks.Count;
+        _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
-        if (userLinks.Count == 0)
+        if (totalLinks == 0)
         {
             _logger.WriteLine("Нет пользователей для обработки.");
             return;
@@ -97,20 +100,23 @@ public sealed class UserFriendsScraper : IDisposable
             source: userLinks,
             body: async userLink =>
         {
+            _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
             try
             {
                 var friendsUrl = userLink.TrimEnd('/') + "/friends";
-                _logger.WriteLine($"Обработка: {friendsUrl}");
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.GetAsync(friendsUrl, ct);
                 sw.Stop();
                 _controller.ReportLatency(sw.Elapsed);
                 
+                double elapsedSeconds = sw.Elapsed.TotalSeconds;
+                int completed = Interlocked.Increment(ref totalProcessed);
+                double percent = completed * 100.0 / totalLinks;
+                _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.WriteLine($"Ошибка {response.StatusCode} для {friendsUrl}");
-                    Interlocked.Increment(ref totalProcessed);
                     return;
                 }
 
@@ -145,12 +151,14 @@ public sealed class UserFriendsScraper : IDisposable
 
                 _logger.WriteLine($"Найдено {friendsCount} друзей для {userLink}");
                 Interlocked.Add(ref totalFriendsFound, friendsCount);
-                Interlocked.Increment(ref totalProcessed);
             }
             catch (Exception ex)
             {
                 _logger.WriteLine($"Ошибка при обработке {userLink}: {ex.Message}");
-                Interlocked.Increment(ref totalProcessed);
+            }
+            finally
+            {
+                _activeRequests.TryRemove(userLink, out _);
             }
         },
         controller: _controller,
