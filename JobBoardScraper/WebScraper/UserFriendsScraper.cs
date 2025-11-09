@@ -144,8 +144,8 @@ public sealed class UserFriendsScraper : IDisposable
                     // Извлекаем код пользователя из href
                     var userCode = href.TrimStart('/');
                     
-                    // Сохраняем в БД
-                    _db.EnqueueResume(fullLink, userCode, mode: InsertMode.SkipIfExists, code: userCode);
+                    // Сохраняем в БД: если запись существует по link, обновляем code
+                    _db.EnqueueResume(fullLink, title: "", mode: InsertMode.UpdateIfExists, code: userCode);
                     friendsCount++;
                 }
 
