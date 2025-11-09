@@ -7,10 +7,13 @@
 ### Версия 2.0 (Ноябрь 2024)
 
 1. **ExpertsScraper** - новый скрапер для обхода экспертов с career.habr.com
-2. **Расширенная структура БД** - добавлены столбцы `code`, `expert`, `work_experience`
-3. **SmartHttpClient** - универсальная обёртка с retry и измерением трафика
-4. **Улучшенное логирование** - независимые логи для каждого скрапера
-5. **Статистика трафика** - автоматический подсчёт и сохранение статистики HTTP-трафика
+2. **CompanyDetailScraper** - новый скрапер для детальной информации о компаниях (ID, рейтинг, навыки)
+3. **UserProfileScraper** - новый скрапер для профилей пользователей (уровень, зарплата, опыт)
+4. **UserResumeDetailScraper** - новый скрапер для извлечения "О себе" и навыков из резюме
+5. **Расширенная структура БД** - добавлены столбцы для экспертов, компаний, профилей и навыков
+6. **SmartHttpClient** - универсальная обёртка с retry и измерением трафика
+7. **Улучшенное логирование** - независимые логи для каждого скрапера
+8. **Статистика трафика** - автоматический подсчёт и сохранение статистики HTTP-трафика
 
 ## Шаги миграции
 
@@ -27,11 +30,26 @@ psql -U postgres -d jobs -f sql/add_unique_link_constraint.sql
 
 # Добавление столбцов для экспертов (НОВОЕ)
 psql -U postgres -d jobs -f sql/add_expert_columns.sql
+
+# Добавление столбцов для детальной информации о компаниях (НОВОЕ)
+psql -U postgres -d jobs -f sql/add_company_details_columns.sql
+
+# Создание таблицы уровней (НОВОЕ)
+psql -U postgres -d jobs -f sql/create_levels_table.sql
+
+# Добавление столбцов для профилей пользователей (НОВОЕ)
+psql -U postgres -d jobs -f sql/add_user_profile_columns.sql
+
+# Добавление столбца "О себе" для резюме (НОВОЕ)
+psql -U postgres -d jobs -f sql/add_user_about_column.sql
+
+# Создание таблицы навыков пользователей (НОВОЕ)
+psql -U postgres -d jobs -f sql/create_user_skills_table.sql
 ```
 
 ### 2. Обновление конфигурации
 
-Добавьте в `App.config` новые настройки для ExpertsScraper:
+Добавьте в `App.config` новые настройки для всех новых скраперов:
 
 ```xml
 <!-- ExpertsScraper Settings -->
@@ -39,6 +57,29 @@ psql -U postgres -d jobs -f sql/add_expert_columns.sql
 <add key="Experts:ListUrl" value="https://career.habr.com/experts?order=lastActive" />
 <add key="Experts:EnableTrafficMeasuring" value="true" />
 <add key="Experts:OutputMode" value="Both" />
+
+<!-- CompanyDetailScraper Settings -->
+<add key="CompanyDetail:Enabled" value="false" />
+<add key="CompanyDetail:TimeoutSeconds" value="60" />
+<add key="CompanyDetail:EnableRetry" value="true" />
+<add key="CompanyDetail:EnableTrafficMeasuring" value="true" />
+<add key="CompanyDetail:OutputMode" value="Both" />
+
+<!-- UserProfileScraper Settings -->
+<add key="UserProfile:Enabled" value="false" />
+<add key="UserProfile:TimeoutSeconds" value="60" />
+<add key="UserProfile:EnableRetry" value="true" />
+<add key="UserProfile:EnableTrafficMeasuring" value="true" />
+<add key="UserProfile:OutputMode" value="Both" />
+
+<!-- UserResumeDetailScraper Settings -->
+<add key="UserResumeDetail:Enabled" value="false" />
+<add key="UserResumeDetail:TimeoutSeconds" value="60" />
+<add key="UserResumeDetail:EnableRetry" value="true" />
+<add key="UserResumeDetail:EnableTrafficMeasuring" value="true" />
+<add key="UserResumeDetail:OutputMode" value="Both" />
+<add key="UserResumeDetail:ContentSelector" value=".content-section.content-section--appearance-resume" />
+<add key="UserResumeDetail:SkillSelector" value=".skills-list-show-item" />
 ```
 
 Также добавьте настройки статистики трафика (если их нет):
