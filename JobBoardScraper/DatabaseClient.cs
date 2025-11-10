@@ -158,7 +158,12 @@ public sealed class DatabaseClient
         string? code = null,
         bool? expert = null,
         string? workExperience = null,
-        InsertMode mode = InsertMode.SkipIfExists)
+        InsertMode mode = InsertMode.SkipIfExists,
+        int? levelId = null,
+        string? infoTech = null,
+        int? salary = null,
+        string? lastVisit = null,
+        bool? isPublic = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -177,7 +182,7 @@ public sealed class DatabaseClient
                 }
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) VALUES (@link, @title, @slogan, @code, @expert, @work_experience)",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
@@ -185,6 +190,11 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" +
@@ -194,21 +204,32 @@ public sealed class DatabaseClient
             else // UpdateIfExists
             {
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience) 
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience)
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, created_at, updated_at) 
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, NOW(), NOW())
                     ON CONFLICT (link) 
                     DO UPDATE SET 
-                        title = EXCLUDED.title,
-                        slogan = EXCLUDED.slogan,
-                        code = EXCLUDED.code,
-                        expert = EXCLUDED.expert,
-                        work_experience = EXCLUDED.work_experience", conn);
+                        title = COALESCE(EXCLUDED.title, habr_resumes.title),
+                        slogan = COALESCE(EXCLUDED.slogan, habr_resumes.slogan),
+                        code = COALESCE(EXCLUDED.code, habr_resumes.code),
+                        expert = COALESCE(EXCLUDED.expert, habr_resumes.expert),
+                        work_experience = COALESCE(EXCLUDED.work_experience, habr_resumes.work_experience),
+                        level_id = COALESCE(EXCLUDED.level_id, habr_resumes.level_id),
+                        info_tech = COALESCE(EXCLUDED.info_tech, habr_resumes.info_tech),
+                        salary = COALESCE(EXCLUDED.salary, habr_resumes.salary),
+                        last_visit = COALESCE(EXCLUDED.last_visit, habr_resumes.last_visit),
+                        public = COALESCE(EXCLUDED.public, habr_resumes.public),
+                        updated_at = NOW()", conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" +
@@ -373,14 +394,54 @@ public sealed class DatabaseClient
                     switch (record.Type)
                     {
                         case DbRecordType.Resume:
+                            // Получаем или создаём level_id если есть данные профиля
+                            int? levelId = null;
+                            if (record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.LevelTitle))
+                            {
+                                using (var cmdLevel = new NpgsqlCommand(@"
+                                    INSERT INTO habr_levels (title, created_at)
+                                    VALUES (@title, NOW())
+                                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
+                                    RETURNING id", conn))
+                                {
+                                    cmdLevel.Parameters.AddWithValue("@title", record.UserProfile.Value.LevelTitle);
+                                    var result = cmdLevel.ExecuteScalar();
+                                    if (result != null)
+                                    {
+                                        levelId = Convert.ToInt32(result);
+                                    }
+                                }
+                            }
+                            
+                            // Объединенная вставка/обновление всех полей
                             DatabaseInsert(conn,
                                 link: record.PrimaryValue,
-                                title: record.SecondaryValue,
+                                title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName) 
+                                    ? record.UserProfile.Value.UserName 
+                                    : record.SecondaryValue,
                                 slogan: record.TertiaryValue,
-                                code: record.Code,
-                                expert: record.Expert,
-                                workExperience: record.WorkExperience,
-                                mode: record.Mode);
+                                code: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserCode)
+                                    ? record.UserProfile.Value.UserCode
+                                    : record.Code,
+                                expert: record.UserProfile.HasValue && record.UserProfile.Value.IsExpert.HasValue
+                                    ? record.UserProfile.Value.IsExpert
+                                    : record.Expert,
+                                workExperience: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.WorkExperience)
+                                    ? record.UserProfile.Value.WorkExperience
+                                    : record.WorkExperience,
+                                mode: record.Mode,
+                                levelId: levelId,
+                                infoTech: record.UserProfile?.InfoTech,
+                                salary: record.UserProfile?.Salary,
+                                lastVisit: record.UserProfile?.LastVisit,
+                                isPublic: record.UserProfile?.IsPublic
+                            );
+                            
+                            // Если есть навыки, добавляем их
+                            if (record.Skills != null && record.Skills.Count > 0)
+                            {
+                                DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                            }
                             break;
                         case DbRecordType.Company:
                             DatabaseInsertCompany(conn, companyCode: record.PrimaryValue,
@@ -435,16 +496,38 @@ public sealed class DatabaseClient
                             if (record.UserProfile.HasValue)
                             {
                                 var profile = record.UserProfile.Value;
-                                DatabaseUpdateUserProfile(
+                                
+                                // Получаем или создаём level_id
+                                int? levelId = null;
+                                if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
+                                {
+                                    using (var cmdLevel = new NpgsqlCommand(@"
+                                        INSERT INTO habr_levels (title, created_at)
+                                        VALUES (@title, NOW())
+                                        ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
+                                        RETURNING id", conn))
+                                    {
+                                        cmdLevel.Parameters.AddWithValue("@title", profile.LevelTitle);
+                                        var result = cmdLevel.ExecuteScalar();
+                                        if (result != null)
+                                        {
+                                            levelId = Convert.ToInt32(result);
+                                        }
+                                    }
+                                }
+                                
+                                // Обновляем профиль через DatabaseInsert
+                                DatabaseInsert(
                                     conn,
-                                    userLink: record.PrimaryValue,
-                                    userCode: profile.UserCode,
-                                    userName: profile.UserName,
-                                    isExpert: profile.IsExpert,
-                                    levelTitle: profile.LevelTitle,
+                                    link: record.PrimaryValue,
+                                    title: profile.UserName ?? "",
+                                    code: profile.UserCode,
+                                    expert: profile.IsExpert,
+                                    workExperience: profile.WorkExperience,
+                                    mode: InsertMode.UpdateIfExists,
+                                    levelId: levelId,
                                     infoTech: profile.InfoTech,
                                     salary: profile.Salary,
-                                    workExperience: profile.WorkExperience,
                                     lastVisit: profile.LastVisit,
                                     isPublic: profile.IsPublic
                                 );
@@ -455,7 +538,13 @@ public sealed class DatabaseClient
                             DatabaseUpdateUserAbout(conn, userLink: record.PrimaryValue, about: record.SecondaryValue);
                             break;
                         case DbRecordType.UserSkills:
-                            if (record.Skills != null && record.Skills.Count > 0)
+                            // Если PrimaryValue - число, это добавление навыка с skill_id
+                            if (int.TryParse(record.PrimaryValue, out var skillId))
+                            {
+                                DatabaseInsertSkillWithId(conn, skillId, record.SecondaryValue);
+                            }
+                            // Иначе это навыки пользователя
+                            else if (record.Skills != null && record.Skills.Count > 0)
                             {
                                 DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
                             }
@@ -1028,88 +1117,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить информацию о профиле пользователя
-    /// </summary>
-    public void DatabaseUpdateUserProfile(NpgsqlConnection conn, string userLink, string? userCode, string? userName,
-        bool? isExpert, string? levelTitle, string? infoTech, int? salary, string? workExperience = null,
-        string? lastVisit = null, bool? isPublic = null)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-
-        try
-        {
-            DatabaseEnsureConnectionOpen(conn);
-
-            // Получаем или создаём level_id
-            int? levelId = null;
-            if (!string.IsNullOrWhiteSpace(levelTitle))
-            {
-                using (var cmdLevel = new NpgsqlCommand(@"
-                    INSERT INTO habr_levels (title, created_at)
-                    VALUES (@title, NOW())
-                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
-                    RETURNING id", conn))
-                {
-                    cmdLevel.Parameters.AddWithValue("@title", levelTitle);
-                    var result = cmdLevel.ExecuteScalar();
-                    if (result != null)
-                    {
-                        levelId = Convert.ToInt32(result);
-                    }
-                }
-            }
-
-            // Обновляем профиль пользователя по link
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes 
-                SET code = COALESCE(@code, code),
-                    title = COALESCE(@title, title),
-                    expert = COALESCE(@expert, expert),
-                    level_id = COALESCE(@level_id, level_id),
-                    info_tech = COALESCE(@info_tech, info_tech),
-                    salary = COALESCE(@salary, salary),
-                    work_experience = COALESCE(@work_experience, work_experience),
-                    last_visit = COALESCE(@last_visit, last_visit),
-                    public = COALESCE(@public, public)
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@code", userCode ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@title", userName ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@expert", isExpert ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@level_id", levelId ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@work_experience", workExperience ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                //TODO сюда в вывод все поля добавить
-                Console.WriteLine(
-                    $"[DB] Обновлён профиль для {userLink}: Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}");
-            }
-            else
-            {
-                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД.");
-            }
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Console.WriteLine($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении профиля {userCode}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// Получить ссылки пользователей с опциональным фильтром по публичности
     /// </summary>
     public List<string> GetAllUserLinks(NpgsqlConnection conn, bool onlyPublic = false)
@@ -1509,6 +1516,89 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Console.WriteLine($"[DB] Неожиданная ошибка при добавлении опыта работы для {exp.UserLink}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Добавить навык в очередь (с skill_id из URL)
+    /// </summary>
+    public bool EnqueueSkill(int skillId, string title)
+    {
+        if (_saveQueue == null) return false;
+
+        // Используем специальный тип для навыков
+        var record = new DbRecord(DbRecordType.UserSkills, skillId.ToString(), title);
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] Skill: ID={skillId}, Title={title}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить детальный профиль резюме в очередь
+    /// </summary>
+    public bool EnqueueResumeProfile(ResumeProfileData profileData)
+    {
+        if (_saveQueue == null) return false;
+
+        // Создаём запись с профилем
+        var record = new DbRecord(
+            Type: DbRecordType.Resume,
+            PrimaryValue: profileData.Link,
+            SecondaryValue: profileData.Title,
+            Code: profileData.Code,
+            Expert: profileData.IsExpert,
+            Mode: InsertMode.UpdateIfExists,
+            UserProfile: new UserProfileData(
+                UserCode: profileData.Code,
+                UserName: profileData.Title,
+                IsExpert: profileData.IsExpert,
+                LevelTitle: profileData.LevelTitle,
+                InfoTech: profileData.InfoTech,
+                Salary: profileData.Salary,
+                WorkExperience: null,
+                LastVisit: null,
+                IsPublic: null
+            ),
+            Skills: profileData.Skills
+        );
+        _saveQueue.Enqueue(record);
+        Console.WriteLine($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Вставить или обновить навык с skill_id
+    /// </summary>
+    public void DatabaseInsertSkillWithId(NpgsqlConnection conn, int skillId, string? title)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                INSERT INTO habr_skills (skill_id, title, created_at)
+                VALUES (@skill_id, @title, NOW())
+                ON CONFLICT (skill_id) 
+                DO UPDATE SET title = COALESCE(NULLIF(EXCLUDED.title, ''), habr_skills.title)
+                RETURNING id", conn);
+
+            cmd.Parameters.AddWithValue("@skill_id", skillId);
+            cmd.Parameters.AddWithValue("@title", string.IsNullOrWhiteSpace(title) ? (object)DBNull.Value : title);
+
+            var result = cmd.ExecuteScalar();
+            Console.WriteLine($"[DB] Навык добавлен/обновлён: skill_id={skillId}, title={title}");
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Console.WriteLine($"[DB] Ошибка БД при добавлении навыка {skillId}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
         }
     }
 }

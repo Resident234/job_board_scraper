@@ -184,6 +184,96 @@ public static class AppConfig
     public static string ResumeListResumeLinkSelector =>
         ConfigurationManager.AppSettings["ResumeList:ResumeLinkSelector"] ?? "a.resume-card__title-link";
 
+    public static bool ResumeListSkillsEnumerationEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:SkillsEnumerationEnabled"], out var value) && value;
+
+    public static int ResumeListSkillsStartId =>
+        int.TryParse(ConfigurationManager.AppSettings["ResumeList:SkillsStartId"], out var value) ? value : 1;
+
+    public static int ResumeListSkillsEndId =>
+        int.TryParse(ConfigurationManager.AppSettings["ResumeList:SkillsEndId"], out var value) ? value : 10000;
+
+    public static OutputMode ResumeListOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["ResumeList:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+
+    public static string ResumeListPageUrl =>
+        ConfigurationManager.AppSettings["ResumeList:PageUrl"] ?? "/resumes?order=last_visited";
+
+    public static string ResumeListSkillUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:SkillUrlTemplate"] ?? "/resumes?skills[]={0}";
+
+    public static string ResumeListProfileSectionSelector =>
+        ConfigurationManager.AppSettings["ResumeList:ProfileSectionSelector"] ?? ".base-section";
+
+    public static string ResumeListProfileLinkSelector =>
+        ConfigurationManager.AppSettings["ResumeList:ProfileLinkSelector"] ?? "a.text-inherit.visited\\:text-font-gray";
+
+    public static string ResumeListExpertIconSelector =>
+        ConfigurationManager.AppSettings["ResumeList:ExpertIconSelector"] ?? "svg use[xlink\\:href*='expert-icon']";
+
+    public static string ResumeListSeparatorSelector =>
+        ConfigurationManager.AppSettings["ResumeList:SeparatorSelector"] ?? "span.inline-separator";
+
+    public static string ResumeListSkillsSectionSelector =>
+        ConfigurationManager.AppSettings["ResumeList:SkillsSectionSelector"] ?? "section.grid";
+
+    public static string ResumeListSkillButtonSelector =>
+        ConfigurationManager.AppSettings["ResumeList:SkillButtonSelector"] ?? "button span";
+
+    public static string ResumeListSalaryRegex =>
+        ConfigurationManager.AppSettings["ResumeList:SalaryRegex"] ?? @"От\s+([\d\s]+)\s*₽";
+
+    public static string ResumeListProfileLinkRegex =>
+        ConfigurationManager.AppSettings["ResumeList:ProfileLinkRegex"] ?? @"^(?:https://career\.habr\.com/)?([^/]+)$";
+
+    public static string ResumeListProfileUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:ProfileUrlTemplate"] ?? "https://career.habr.com/{0}";
+
+    public static bool ResumeListWorkStatesEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:WorkStatesEnabled"], out var value) && value;
+
+    public static string ResumeListWorkStatesUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:WorkStatesUrlTemplate"] ?? "/resumes?work_states[]={0}";
+
+    public static string[] ResumeListWorkStates =>
+        (ConfigurationManager.AppSettings["ResumeList:WorkStates"] ?? "search,ready,not_search")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    public static bool ResumeListExperiencesEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:ExperiencesEnabled"], out var value) && value;
+
+    public static string ResumeListExperiencesUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:ExperiencesUrlTemplate"] ?? "/resumes?experiences[]={0}";
+
+    public static string[] ResumeListExperiences =>
+        (ConfigurationManager.AppSettings["ResumeList:Experiences"] ?? "without,year,three_year,six_year,more_six")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    public static bool ResumeListQidsEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:QidsEnabled"], out var value) && value;
+
+    public static string ResumeListQidsUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:QidsUrlTemplate"] ?? "/resumes?qids[]={0}";
+
+    public static int ResumeListQidsStartId =>
+        int.TryParse(ConfigurationManager.AppSettings["ResumeList:QidsStartId"], out var value) ? value : 1;
+
+    public static int ResumeListQidsEndId =>
+        int.TryParse(ConfigurationManager.AppSettings["ResumeList:QidsEndId"], out var value) ? value : 10;
+
+    public static bool ResumeListOrderEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:OrderEnabled"], out var value) && value;
+
+    public static string[] ResumeListOrders =>
+        (ConfigurationManager.AppSettings["ResumeList:Orders"] ?? "last_visited,salary_desc,salary_asc")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public static bool CategoryEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["Category:Enabled"], out var value) && value;
 

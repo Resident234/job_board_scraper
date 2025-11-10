@@ -62,6 +62,13 @@ class Program
         if (AppConfig.ResumeListEnabled)
         {
             Console.WriteLine("[Program] ResumeListPageScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода ResumeListPageScraper: {AppConfig.ResumeListOutputMode}");
+            Console.WriteLine($"[Program] Перебор навыков: {(AppConfig.ResumeListSkillsEnumerationEnabled ? "ВКЛЮЧЕН" : "ОТКЛЮЧЕН")}");
+            if (AppConfig.ResumeListSkillsEnumerationEnabled)
+            {
+                Console.WriteLine($"[Program] Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
+            }
+            
             var resumeListHttpClient = new SmartHttpClient(
                 httpClient, 
                 "ResumeListPageScraper", 
@@ -70,11 +77,14 @@ class Program
                 enableTrafficMeasuring: AppConfig.ResumeListEnableTrafficMeasuring);
             var resumeListScraper = new ResumeListPageScraper(
                 resumeListHttpClient,
+                db,
                 enqueueToSaveQueue: item =>
                 {
                     db.EnqueueResume(item.link, item.title);
                 },
-                interval: TimeSpan.FromMinutes(10));
+                controller: controller,
+                interval: TimeSpan.FromMinutes(10),
+                outputMode: AppConfig.ResumeListOutputMode);
 
             _ = resumeListScraper.StartAsync(cts.Token);
         }
