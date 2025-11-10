@@ -1414,10 +1414,10 @@ public sealed class DatabaseClient
                             cmdInsertCompany.Parameters.AddWithValue("@title", exp.CompanyTitle ?? (object)DBNull.Value);
                             cmdInsertCompany.Parameters.AddWithValue("@about", exp.CompanyAbout ?? (object)DBNull.Value);
                             cmdInsertCompany.Parameters.AddWithValue("@employees_count", exp.CompanySize ?? (object)DBNull.Value);
-                            var result = cmdInsertCompany.ExecuteScalar();
-                            if (result != null)
+                            var insertResult = cmdInsertCompany.ExecuteScalar();
+                            if (insertResult != null)
                             {
-                                companyId = Convert.ToInt32(result);
+                                companyId = Convert.ToInt32(insertResult);
                             }
                         }
                     }
