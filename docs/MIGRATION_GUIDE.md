@@ -45,6 +45,12 @@ psql -U postgres -d jobs -f sql/add_user_about_column.sql
 
 # Создание таблицы навыков пользователей (НОВОЕ)
 psql -U postgres -d jobs -f sql/create_user_skills_table.sql
+
+# Создание таблицы опыта работы (НОВОЕ)
+psql -U postgres -d jobs -f sql/create_user_experience_table.sql
+
+# Создание таблицы связи опыта работы и навыков (НОВОЕ)
+psql -U postgres -d jobs -f sql/create_user_experience_skills_table.sql
 ```
 
 ### 2. Обновление конфигурации
@@ -80,6 +86,18 @@ psql -U postgres -d jobs -f sql/create_user_skills_table.sql
 <add key="UserResumeDetail:OutputMode" value="Both" />
 <add key="UserResumeDetail:ContentSelector" value=".content-section.content-section--appearance-resume" />
 <add key="UserResumeDetail:SkillSelector" value=".skills-list-show-item" />
+<add key="UserResumeDetail:ExperienceContainerSelector" value=".job-experience-item__positions" />
+<add key="UserResumeDetail:ExperienceItemSelector" value=".job-experience-item" />
+<add key="UserResumeDetail:CompanyLinkSelector" value="a.link-comp.link-comp--appearance-dark" />
+<add key="UserResumeDetail:CompanyAboutSelector" value=".job-experience-item__subtitle" />
+<add key="UserResumeDetail:PositionSelector" value=".job-position__title" />
+<add key="UserResumeDetail:DurationSelector" value=".job-position__duration" />
+<add key="UserResumeDetail:DescriptionSelector" value=".job-position__message" />
+<add key="UserResumeDetail:TagsSelector" value=".job-position__tags" />
+<add key="UserResumeDetail:CompanyCodeRegex" value="/companies/([^/?]+)" />
+<add key="UserResumeDetail:SkillIdRegex" value="skills%5B%5D=(\d+)" />
+<add key="UserResumeDetail:CompanyUrlTemplate" value="https://career.habr.com/companies/{0}" />
+<add key="UserResumeDetail:CompanySizeUrlPattern" value="/companies?sz=" />
 ```
 
 Также добавьте настройки статистики трафика (если их нет):

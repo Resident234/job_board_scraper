@@ -6,6 +6,7 @@
 
 - **О себе (about)** — текстовое описание пользователя
 - **Навыки (skills)** — список технологий и навыков
+- **Опыт работы (experience)** — детальная информация о местах работы с компаниями, должностями и навыками
 
 ## Основные возможности
 
@@ -27,6 +28,12 @@
 4. Добавление данных в очередь записи в БД
 5. Асинхронная запись в PostgreSQL
 
+### Логика обновления данных
+
+- **О себе и навыки**: Обновляются при каждом обходе
+- **Опыт работы**: При добавлении первой записи опыта все старые записи пользователя удаляются (каскадное удаление включает связанные навыки)
+- **Компании**: Создаются или обновляются автоматически при парсинге опыта работы
+
 ### Извлекаемые данные
 
 #### О себе (about)
@@ -38,6 +45,17 @@
 - Селектор: `.skills-list-show-item`
 - Тип: LIST
 - Таблицы: `habr_skills`, `habr_user_skills`
+
+#### Опыт работы (experience)
+- Контейнер: `.job-experience-item__positions`
+- Элементы: `.job-experience-item`
+- Извлекаемые данные:
+  - Компания (код, URL, название, описание, размер)
+  - Должность
+  - Продолжительность работы
+  - Описание работы
+  - Навыки (с ID и названиями)
+- Таблицы: `habr_user_experience`, `habr_user_experience_skills`, `habr_companies`, `habr_skills`
 
 ## Настройка
 
@@ -52,6 +70,18 @@
 <add key="UserResumeDetail:OutputMode" value="Both" />
 <add key="UserResumeDetail:ContentSelector" value=".content-section.content-section--appearance-resume" />
 <add key="UserResumeDetail:SkillSelector" value=".skills-list-show-item" />
+<add key="UserResumeDetail:ExperienceContainerSelector" value=".job-experience-item__positions" />
+<add key="UserResumeDetail:ExperienceItemSelector" value=".job-experience-item" />
+<add key="UserResumeDetail:CompanyLinkSelector" value="a.link-comp.link-comp--appearance-dark" />
+<add key="UserResumeDetail:CompanyAboutSelector" value=".job-experience-item__subtitle" />
+<add key="UserResumeDetail:PositionSelector" value=".job-position__title" />
+<add key="UserResumeDetail:DurationSelector" value=".job-position__duration" />
+<add key="UserResumeDetail:DescriptionSelector" value=".job-position__message" />
+<add key="UserResumeDetail:TagsSelector" value=".job-position__tags" />
+<add key="UserResumeDetail:CompanyCodeRegex" value="/companies/([^/?]+)" />
+<add key="UserResumeDetail:SkillIdRegex" value="skills%5B%5D=(\d+)" />
+<add key="UserResumeDetail:CompanyUrlTemplate" value="https://career.habr.com/companies/{0}" />
+<add key="UserResumeDetail:CompanySizeUrlPattern" value="/companies?sz=" />
 ```
 
 ### Параметры
@@ -65,6 +95,18 @@
 | `OutputMode` | enum | Both | Режим вывода: ConsoleOnly, FileOnly, Both |
 | `ContentSelector` | string | .content-section... | CSS-селектор для текста "О себе" |
 | `SkillSelector` | string | .skills-list-show-item | CSS-селектор для навыков |
+| `ExperienceContainerSelector` | string | .job-experience-item__positions | CSS-селектор контейнера опыта работы |
+| `ExperienceItemSelector` | string | .job-experience-item | CSS-селектор элемента опыта |
+| `CompanyLinkSelector` | string | a.link-comp... | CSS-селектор ссылки на компанию |
+| `CompanyAboutSelector` | string | .job-experience-item__subtitle | CSS-селектор описания компании |
+| `PositionSelector` | string | .job-position__title | CSS-селектор должности |
+| `DurationSelector` | string | .job-position__duration | CSS-селектор продолжительности |
+| `DescriptionSelector` | string | .job-position__message | CSS-селектор описания работы |
+| `TagsSelector` | string | .job-position__tags | CSS-селектор контейнера навыков |
+| `CompanyCodeRegex` | string | /companies/([^/?]+) | Regex для извлечения кода компании |
+| `SkillIdRegex` | string | skills%5B%5D=(\d+) | Regex для извлечения ID навыка |
+| `CompanyUrlTemplate` | string | https://career.habr.com/companies/{0} | Шаблон URL компании |
+| `CompanySizeUrlPattern` | string | /companies?sz= | Паттерн URL для определения размера компании |
 
 ## Структура базы данных
 
@@ -87,6 +129,33 @@ CREATE TABLE IF NOT EXISTS habr_user_skills (
 );
 ```
 
+### Таблица habr_user_experience
+
+```sql
+CREATE TABLE IF NOT EXISTS habr_user_experience (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES habr_resumes(id) ON DELETE CASCADE,
+    company_id INTEGER REFERENCES habr_companies(id) ON DELETE SET NULL,
+    position TEXT,
+    duration TEXT,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+### Таблица habr_user_experience_skills
+
+```sql
+CREATE TABLE IF NOT EXISTS habr_user_experience_skills (
+    id SERIAL PRIMARY KEY,
+    experience_id INTEGER NOT NULL REFERENCES habr_user_experience(id) ON DELETE CASCADE,
+    skill_id INTEGER NOT NULL REFERENCES habr_skills(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(experience_id, skill_id)
+);
+```
+
 ## Использование
 
 ### Запуск
@@ -95,6 +164,8 @@ CREATE TABLE IF NOT EXISTS habr_user_skills (
    ```bash
    psql -U postgres -d jobs -f sql/add_user_about_column.sql
    psql -U postgres -d jobs -f sql/create_user_skills_table.sql
+   psql -U postgres -d jobs -f sql/create_user_experience_table.sql
+   psql -U postgres -d jobs -f sql/create_user_experience_skills_table.sql
    ```
 
 2. Включите скрапер в `App.config`:
@@ -120,7 +191,10 @@ HTTP запрос https://career.habr.com/username: 0.234 сек. Код отв�
 Пользователь https://career.habr.com/username:
   О себе: Опытный разработчик с 5+ годами опыта в веб-разработке...
   Навыки: 15 шт.
+  Опыт работы: 3 записей
 [DB Queue] UserResumeDetail: https://career.habr.com/username -> About=True, Skills=15
+[DB Queue] UserExperience: https://career.habr.com/username -> Company=doczilla, Position=Менеджер по персоналу (Средний), Skills=5
+[DB] Добавлен опыт работы для https://career.habr.com/username: Company=Doczilla, Position=Менеджер по персоналу (Средний), Skills=5
 ```
 
 ## Производительность
@@ -136,6 +210,7 @@ HTTP запрос https://career.habr.com/username: 0.234 сек. Код отв�
 1. **Адаптивный параллелизм**: Автоматически подстраивается под нагрузку сервера
 2. **Очередь записи**: Асинхронная запись в БД не блокирует обход
 3. **Повторные попытки**: Автоматические retry при временных ошибках
+4. **Каскадное удаление**: При обновлении опыта работы старые записи удаляются автоматически вместе со связанными навыками
 
 ## Обработка ошибок
 
@@ -155,6 +230,8 @@ HTTP запрос https://career.habr.com/username: 0.234 сек. Код отв�
 - `EnqueueUserResumeDetail()` — добавление данных в очередь
 - `DatabaseUpdateUserAbout()` — обновление текста "О себе"
 - `DatabaseInsertUserSkills()` — вставка навыков
+- `EnqueueUserExperience()` — добавление опыта работы в очередь
+- `DatabaseInsertUserExperience()` — вставка опыта работы с автоматическим удалением старых записей
 
 ### SmartHttpClient
 
@@ -210,6 +287,54 @@ FROM habr_skills s
 JOIN habr_user_skills us ON s.id = us.skill_id
 GROUP BY s.id, s.title
 ORDER BY users_count DESC
+LIMIT 20;
+```
+
+### Получить опыт работы пользователя с компаниями
+
+```sql
+SELECT 
+    r.link,
+    r.title as user_name,
+    c.title as company_name,
+    ue.position,
+    ue.duration,
+    ue.description
+FROM habr_user_experience ue
+JOIN habr_resumes r ON ue.user_id = r.id
+LEFT JOIN habr_companies c ON ue.company_id = c.id
+WHERE r.link = 'https://career.habr.com/username'
+ORDER BY ue.created_at DESC;
+```
+
+### Получить навыки по опыту работы
+
+```sql
+SELECT 
+    r.link,
+    c.title as company_name,
+    ue.position,
+    s.title as skill
+FROM habr_user_experience ue
+JOIN habr_resumes r ON ue.user_id = r.id
+LEFT JOIN habr_companies c ON ue.company_id = c.id
+JOIN habr_user_experience_skills ues ON ue.id = ues.experience_id
+JOIN habr_skills s ON ues.skill_id = s.id
+WHERE r.link = 'https://career.habr.com/username'
+ORDER BY ue.created_at DESC, s.title;
+```
+
+### Топ компаний по количеству сотрудников в базе
+
+```sql
+SELECT 
+    c.title,
+    c.code,
+    COUNT(ue.id) as employees_count
+FROM habr_companies c
+JOIN habr_user_experience ue ON c.id = ue.company_id
+GROUP BY c.id, c.title, c.code
+ORDER BY employees_count DESC
 LIMIT 20;
 ```
 
