@@ -66,7 +66,9 @@ public sealed class ResumeListPageScraper : IDisposable
             // Остановка — ок
         }
     }
-
+    
+    //TODO тут можно оптимизировать - если по навыку страницы не найдено, то с остальными сортировками эту страницу не смотреть
+    
     private async Task RunOnceSafe(CancellationToken ct)
     {
         try

@@ -86,6 +86,7 @@ public sealed class BruteForceUsernameScraper
                             completed++;
                             percent = completed * 100.0 / totalLinks;
                         }
+                        //TODO вот такой вывод распространить на все скраперы, которые работают по параллельному алгоритму
                         Console.WriteLine($"[BruteForceScraper] HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)result.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
 
                         if (result.IsNotFound)
