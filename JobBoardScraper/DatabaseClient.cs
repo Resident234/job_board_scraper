@@ -98,6 +98,9 @@ public enum InsertMode
     UpdateIfExists
 }
 
+//TODO Вывод в лог: записано/обновлено нужно конкретизировать и детализировать. записано ли было или все раки обновлено
+//TODO Статистка по записанных обновденным записям и полям по каждой таблице в конце выполнения скрипта + раз в 5 минут сброс дампа стаистики в файл
+
 public readonly record struct DbRecord(
     DbRecordType Type, 
     string PrimaryValue, 
