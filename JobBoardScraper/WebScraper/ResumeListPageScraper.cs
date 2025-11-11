@@ -5,20 +5,6 @@ namespace JobBoardScraper.WebScraper;
 public readonly record struct ResumeItem(string link, string title);
 
 /// <summary>
-/// Структура для хранения детальных данных профиля со страницы навыков
-/// </summary>
-public readonly record struct ResumeProfileData(
-    string Code,
-    string Link,
-    string Title,
-    bool IsExpert,
-    string? InfoTech,
-    string? LevelTitle,
-    int? Salary,
-    List<string>? Skills
-);
-
-/// <summary>
 /// Периодически обходит страницы "/resumes?order=last_visited" и "/resumes?skills[]=N"
 /// и извлекает ссылки на профили пользователей для сохранения в базу данных.
 /// </summary>
@@ -479,10 +465,10 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (!string.IsNullOrWhiteSpace(text) && text.Contains("От") && text.Contains("₽"))
                     {
                         // Извлекаем число
-                        var match = System.Text.RegularExpressions.Regex.Match(text, AppConfig.ResumeListSalaryRegex);
-                        if (match.Success)
+                        var salaryMatch = System.Text.RegularExpressions.Regex.Match(text, AppConfig.ResumeListSalaryRegex);
+                        if (salaryMatch.Success)
                         {
-                            var salaryStr = match.Groups[1].Value.Replace(" ", "");
+                            var salaryStr = salaryMatch.Groups[1].Value.Replace(" ", "");
                             if (int.TryParse(salaryStr, out var salaryValue))
                             {
                                 salary = salaryValue;

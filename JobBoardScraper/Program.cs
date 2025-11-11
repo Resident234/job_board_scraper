@@ -38,7 +38,10 @@ class Program
         Console.WriteLine($"[Program] Статистика трафика будет сохраняться в: {AppConfig.TrafficStatsOutputFile}");
         Console.WriteLine($"[Program] Интервал сохранения статистики: {AppConfig.TrafficStatsSaveInterval.TotalMinutes} минут");
 
-        var db = new DatabaseClient(AppConfig.ConnectionString);
+        // Создаем логгер для DatabaseClient
+        var dbLogger = new Helper.ConsoleHelper.ConsoleLogger("DatabaseClient");
+        
+        var db = new DatabaseClient(AppConfig.ConnectionString, dbLogger);
         using var conn = db.DatabaseConnectionInit();
         db.DatabaseEnsureConnectionOpen(conn);
 

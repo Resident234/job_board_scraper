@@ -55,6 +55,20 @@ public readonly record struct UserProfileData(
 );
 
 /// <summary>
+/// Структура для хранения детальных данных профиля со страницы навыков
+/// </summary>
+public readonly record struct ResumeProfileData(
+    string Code,
+    string Link,
+    string Title,
+    bool IsExpert,
+    string? InfoTech,
+    string? LevelTitle,
+    int? Salary,
+    List<string>? Skills
+);
+
+/// <summary>
 /// Структура для хранения данных об опыте работы
 /// </summary>
 public readonly record struct UserExperienceData(
@@ -104,10 +118,24 @@ public sealed class DatabaseClient
     private Task? _dbWriterTask;
     private CancellationTokenSource? _writerCts;
     private ConcurrentQueue<DbRecord>? _saveQueue;
+    private readonly Helper.ConsoleHelper.ConsoleLogger? _logger;
 
-    public DatabaseClient(string connectionString)
+    public DatabaseClient(string connectionString, Helper.ConsoleHelper.ConsoleLogger? logger = null)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger;
+    }
+    
+    private void Log(string message)
+    {
+        if (_logger != null)
+        {
+            _logger.WriteLine(message);
+        }
+        else
+        {
+            Log(message);
+        }
     }
 
     // Создание соединения
@@ -177,7 +205,7 @@ public sealed class DatabaseClient
                 // Проверка существования по link
                 if (DatabaseRecordExistsByLink(conn, link))
                 {
-                    Console.WriteLine($"Запись уже есть в БД, вставка пропущена: {link}");
+                    Log($"Запись уже есть в БД, вставка пропущена: {link}");
                     return;
                 }
 
@@ -197,7 +225,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Console.WriteLine($"Записано в БД: {rowsAffected} строка, {link} | {title}" +
+                Log($"Записано в БД: {rowsAffected} строка, {link} | {title}" +
                                   (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
                                   (expert == true ? " | ЭКСПЕРТ" : ""));
             }
@@ -232,7 +260,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Console.WriteLine($"Записано/обновлено в БД: {link} | {title}" +
+                Log($"Записано/обновлено в БД: {link} | {title}" +
                                   (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
                                   (expert == true ? " | ЭКСПЕРТ" : ""));
             }
@@ -240,15 +268,15 @@ public sealed class DatabaseClient
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
         {
-            Console.WriteLine($"Запись уже есть в БД (уникальное ограничение), вставка пропущена: {link}");
+            Log($"Запись уже есть в БД (уникальное ограничение), вставка пропущена: {link}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"Ошибка БД для {link}: {dbEx.Message}");
+            Log($"Ошибка БД для {link}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
+            Log($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
         }
 
     }
@@ -320,16 +348,16 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
 
             int rowsAffected = cmd.ExecuteNonQuery();
-            Console.WriteLine($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
+            Log($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
                               (companyTitle != null ? $" | {companyTitle}" : ""));
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при записи компании {companyCode}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при записи компании {companyCode}: {ex.Message}");
         }
     }
 
@@ -356,15 +384,15 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@name", categoryName ?? (object)DBNull.Value);
 
             int rowsAffected = cmd.ExecuteNonQuery();
-            Console.WriteLine($"[DB] Записано в БД (category_root_ids): {categoryId} -> {categoryName}");
+            Log($"[DB] Записано в БД (category_root_ids): {categoryId} -> {categoryName}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для категории {categoryId}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД для категории {categoryId}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при записи категории {categoryId}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при записи категории {categoryId}: {ex.Message}");
         }
     }
 
@@ -498,7 +526,7 @@ public sealed class DatabaseClient
                                 var profile = record.UserProfile.Value;
                                 
                                 // Получаем или создаём level_id
-                                int? levelId = null;
+                                int? profileLevelId = null;
                                 if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
                                 {
                                     using (var cmdLevel = new NpgsqlCommand(@"
@@ -511,7 +539,7 @@ public sealed class DatabaseClient
                                         var result = cmdLevel.ExecuteScalar();
                                         if (result != null)
                                         {
-                                            levelId = Convert.ToInt32(result);
+                                            profileLevelId = Convert.ToInt32(result);
                                         }
                                     }
                                 }
@@ -525,7 +553,7 @@ public sealed class DatabaseClient
                                     expert: profile.IsExpert,
                                     workExperience: profile.WorkExperience,
                                     mode: InsertMode.UpdateIfExists,
-                                    levelId: levelId,
+                                    levelId: profileLevelId,
                                     infoTech: profile.InfoTech,
                                     salary: profile.Salary,
                                     lastVisit: profile.LastVisit,
@@ -589,7 +617,7 @@ public sealed class DatabaseClient
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Ошибка при остановке задачи записи в БД: {ex.Message}");
+                    Log($"Ошибка при остановке задачи записи в БД: {ex.Message}");
                 }
                 finally
                 {
@@ -619,7 +647,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode, code, expert, workExperience);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Resume ({mode}): {title} -> {link}" +
+        Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
                           (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
                           (expert == true ? " | ЭКСПЕРТ" : ""));
 
@@ -635,7 +663,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl, companyTitle);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Company: {companyCode} -> {companyUrl}" +
+        Log($"[DB Queue] Company: {companyCode} -> {companyUrl}" +
                           (companyTitle != null ? $" | {companyTitle}" : ""));
 
         return true;
@@ -650,7 +678,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(DbRecordType.CategoryRootId, categoryId, categoryName);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
+        Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
 
         return true;
     }
@@ -681,11 +709,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {categoryIds.Count} категорий из БД");
+            Log($"[DB] Загружено {categoryIds.Count} категорий из БД");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении категорий: {ex.Message}");
+            Log($"[DB] Ошибка при получении категорий: {ex.Message}");
         }
 
         return categoryIds;
@@ -717,11 +745,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {companyCodes.Count} компаний из БД");
+            Log($"[DB] Загружено {companyCodes.Count} компаний из БД");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении компаний: {ex.Message}");
+            Log($"[DB] Ошибка при получении компаний: {ex.Message}");
         }
 
         return companyCodes;
@@ -755,11 +783,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {companies.Count} компаний с URL из БД");
+            Log($"[DB] Загружено {companies.Count} компаний с URL из БД");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении компаний: {ex.Message}");
+            Log($"[DB] Ошибка при получении компаний: {ex.Message}");
         }
 
         return companies;
@@ -775,7 +803,7 @@ public sealed class DatabaseClient
         // Используем специальный тип записи для обновления company_id
         var record = new DbRecord(DbRecordType.CompanyId, companyCode, companyId.ToString());
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
+        Log($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
 
         return true;
     }
@@ -815,7 +843,7 @@ public sealed class DatabaseClient
         _saveQueue.Enqueue(record);
 
         var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Console.WriteLine(
+        Log(
             $"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
 
         return true;
@@ -846,20 +874,20 @@ public sealed class DatabaseClient
 
             if (rowsAffected > 0)
             {
-                Console.WriteLine($"[DB] Обновлён company_id для {companyCode}: {companyId}");
+                Log($"[DB] Обновлён company_id для {companyCode}: {companyId}");
             }
             else
             {
-                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД.");
+                Log($"[DB] Компания {companyCode} не найдена в БД.");
             }
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении company_id для {companyCode}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при обновлении company_id для {companyCode}: {ex.Message}");
         }
     }
 
@@ -918,21 +946,21 @@ public sealed class DatabaseClient
             if (rowsAffected > 0)
             {
                 var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Console.WriteLine(
+                Log(
                     $"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
             }
             else
             {
-                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД.");
+                Log($"[DB] Компания {companyCode} не найдена в БД.");
             }
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении данных для {companyCode}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при обновлении данных для {companyCode}: {ex.Message}");
         }
     }
 
@@ -952,7 +980,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(DbRecordType.CompanySkills, companyCode, "", Skills: skills);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
+        Log($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
 
         return true;
     }
@@ -986,7 +1014,7 @@ public sealed class DatabaseClient
 
             if (!companyId.HasValue)
             {
-                Console.WriteLine($"[DB] Компания {companyCode} не найдена в БД. Пропуск навыков.");
+                Log($"[DB] Компания {companyCode} не найдена в БД. Пропуск навыков.");
                 return;
             }
 
@@ -1032,15 +1060,15 @@ public sealed class DatabaseClient
                 addedCount++;
             }
 
-            Console.WriteLine($"[DB] Добавлено {addedCount} навыков для компании {companyCode}");
+            Log($"[DB] Добавлено {addedCount} навыков для компании {companyCode}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД при добавлении навыков для {companyCode}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении навыков для {companyCode}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
         }
     }
     
@@ -1070,11 +1098,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Загружено {userCodes.Count} кодов пользователей из БД");
+            Log($"[DB] Загружено {userCodes.Count} кодов пользователей из БД");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении кодов пользователей: {ex.Message}");
+            Log($"[DB] Ошибка при получении кодов пользователей: {ex.Message}");
         }
 
         return userCodes;
@@ -1110,7 +1138,7 @@ public sealed class DatabaseClient
             UserProfile: profileData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine(
+        Log(
             $"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
 
         return true;
@@ -1146,11 +1174,11 @@ public sealed class DatabaseClient
             }
 
             var filterText = onlyPublic ? " (только публичные)" : "";
-            Console.WriteLine($"[DB] Загружено {userLinks.Count} ссылок пользователей из БД{filterText}");
+            Log($"[DB] Загружено {userLinks.Count} ссылок пользователей из БД{filterText}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Ошибка при получении ссылок пользователей: {ex.Message}");
+            Log($"[DB] Ошибка при получении ссылок пользователей: {ex.Message}");
         }
 
         return userLinks;
@@ -1191,7 +1219,7 @@ public sealed class DatabaseClient
             _saveQueue.Enqueue(skillsRecord);
         }
         
-        Console.WriteLine($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}");
+        Log($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}");
         
         return true;
     }
@@ -1222,20 +1250,20 @@ public sealed class DatabaseClient
             if (rowsAffected > 0)
             {
                 var aboutPreview = about?.Substring(0, Math.Min(50, about.Length)) ?? "";
-                Console.WriteLine($"[DB] Обновлено 'О себе' для {userLink}: {aboutPreview}...");
+                Log($"[DB] Обновлено 'О себе' для {userLink}: {aboutPreview}...");
             }
             else
             {
-                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД.");
+                Log($"[DB] Пользователь {userLink} не найден в БД.");
             }
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
         }
     }
 
@@ -1268,7 +1296,7 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                Console.WriteLine($"[DB] Пользователь {userLink} не найден в БД. Пропуск навыков.");
+                Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск навыков.");
                 return;
             }
 
@@ -1314,15 +1342,15 @@ public sealed class DatabaseClient
                 addedCount++;
             }
 
-            Console.WriteLine($"[DB] Добавлено {addedCount} навыков для пользователя {userLink}");
+            Log($"[DB] Добавлено {addedCount} навыков для пользователя {userLink}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД при добавлении навыков для {userLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении навыков для {userLink}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
         }
     }
 
@@ -1341,7 +1369,7 @@ public sealed class DatabaseClient
             UserExperience: experienceData
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] UserExperience: {experienceData.UserLink} -> Company={experienceData.CompanyCode}, Position={experienceData.Position}, Skills={experienceData.Skills?.Count ?? 0}");
+        Log($"[DB Queue] UserExperience: {experienceData.UserLink} -> Company={experienceData.CompanyCode}, Position={experienceData.Position}, Skills={experienceData.Skills?.Count ?? 0}");
 
         return true;
     }
@@ -1373,7 +1401,7 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                Console.WriteLine($"[DB] Пользователь {exp.UserLink} не найден в БД. Пропуск опыта работы.");
+                Log($"[DB] Пользователь {exp.UserLink} не найден в БД. Пропуск опыта работы.");
                 return;
             }
 
@@ -1441,7 +1469,7 @@ public sealed class DatabaseClient
                     int deletedCount = cmdDelete.ExecuteNonQuery();
                     if (deletedCount > 0)
                     {
-                        Console.WriteLine($"[DB] Удалено {deletedCount} старых записей опыта работы для пользователя {exp.UserLink}");
+                        Log($"[DB] Удалено {deletedCount} старых записей опыта работы для пользователя {exp.UserLink}");
                     }
                 }
             }
@@ -1507,15 +1535,15 @@ public sealed class DatabaseClient
                 }
             }
 
-            Console.WriteLine($"[DB] Добавлен опыт работы для {exp.UserLink}: Company={exp.CompanyTitle}, Position={exp.Position}, Skills={exp.Skills?.Count ?? 0}");
+            Log($"[DB] Добавлен опыт работы для {exp.UserLink}: Company={exp.CompanyTitle}, Position={exp.Position}, Skills={exp.Skills?.Count ?? 0}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД при добавлении опыта работы для {exp.UserLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении опыта работы для {exp.UserLink}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении опыта работы для {exp.UserLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {exp.UserLink}: {ex.Message}");
         }
     }
 
@@ -1529,7 +1557,7 @@ public sealed class DatabaseClient
         // Используем специальный тип для навыков
         var record = new DbRecord(DbRecordType.UserSkills, skillId.ToString(), title);
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] Skill: ID={skillId}, Title={title}");
+        Log($"[DB Queue] Skill: ID={skillId}, Title={title}");
 
         return true;
     }
@@ -1563,13 +1591,13 @@ public sealed class DatabaseClient
             Skills: profileData.Skills
         );
         _saveQueue.Enqueue(record);
-        Console.WriteLine($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
+        Log($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
 
         return true;
     }
 
     /// <summary>
-    /// Вставить или обновить навык с skill_id
+    /// Вставить навык с skill_id (только если его еще нет)
     /// </summary>
     public void DatabaseInsertSkillWithId(NpgsqlConnection conn, int skillId, string? title)
     {
@@ -1579,26 +1607,39 @@ public sealed class DatabaseClient
         {
             DatabaseEnsureConnectionOpen(conn);
 
+            // Проверяем существование по skill_id
+            using (var checkCmd = new NpgsqlCommand(@"
+                SELECT COUNT(*) FROM habr_skills WHERE skill_id = @skill_id", conn))
+            {
+                checkCmd.Parameters.AddWithValue("@skill_id", skillId);
+                var count = (long)(checkCmd.ExecuteScalar() ?? 0L);
+                
+                if (count > 0)
+                {
+                    Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
+                    return;
+                }
+            }
+
+            // Если не существует, вставляем с skillId в оба поля
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_skills (skill_id, title, created_at)
-                VALUES (@skill_id, @title, NOW())
-                ON CONFLICT (skill_id) 
-                DO UPDATE SET title = COALESCE(NULLIF(EXCLUDED.title, ''), habr_skills.title)
-                RETURNING id", conn);
+                VALUES (@skill_id, @title, NOW())", conn);
 
             cmd.Parameters.AddWithValue("@skill_id", skillId);
-            cmd.Parameters.AddWithValue("@title", string.IsNullOrWhiteSpace(title) ? (object)DBNull.Value : title);
+            // Если title пустой, используем skillId как строку
+            cmd.Parameters.AddWithValue("@title", string.IsNullOrWhiteSpace(title) ? skillId.ToString() : title);
 
-            var result = cmd.ExecuteScalar();
-            Console.WriteLine($"[DB] Навык добавлен/обновлён: skill_id={skillId}, title={title}");
+            cmd.ExecuteNonQuery();
+            Log($"[DB] Навык добавлен: skill_id={skillId}, title={title ?? skillId.ToString()}");
         }
         catch (NpgsqlException dbEx)
         {
-            Console.WriteLine($"[DB] Ошибка БД при добавлении навыка {skillId}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении навыка {skillId}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
         }
     }
 }
