@@ -320,6 +320,7 @@ public sealed class ResumeListPageScraper : IDisposable
             if (ct.IsCancellationRequested) break;
 
             var skillExists = false;
+            var isFirstOrder = true;
 
             foreach (var order in orders)
             {
@@ -336,19 +337,17 @@ public sealed class ResumeListPageScraper : IDisposable
                     sw.Stop();
                     _controller.ReportLatency(sw.Elapsed);
 
-                    if (string.IsNullOrWhiteSpace(order))
+                    // Увеличиваем счетчик только для первого order каждого навыка
+                    if (isFirstOrder)
                     {
                         processedCount++;
+                        isFirstOrder = false;
                     }
                     var percent = processedCount * 100.0 / totalSkills;
 
                     if (!response.IsSuccessStatusCode)
                     {
                         _logger.WriteLine($"Навык {skillId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
-                        if (string.IsNullOrWhiteSpace(order))
-                        {
-                            notFoundCount++;
-                        }
                         continue;
                     }
 
@@ -358,10 +357,6 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
                     {
                         _logger.WriteLine($"Навык {skillId}{orderDesc}: не найдено специалистов. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
-                        if (string.IsNullOrWhiteSpace(order))
-                        {
-                            notFoundCount++;
-                        }
                         continue;
                     }
 
@@ -369,7 +364,6 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (!skillExists)
                     {
                         _db.EnqueueSkill(skillId, "");
-                        foundCount++;
                         skillExists = true;
                     }
 
@@ -383,6 +377,16 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     _logger.WriteLine($"Ошибка при обработке навыка {skillId}: {ex.Message}");
                 }
+            }
+            
+            // После обработки всех orders для навыка, обновляем счетчики
+            if (skillExists)
+            {
+                foundCount++;
+            }
+            else
+            {
+                notFoundCount++;
             }
         }
 
