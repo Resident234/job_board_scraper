@@ -1,7 +1,7 @@
 -- Таблица уровней специалистов
 CREATE TABLE IF NOT EXISTS habr_levels (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL UNIQUE,
+    title TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

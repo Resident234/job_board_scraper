@@ -1,7 +1,8 @@
 -- Таблица навыков
 CREATE TABLE IF NOT EXISTS habr_skills (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL UNIQUE,
+    title TEXT NOT NULL UNIQUE,
+    skill_id INTEGER UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -244,3 +244,19 @@ SELECT
     AVG(rating) as avg_rating
 FROM habr_companies;
 ```
+
+
+## Миграции для исправления ограничений длины
+
+### Изменение типа title в habr_skills и habr_levels
+Если вы столкнулись с ошибкой "value too long for type character varying(255)", примените следующие миграции:
+
+```bash
+# Изменить тип title в habr_skills с VARCHAR(255) на TEXT
+psql -U postgres -d jobs -f sql/alter_skills_title_to_text.sql
+
+# Изменить тип title в habr_levels с VARCHAR(255) на TEXT
+psql -U postgres -d jobs -f sql/alter_levels_title_to_text.sql
+```
+
+Эти миграции убирают ограничение на длину названий навыков и уровней, что позволяет хранить длинные строки без обрезки.

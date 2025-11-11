@@ -137,8 +137,19 @@ public sealed class DatabaseClient
         }
         else
         {
-            Log(message);
+            Console.WriteLine(message);
         }
+    }
+    
+    /// <summary>
+    /// Обрезает строку до указанной длины, если она превышает лимит
+    /// </summary>
+    private static string TruncateString(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        if (value.Length <= maxLength) return value;
+        
+        return value.Substring(0, maxLength - 3) + "...";
     }
 
     // Создание соединения
@@ -418,11 +429,26 @@ public sealed class DatabaseClient
 
         _dbWriterTask = Task.Run(async () =>
         {
-            while (!linkedToken.IsCancellationRequested)
+            Log("[DB Writer] Фоновая задача записи в БД запущена");
+            var lastQueueSizeLog = DateTime.MinValue;
+            try
             {
-                while (_saveQueue.TryDequeue(out var record))
+                while (!linkedToken.IsCancellationRequested)
                 {
-                    switch (record.Type)
+                    var queueSize = _saveQueue.Count;
+                    
+                    // Логируем размер очереди каждые 30 секунд
+                    if ((DateTime.Now - lastQueueSizeLog).TotalSeconds >= 30)
+                    {
+                        Log($"[DB Writer] Размер очереди: {queueSize}");
+                        lastQueueSizeLog = DateTime.Now;
+                    }
+                    
+                    while (_saveQueue.TryDequeue(out var record))
+                    {
+                        try
+                        {
+                            switch (record.Type)
                     {
                         case DbRecordType.Resume:
                             // Получаем или создаём level_id если есть данные профиля
@@ -587,10 +613,31 @@ public sealed class DatabaseClient
                                 DatabaseInsertUserExperience(conn, exp);
                             }
                             break;
+                        }
                     }
-                }
+                        catch (Exception ex)
+                        {
+                            Log($"[DB Writer] Ошибка при обработке записи типа {record.Type}: {ex.Message}");
+                            Log($"[DB Writer] Stack trace: {ex.StackTrace}");
+                            // Продолжаем обработку следующих записей
+                        }
+                    }
 
-                await Task.Delay(delayMs, linkedToken);
+                    await Task.Delay(delayMs, linkedToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Log("[DB Writer] Фоновая задача записи в БД остановлена по запросу");
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB Writer] Критическая ошибка в фоновой задаче: {ex.Message}");
+                Log($"[DB Writer] Stack trace: {ex.StackTrace}");
+            }
+            finally
+            {
+                Log("[DB Writer] Фоновая задача записи в БД завершена");
             }
         }, linkedToken);
     }
@@ -632,6 +679,31 @@ public sealed class DatabaseClient
             _writerCts.Dispose();
             _writerCts = null;
         }
+    }
+
+    /// <summary>
+    /// Проверить состояние фоновой задачи записи в БД
+    /// </summary>
+    public bool IsWriterTaskRunning()
+    {
+        if (_dbWriterTask == null) return false;
+        
+        var isRunning = !_dbWriterTask.IsCompleted && !_dbWriterTask.IsCanceled && !_dbWriterTask.IsFaulted;
+        
+        if (_dbWriterTask.IsFaulted)
+        {
+            Log($"[DB Writer] Задача завершилась с ошибкой: {_dbWriterTask.Exception?.Message}");
+        }
+        
+        return isRunning;
+    }
+
+    /// <summary>
+    /// Получить размер очереди записи в БД
+    /// </summary>
+    public int GetQueueSize()
+    {
+        return _saveQueue?.Count ?? 0;
     }
 
     /// <summary>
