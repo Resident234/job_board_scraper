@@ -2,6 +2,7 @@ namespace JobBoardScraper.Models;
 
 /// <summary>
 /// Статистика работы скрапера
+/// TODO: Интегрировать в скраперы для сбора и отображения статистики
 /// </summary>
 public class ScraperStatistics
 {

@@ -1,15 +1,7 @@
 using System.Net;
+using JobBoardScraper.Models;
 
 namespace JobBoardScraper;
-
-/// <summary>
-/// Результат HTTP-запроса с дополнительной информацией
-/// </summary>
-public sealed record HttpFetchResult(
-    HttpStatusCode StatusCode,
-    string? Content,
-    bool IsSuccess,
-    bool IsNotFound);
 
 /// <summary>
 /// Умная обёртка над HttpClient с поддержкой:
@@ -69,7 +61,7 @@ public sealed class SmartHttpClient
     /// <summary>
     /// Выполнить GET-запрос с повторами (для BruteForce)
     /// </summary>
-    public async Task<HttpFetchResult> FetchAsync(
+    public async Task<HttpRequestResult> FetchAsync(
         string url,
         Action<string>? infoLog = null,
         Action<HttpResponseMessage>? responseStats = null,
@@ -80,6 +72,8 @@ public sealed class SmartHttpClient
             throw new InvalidOperationException("Retry is not enabled for this scraper. Enable it in configuration.");
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        
         for (int attempt = 1; attempt <= _maxRetries; attempt++)
         {
             HttpResponseMessage? response = null;
@@ -90,13 +84,31 @@ public sealed class SmartHttpClient
 
                 // 404 — не обрабатываем: без повторов и без исключений
                 if (response.StatusCode is HttpStatusCode.NotFound)
-                    return new HttpFetchResult(HttpStatusCode.NotFound, null, IsSuccess: false, IsNotFound: true);
+                {
+                    sw.Stop();
+                    return new HttpRequestResult
+                    {
+                        StatusCode = HttpStatusCode.NotFound,
+                        Content = null,
+                        IsSuccess = false,
+                        ElapsedTime = sw.Elapsed,
+                        Url = url
+                    };
+                }
 
                 // 429 - если такой ответ возвращается, то на самом деле страница существует
                 if (response.StatusCode is (HttpStatusCode)429)
                 {
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return new HttpFetchResult(response.StatusCode, content, IsSuccess: true, IsNotFound: false);
+                    sw.Stop();
+                    return new HttpRequestResult
+                    {
+                        StatusCode = response.StatusCode,
+                        Content = content,
+                        IsSuccess = true,
+                        ElapsedTime = sw.Elapsed,
+                        Url = url
+                    };
                 }
 
                 // Не-транзиентный ответ (включая 2xx и большинство 4xx)
@@ -104,7 +116,15 @@ public sealed class SmartHttpClient
                 {
                     response.EnsureSuccessStatusCode();
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return new HttpFetchResult(response.StatusCode, content, IsSuccess: true, IsNotFound: false);
+                    sw.Stop();
+                    return new HttpRequestResult
+                    {
+                        StatusCode = response.StatusCode,
+                        Content = content,
+                        IsSuccess = true,
+                        ElapsedTime = sw.Elapsed,
+                        Url = url
+                    };
                 }
 
                 // Транзиентная ошибка: готовим повтор

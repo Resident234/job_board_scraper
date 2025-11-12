@@ -3,7 +3,7 @@ using System.Net;
 namespace JobBoardScraper.Models;
 
 /// <summary>
-/// Результат HTTP запроса
+/// Результат HTTP запроса с метаданными
 /// </summary>
 public class HttpRequestResult
 {
