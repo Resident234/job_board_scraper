@@ -124,8 +124,16 @@ public sealed class UserFriendsScraper : IDisposable
                     if (page == 1)
                     {
                         int completed = Interlocked.Increment(ref totalProcessed);
-                        double percent = completed * 100.0 / totalLinks;
-                        _logger.WriteLine($"HTTP запрос {friendsUrl}: {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                        
+                        Helper.Utils.ParallelScraperLogger.LogProgress(
+                            _logger,
+                            "UserFriendsScraper",
+                            friendsUrl,
+                            elapsedSeconds,
+                            (int)response.StatusCode,
+                            completed,
+                            totalLinks,
+                            _activeRequests.Count);
                     }
                     else
                     {

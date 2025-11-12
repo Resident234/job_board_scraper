@@ -370,7 +370,8 @@ class Program
                 maxDelay: TimeSpan.FromSeconds(30));
             bruteForceScraperTask = Task.Run(async () =>
             {
-                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
+                var bruteForceLogger = new Helper.ConsoleHelper.ConsoleLogger("BruteForceScraper");
+                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller, bruteForceLogger);
                 await bruteForceScraper.RunAsync(cts.Token);
             }, cts.Token);
         }

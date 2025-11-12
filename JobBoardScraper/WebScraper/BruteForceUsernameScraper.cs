@@ -12,17 +12,20 @@ public sealed class BruteForceUsernameScraper
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly AdaptiveConcurrencyController _controller;
+    private readonly Helper.ConsoleHelper.ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly ConcurrentDictionary<int, int> _responseStats = new();
 
     public BruteForceUsernameScraper(
         SmartHttpClient httpClient,
         DatabaseClient db,
-        AdaptiveConcurrencyController controller)
+        AdaptiveConcurrencyController controller,
+        Helper.ConsoleHelper.ConsoleLogger logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -35,11 +38,11 @@ public sealed class BruteForceUsernameScraper
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
 
-            Console.WriteLine($"[BruteForceScraper] Сгенерировано адресов: {totalLinks}");
+            _logger.WriteLine($"[BruteForceScraper] Сгенерировано адресов: {totalLinks}");
 
             int totalLength = (AppConfig.BaseUrl?.Length ?? 0) + AppConfig.MaxLength;
             string lastLink = _db.DatabaseGetLastLink(conn, totalLength);
-            Console.WriteLine($"[BruteForceScraper] Последний обработанный link из БД: {lastLink}");
+            _logger.WriteLine($"[BruteForceScraper] Последний обработанный link из БД: {lastLink}");
 
             int startIndex = 0;
             if (!string.IsNullOrEmpty(lastLink))
@@ -48,11 +51,11 @@ public sealed class BruteForceUsernameScraper
                 if (foundIndex >= 0 && foundIndex < usernames.Count - 1)
                 {
                     startIndex = foundIndex + 1;
-                    Console.WriteLine($"[BruteForceScraper] Продолжаем перебор с {startIndex}-го элемента: {usernames[startIndex]}");
+                    _logger.WriteLine($"[BruteForceScraper] Продолжаем перебор с {startIndex}-го элемента: {usernames[startIndex]}");
                 }
                 else
                 {
-                    Console.WriteLine($"[BruteForceScraper] Последний link из БД не найден, начинаем с начала.");
+                    _logger.WriteLine($"[BruteForceScraper] Последний link из БД не найден, начинаем с начала.");
                 }
             }
 
@@ -72,7 +75,7 @@ public sealed class BruteForceUsernameScraper
 
                         var result = await _httpClient.FetchAsync(
                             link,
-                            infoLog: msg => Console.WriteLine(msg),
+                            infoLog: msg => _logger.WriteLine(msg),
                             responseStats: r => RecordResponseStats((int)r.StatusCode)
                         );
 
@@ -80,14 +83,22 @@ public sealed class BruteForceUsernameScraper
                         _controller.ReportLatency(sw.Elapsed);
 
                         double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                        double percent;
+                        int completedCount;
                         lock (usernames)
                         {
                             completed++;
-                            percent = completed * 100.0 / totalLinks;
+                            completedCount = completed;
                         }
-                        //TODO вот такой вывод распространить на все скраперы, которые работают по параллельному алгоритму
-                        Console.WriteLine($"[BruteForceScraper] HTTP запрос {link}: {elapsedSeconds:F3} сек. Код ответа {(int)result.StatusCode}. Обработано: {completed}/{totalLinks} ({percent:F2}%). Параллельных процессов: {_activeRequests.Count}.");
+                        
+                        Helper.Utils.ParallelScraperLogger.LogProgress(
+                            _logger,
+                            "BruteForceScraper",
+                            link,
+                            elapsedSeconds,
+                            (int)result.StatusCode,
+                            completedCount,
+                            totalLinks,
+                            _activeRequests.Count);
 
                         if (result.IsNotFound)
                             return;
@@ -95,13 +106,13 @@ public sealed class BruteForceUsernameScraper
                         string html = result.Content;
                         var title = HtmlParser.ExtractTitle(html);
 
-                        Console.WriteLine($"[BruteForceScraper] Страница {link}: {title}");
+                        _logger.WriteLine($"[BruteForceScraper] Страница {link}: {title}");
 
                         _db.EnqueueResume(link, title);
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[BruteForceScraper] Error for {link}: {ex.Message}");
+                        _logger.WriteLine($"[BruteForceScraper] Error for {link}: {ex.Message}");
                     }
                     finally
                     {
