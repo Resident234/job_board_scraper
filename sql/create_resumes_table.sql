@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS habr_resumes
     salary integer,
     last_visit text COLLATE pg_catalog."default",
     public boolean,
+    about text COLLATE pg_catalog."default",
     viewed bit(1),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 ),
     CONSTRAINT habr_resumes_pkey PRIMARY KEY (id),
     CONSTRAINT habr_resumes_link_unique UNIQUE (link),
@@ -39,7 +42,10 @@ COMMENT ON COLUMN habr_resumes.info_tech IS 'Техническая информ
 COMMENT ON COLUMN habr_resumes.salary IS 'Желаемая зарплата в рублях (только число)';
 COMMENT ON COLUMN habr_resumes.last_visit IS 'Последний визит (например, "5 дней назад")';
 COMMENT ON COLUMN habr_resumes.public IS 'Публичность профиля (true - публичный, false - приватный)';
+COMMENT ON COLUMN habr_resumes.about IS 'Информация "О себе" из резюме пользователя';
 COMMENT ON COLUMN habr_resumes.viewed IS 'Флаг просмотра записи';
+COMMENT ON COLUMN habr_resumes.created_at IS 'Дата и время создания записи';
+COMMENT ON COLUMN habr_resumes.updated_at IS 'Дата и время последнего обновления записи';
 
 -- Index: ix_habr_resumes_viewed_id
 
