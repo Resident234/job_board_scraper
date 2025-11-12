@@ -73,32 +73,38 @@ public sealed class ResumeListPageScraper : IDisposable
         {
             // Обходим все включенные типы страниц
             
+            // Запускаем все методы параллельно
+            var tasks = new List<Task>();
+
             // 1. Перебор навыков
             if (AppConfig.ResumeListSkillsEnumerationEnabled)
             {
-                await ScrapeSkillsEnumerationAsync(ct);
+                tasks.Add(Task.Run(() => ScrapeSkillsEnumerationAsync(ct), ct));
             }
 
             // 2. Обход статусов поиска работы
             if (AppConfig.ResumeListWorkStatesEnabled)
             {
-                await ScrapeWorkStatesAsync(ct);
+                tasks.Add(Task.Run(() => ScrapeWorkStatesAsync(ct), ct));
             }
 
             // 3. Обход по опыту работы
             if (AppConfig.ResumeListExperiencesEnabled)
             {
-                await ScrapeExperiencesAsync(ct);
+                tasks.Add(Task.Run(() => ScrapeExperiencesAsync(ct), ct));
             }
 
             // 4. Перебор qids
             if (AppConfig.ResumeListQidsEnabled)
             {
-                await ScrapeQidsAsync(ct);
+                tasks.Add(Task.Run(() => ScrapeQidsAsync(ct), ct));
             }
 
             // 5. Обход обычной страницы
-            await ScrapeAndEnqueueAsync(ct);
+            tasks.Add(Task.Run(() => ScrapeAndEnqueueAsync(ct), ct));
+
+            // Ждем завершения всех задач
+            await Task.WhenAll(tasks);
         }
         catch (OperationCanceledException)
         {
