@@ -67,8 +67,6 @@ public sealed class ResumeListPageScraper : IDisposable
         }
     }
     
-    //TODO тут можно оптимизировать - если по навыку страницы не найдено, то с остальными сортировками эту страницу не смотреть
-    
     private async Task RunOnceSafe(CancellationToken ct)
     {
         try
@@ -359,6 +357,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
                     {
                         _logger.WriteLine($"Навык {skillId}{orderDesc}: не найдено специалистов. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
+                        // Оптимизация: если на первой сортировке навык не найден, пропускаем остальные сортировки
+                        if (isFirstOrder)
+                        {
+                            break; // Выходим из цикла orders и переходим к следующему навыку
+                        }
                         continue;
                     }
 
