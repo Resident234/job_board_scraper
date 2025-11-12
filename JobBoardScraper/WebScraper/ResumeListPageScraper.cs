@@ -347,7 +347,6 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (isFirstOrder)
                     {
                         processedCount++;
-                        isFirstOrder = false;
                     }
                     var percent = processedCount * 100.0 / totalSkills;
 
@@ -383,6 +382,8 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = await ParseProfilesFromPage(doc, skillId, ct);
 
                     _logger.WriteLine($"Навык {skillId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
+                
+                    isFirstOrder = false;
                 }
                 catch (Exception ex)
                 {
