@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
+using JobBoardScraper.Models;
 
 namespace JobBoardScraper;
 
@@ -20,70 +21,6 @@ public enum DbRecordType
     UserSkills,
     UserExperience
 }
-
-/// <summary>
-/// Структура для хранения детальных данных компании
-/// </summary>
-public readonly record struct CompanyDetailsData(
-    long CompanyId,
-    string? Title,
-    string? About,
-    string? Description,
-    string? Site,
-    decimal? Rating,
-    int? CurrentEmployees,
-    int? PastEmployees,
-    int? Followers,
-    int? WantWork,
-    string? EmployeesCount,
-    bool? Habr
-);
-
-/// <summary>
-/// Структура для хранения данных профиля пользователя
-/// </summary>
-public readonly record struct UserProfileData(
-    string? UserCode,
-    string? UserName,
-    bool? IsExpert,
-    string? LevelTitle,
-    string? InfoTech,
-    int? Salary,
-    string? WorkExperience,
-    string? LastVisit,
-    bool? IsPublic
-);
-
-/// <summary>
-/// Структура для хранения детальных данных профиля со страницы навыков
-/// </summary>
-public readonly record struct ResumeProfileData(
-    string Code,
-    string Link,
-    string Title,
-    bool IsExpert,
-    string? InfoTech,
-    string? LevelTitle,
-    int? Salary,
-    List<string>? Skills
-);
-
-/// <summary>
-/// Структура для хранения данных об опыте работы
-/// </summary>
-public readonly record struct UserExperienceData(
-    string UserLink,
-    string? CompanyCode,
-    string? CompanyUrl,
-    string? CompanyTitle,
-    string? CompanyAbout,
-    string? CompanySize,
-    string? Position,
-    string? Duration,
-    string? Description,
-    List<(int? SkillId, string SkillName)>? Skills,
-    bool IsFirstRecord = false
-);
 
 public enum InsertMode
 {
