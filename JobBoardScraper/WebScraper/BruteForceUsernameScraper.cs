@@ -61,7 +61,6 @@ public sealed class BruteForceUsernameScraper
                 }
             }
 
-            var completed = startIndex;
             usernames = usernames.Skip(startIndex).ToList();
 
             await AdaptiveForEach.ForEachAdaptiveAsync(
@@ -85,29 +84,23 @@ public sealed class BruteForceUsernameScraper
                         _controller.ReportLatency(sw.Elapsed);
 
                         double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                        int completedCount;
-                        lock (usernames)
-                        {
-                            completed++;
-                            completedCount = completed;
-                        }
                         
                         // Обновляем статистику
-                        _statistics.TotalProcessed = completedCount;
-                        _statistics.ActiveRequests = _activeRequests.Count;
+                        _statistics.IncrementProcessed();
+                        _statistics.UpdateActiveRequests(_activeRequests.Count);
                         _statistics.AverageRequestTime = elapsedSeconds;
                         
                         if (result.IsNotFound)
                         {
-                            _statistics.TotalSkipped++;
+                            _statistics.IncrementSkipped();
                         }
                         else if (result.IsSuccess)
                         {
-                            _statistics.TotalSuccess++;
+                            _statistics.IncrementSuccess();
                         }
                         else
                         {
-                            _statistics.TotalFailed++;
+                            _statistics.IncrementFailed();
                         }
                         
                         Helper.Utils.ParallelScraperLogger.LogProgress(
@@ -116,7 +109,7 @@ public sealed class BruteForceUsernameScraper
                             link,
                             elapsedSeconds,
                             (int)result.StatusCode,
-                            completedCount,
+                            _statistics.TotalProcessed,
                             totalLinks,
                             _activeRequests.Count);
 
@@ -132,7 +125,7 @@ public sealed class BruteForceUsernameScraper
                     }
                     catch (Exception ex)
                     {
-                        _statistics.TotalFailed++;
+                        _statistics.IncrementFailed();
                         _logger.WriteLine($"[BruteForceScraper] Error for {link}: {ex.Message}");
                     }
                     finally
