@@ -73,7 +73,8 @@ public sealed class ResumeListPageScraper : IDisposable
     private async Task RunOnceSafe(CancellationToken ct)
     {
         try
-        {
+        {   
+            // TODO проверить счетчик прогресса во всех тасках, он не увеличивается при обходе по qids
             // Обходим все включенные типы страниц
             
             // Запускаем все методы параллельно
