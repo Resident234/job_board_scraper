@@ -47,6 +47,7 @@ public readonly record struct DbRecord(
     string? Code = null,
     bool? Expert = null,
     string? WorkExperience = null,
+    long? CompanyId = null,
     CompanyDetailsData? CompanyDetails = null,
     List<string>? Skills = null,
     UserProfileData? UserProfile = null,

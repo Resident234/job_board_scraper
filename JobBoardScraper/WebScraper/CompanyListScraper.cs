@@ -13,14 +13,14 @@ public sealed class CompanyListScraper : IDisposable
 {
     private readonly Regex _companyHrefRegex;
     private readonly SmartHttpClient _httpClient;
-    private readonly Action<string, string> _enqueueCompany;
+    private readonly Action<string, string, long?> _enqueueCompany;
     private readonly Func<List<string>> _getCategoryIds;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
 
     public CompanyListScraper(
         SmartHttpClient httpClient,
-        Action<string, string> enqueueCompany,
+        Action<string, string, long?> enqueueCompany,
         Func<List<string>> getCategoryIds,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
@@ -159,11 +159,12 @@ public sealed class CompanyListScraper : IDisposable
                 var html = await response.Content.ReadAsStringAsync(ct);
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                var companyLinks = doc.QuerySelectorAll(AppConfig.CompaniesLinkSelector);
+                // Ищем элементы компаний, которые содержат data-company-id
+                var companyItems = doc.QuerySelectorAll(AppConfig.CompaniesItemSelector);
                 
-                if (companyLinks.Length == 0)
+                if (companyItems.Length == 0)
                 {
-                    _logger.WriteLine($"На странице {page} не найдено ссылок на компании. Завершение обхода.");
+                    _logger.WriteLine($"На странице {page} не найдено элементов компаний ({AppConfig.CompaniesItemSelector}). Завершение обхода.");
                     hasMorePages = false;
                     break;
                 }
@@ -171,8 +172,21 @@ public sealed class CompanyListScraper : IDisposable
                 var companiesOnPage = 0;
                 var seenOnPage = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var link in companyLinks)
+                foreach (var item in companyItems)
                 {
+                    // Извлекаем company_id из атрибута
+                    var companyIdStr = item.GetAttribute(AppConfig.CompaniesIdAttribute);
+                    long? companyId = null;
+                    if (!string.IsNullOrWhiteSpace(companyIdStr) && long.TryParse(companyIdStr, out var id))
+                    {
+                        companyId = id;
+                    }
+                    
+                    // Ищем ссылку внутри элемента
+                    var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
+                    if (link == null)
+                        continue;
+                    
                     var href = link.GetAttribute("href");
                     if (string.IsNullOrWhiteSpace(href))
                         continue;
@@ -192,8 +206,8 @@ public sealed class CompanyListScraper : IDisposable
 
                     var companyUrl = $"{AppConfig.CompaniesBaseUrl}{companyCode}";
                     
-                    _enqueueCompany(companyCode, companyUrl);
-                    _logger.WriteLine($"В очередь: {companyCode} -> {companyUrl}");
+                    _enqueueCompany(companyCode, companyUrl, companyId);
+                    _logger.WriteLine($"В очередь: {companyCode} -> {companyUrl}" + (companyId.HasValue ? $" (ID: {companyId})" : ""));
                     companiesOnPage++;
                     totalCompaniesFound++;
                 }

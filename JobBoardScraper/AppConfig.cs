@@ -50,6 +50,12 @@ public static class AppConfig
     public static string CompaniesBaseUrl =>
         ConfigurationManager.AppSettings["Companies:BaseUrl"] ?? "https://career.habr.com/companies/";
 
+    public static string CompaniesItemSelector =>
+        ConfigurationManager.AppSettings["Companies:ItemSelector"] ?? ".companies-item";
+
+    public static string CompaniesIdAttribute =>
+        ConfigurationManager.AppSettings["Companies:IdAttribute"] ?? "data-company-id";
+
     public static string CompaniesLinkSelector =>
         ConfigurationManager.AppSettings["Companies:LinkSelector"] ?? "a[href^='/companies/']";
 
