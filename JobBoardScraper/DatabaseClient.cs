@@ -544,10 +544,9 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.UserExperience:
-                            if (record.UserExperience.HasValue)
+                            if (record.UserExperience != null)
                             {
-                                var exp = record.UserExperience.Value;
-                                DatabaseInsertUserExperience(conn, exp);
+                                DatabaseInsertUserExperience(conn, record.UserExperience);
                             }
                             break;
                         }
