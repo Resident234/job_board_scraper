@@ -1,9 +1,9 @@
 namespace JobBoardScraper.Models;
 
 /// <summary>
-/// Структура для хранения детальных данных профиля со страницы навыков
+/// Данные профиля резюме со страницы списка резюме
 /// </summary>
-public readonly record struct ResumeProfileData(
+public record ResumeProfileData(
     string Code,
     string Link,
     string Title,

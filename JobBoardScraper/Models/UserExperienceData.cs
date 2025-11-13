@@ -1,9 +1,9 @@
 namespace JobBoardScraper.Models;
 
 /// <summary>
-/// Структура для хранения данных об опыте работы
+/// Данные об опыте работы пользователя
 /// </summary>
-public readonly record struct UserExperienceData(
+public record UserExperienceData(
     string UserLink,
     string? CompanyCode,
     string? CompanyUrl,
@@ -13,6 +13,6 @@ public readonly record struct UserExperienceData(
     string? Position,
     string? Duration,
     string? Description,
-    List<(int? SkillId, string SkillName)>? Skills,
-    bool IsFirstRecord = false
+    List<(int? SkillId, string SkillName)> Skills,
+    bool IsFirstRecord
 );
