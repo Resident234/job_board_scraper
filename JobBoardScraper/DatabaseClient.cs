@@ -299,7 +299,7 @@ public sealed class DatabaseClient
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
                     company_id = EXCLUDED.company_id,
-                    updated_at = NOW()", conn);
+                    updated_at = NOW()", conn); //TODO при записи в конфоль все значения полей выводить, которые непустые
 
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
