@@ -275,8 +275,13 @@ public sealed class DatabaseClient
     }
 
     // Вставка компании
-    public void DatabaseInsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl,
-        string? companyTitle = null)
+    public void DatabaseInsertCompany(
+        NpgsqlConnection conn, 
+        string companyCode, 
+        string companyUrl,
+        string? companyTitle = null,
+        long? companyId = null
+    )
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode))
@@ -287,17 +292,19 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_companies (code, url, title, created_at, updated_at)
-                VALUES (@code, @url, @title, NOW(), NOW())
+                INSERT INTO habr_companies (code, url, title, company_id, created_at, updated_at)
+                VALUES (@code, @url, @title, @company_id, NOW(), NOW())
                 ON CONFLICT (code) 
                 DO UPDATE SET 
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
+                    company_id = EXCLUDED.company_id,
                     updated_at = NOW()", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
 
             int rowsAffected = cmd.ExecuteNonQuery();
             Log($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
@@ -439,8 +446,13 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.Company:
-                            DatabaseInsertCompany(conn, companyCode: record.PrimaryValue,
-                                companyUrl: record.SecondaryValue, companyTitle: record.TertiaryValue);
+                            DatabaseInsertCompany(
+                                conn, 
+                                companyCode: record.PrimaryValue,
+                                companyUrl: record.SecondaryValue, 
+                                companyTitle: record.TertiaryValue,
+                                companyId: record.CompanyId  
+                            );
                             break;
                         case DbRecordType.CategoryRootId:
                             DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue,
@@ -669,14 +681,25 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить компанию в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueCompany(string companyCode, string companyUrl, string? companyTitle = null)
+    public bool EnqueueCompany(string companyCode, string companyUrl, long? companyId = null, string? companyTitle = null)
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Company, companyCode, companyUrl, companyTitle);
+        var record = new DbRecord(
+            Type: DbRecordType.Company, 
+            PrimaryValue: companyCode, 
+            SecondaryValue: companyUrl, 
+            TertiaryValue: companyTitle,
+            CompanyId: companyId
+        );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] Company: {companyCode} -> {companyUrl}" +
-                          (companyTitle != null ? $" | {companyTitle}" : ""));
+        
+        var logMessage = $"[DB Queue] Company: {companyCode} -> {companyUrl}";
+        if (companyId.HasValue)
+            logMessage += $" (ID: {companyId})";
+        if (companyTitle != null)
+            logMessage += $" | {companyTitle}";
+        Log(logMessage);
 
         return true;
     }

@@ -115,9 +115,9 @@ class Program
                 enableTrafficMeasuring: AppConfig.CompaniesEnableTrafficMeasuring);
             var companyListScraper = new CompanyListScraper(
                 companyListHttpClient,
-                enqueueCompany: (companyCode, companyUrl) =>
+                enqueueCompany: (companyCode, companyUrl, companyId) =>
                 {
-                    db.EnqueueCompany(companyCode, companyUrl);
+                    db.EnqueueCompany(companyCode, companyUrl, companyId);
                 },
                 getCategoryIds: () => db.GetAllCategoryIds(conn),
                 interval: TimeSpan.FromDays(7),

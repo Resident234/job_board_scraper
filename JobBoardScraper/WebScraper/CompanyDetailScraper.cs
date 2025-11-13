@@ -442,7 +442,7 @@ public sealed class CompanyDetailScraper : IDisposable
                             var companyUrl = AppConfig.CompanyDetailCompanyBaseUrl + companyCode;
                             
                             // Сохраняем в БД (code = код, url = полная ссылка, title = название)
-                            _db.EnqueueCompany(companyCode, companyUrl, companyName);
+                            _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);
                             
                             relatedCompanyCount++;
                         }
