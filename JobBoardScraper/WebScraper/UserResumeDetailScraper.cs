@@ -19,6 +19,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
+    private readonly Models.ScraperStatistics _statistics;
 
     public UserResumeDetailScraper(
         SmartHttpClient httpClient,
@@ -33,6 +34,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
+        _statistics = new Models.ScraperStatistics("UserResumeDetailScraper");
         
         _logger = new ConsoleLogger("UserResumeDetailScraper");
         _logger.SetOutputMode(outputMode);
@@ -97,10 +99,6 @@ public sealed class UserResumeDetailScraper : IDisposable
             return;
         }
 
-        var totalProcessed = 0;
-        var totalSuccess = 0;
-        var totalFailed = 0;
-
         await AdaptiveForEach.ForEachAdaptiveAsync(
             source: userLinks,
             body: async userLink =>
@@ -114,7 +112,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _controller.ReportLatency(sw.Elapsed);
                 
                 double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                int completed = Interlocked.Increment(ref totalProcessed);
+                _statistics.IncrementProcessed();
+                _statistics.UpdateActiveRequests(_activeRequests.Count);
                 
                 Helper.Utils.ParallelScraperLogger.LogProgress(
                     _logger,
@@ -122,7 +121,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     userLink,
                     elapsedSeconds,
                     (int)response.StatusCode,
-                    completed,
+                    _statistics.TotalProcessed,
                     totalLinks,
                     _activeRequests.Count);
                 
@@ -304,12 +303,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Навыки: {skills.Count} шт.");
                 _logger.WriteLine($"  Опыт работы: {experienceCount} записей");
                 
-                Interlocked.Increment(ref totalSuccess);
+                _statistics.IncrementSuccess();
             }
             catch (Exception ex)
             {
                 _logger.WriteLine($"Ошибка при обработке {userLink}: {ex.Message}");
-                Interlocked.Increment(ref totalFailed);
+                _statistics.IncrementFailed();
             }
             finally
             {
@@ -320,6 +319,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         ct: ct
         );
         
-        _logger.WriteLine($"Обход завершён. Обработано: {totalProcessed}, успешно: {totalSuccess}, ошибок: {totalFailed}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход завершён. {_statistics}");
     }
 }

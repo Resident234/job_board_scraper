@@ -16,6 +16,7 @@ public sealed class ExpertsScraper : IDisposable
     private readonly ConsoleLogger _logger;
     private readonly Regex _userCodeRegex;
     private readonly Regex _companyCodeRegex;
+    private readonly Models.ScraperStatistics _statistics;
 
     public ExpertsScraper(
         SmartHttpClient httpClient,
@@ -28,6 +29,7 @@ public sealed class ExpertsScraper : IDisposable
         _interval = interval ?? TimeSpan.FromDays(7);
         _userCodeRegex = new Regex(AppConfig.ExpertsUserCodeRegex, RegexOptions.Compiled);
         _companyCodeRegex = new Regex(AppConfig.ExpertsCompanyCodeRegex, RegexOptions.Compiled);
+        _statistics = new Models.ScraperStatistics("ExpertsScraper");
         
         _logger = new ConsoleLogger("ExpertsScraper");
         _logger.SetOutputMode(outputMode);
@@ -83,8 +85,6 @@ public sealed class ExpertsScraper : IDisposable
         _logger.WriteLine("Начало обхода экспертов...");
         
         var page = 1;
-        var totalExpertsFound = 0;
-        var totalCompaniesFound = 0;
         var hasMorePages = true;
         const int maxPageRetries = 3; // Максимум попыток для одной страницы
 
@@ -153,7 +153,6 @@ public sealed class ExpertsScraper : IDisposable
                     _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
 
                     var expertsOnPage = 0;
-                    var companiesOnPage = 0;
 
                     foreach (var card in expertCards)
                     {
@@ -204,6 +203,7 @@ public sealed class ExpertsScraper : IDisposable
                             _logger.WriteLine($"Эксперт: {name} ({code}) -> {fullUrl}" + 
                                 (workExperience != null ? $" | Стаж: {workExperience}" : ""));
                             expertsOnPage++;
+                            _statistics.IncrementSuccess();
 
                             // Извлекаем компанию
                             var companyLink = card.QuerySelector(AppConfig.ExpertsCompanyLinkSelector);
@@ -225,21 +225,20 @@ public sealed class ExpertsScraper : IDisposable
 
                                         _db.EnqueueCompany(companyCode, companyUrl);
                                         _logger.WriteLine($"Компания: {companyName} ({companyCode}) -> {companyUrl}");
-                                        companiesOnPage++;
+                                        _statistics.IncrementItemsCollected();
                                     }
                                 }
                             }
-
-                            totalExpertsFound++;
                         }
                         catch (Exception ex)
                         {
                             _logger.WriteLine($"Ошибка при обработке карточки эксперта: {ex.Message}");
+                            _statistics.IncrementFailed();
                         }
                     }
 
-                    totalCompaniesFound += companiesOnPage;
-                    _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов, {companiesOnPage} компаний.");
+                    _statistics.IncrementProcessed();
+                    _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов.");
 
                     // Пагинация загружается через AJAX, поэтому просто переходим на следующую страницу
                     // Если на странице нет экспертов, значит достигнут конец
@@ -291,7 +290,8 @@ public sealed class ExpertsScraper : IDisposable
             }
         }
         
-        _logger.WriteLine($"Обход завершён. Найдено экспертов: {totalExpertsFound}, компаний: {totalCompaniesFound}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход завершён. {_statistics}");
     }
 
     private string BuildUrl(int page)

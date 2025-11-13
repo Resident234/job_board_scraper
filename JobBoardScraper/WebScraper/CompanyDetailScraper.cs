@@ -18,6 +18,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly Regex _companyIdRegex;
     private readonly Regex _employeesRegex;
     private readonly Regex _followersRegex;
+    private readonly Models.ScraperStatistics _statistics;
 
     public CompanyDetailScraper(
         SmartHttpClient httpClient,
@@ -33,6 +34,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
         _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
         _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
+        _statistics = new Models.ScraperStatistics("CompanyDetailScraper");
         
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
@@ -97,11 +99,6 @@ public sealed class CompanyDetailScraper : IDisposable
             return;
         }
 
-        var totalProcessed = 0;
-        var totalSuccess = 0;
-        var totalFailed = 0;
-        var totalSkipped = 0;
-
         foreach (var (code, url) in companies)
         {
             if (ct.IsCancellationRequested)
@@ -116,8 +113,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.WriteLine($"Компания {code} вернула код {response.StatusCode}. Пропуск.");
-                    totalSkipped++;
-                    totalProcessed++;
+                    _statistics.IncrementSkipped();
+                    _statistics.IncrementProcessed();
                     continue;
                 }
 
@@ -267,8 +264,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 if (favButton == null)
                 {
                     _logger.WriteLine($"Компания {code}: не найден элемент company_fav_button. Пропуск.");
-                    totalSkipped++;
-                    totalProcessed++;
+                    _statistics.IncrementSkipped();
+                    _statistics.IncrementProcessed();
                     continue;
                 }
 
@@ -276,8 +273,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 if (string.IsNullOrWhiteSpace(elementId))
                 {
                     _logger.WriteLine($"Компания {code}: элемент найден, но id пустой. Пропуск.");
-                    totalSkipped++;
-                    totalProcessed++;
+                    _statistics.IncrementSkipped();
+                    _statistics.IncrementProcessed();
                     continue;
                 }
 
@@ -286,8 +283,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 if (!companyIdMatch.Success)
                 {
                     _logger.WriteLine($"Компания {code}: не удалось извлечь ID из '{elementId}'. Пропуск.");
-                    totalSkipped++;
-                    totalProcessed++;
+                    _statistics.IncrementSkipped();
+                    _statistics.IncrementProcessed();
                     continue;
                 }
 
@@ -295,8 +292,8 @@ public sealed class CompanyDetailScraper : IDisposable
                 if (!long.TryParse(companyIdStr, out var companyId))
                 {
                     _logger.WriteLine($"Компания {code}: не удалось преобразовать '{companyIdStr}' в число. Пропуск.");
-                    totalSkipped++;
-                    totalProcessed++;
+                    _statistics.IncrementSkipped();
+                    _statistics.IncrementProcessed();
                     continue;
                 }
 
@@ -511,8 +508,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     : "(не найдено)";
                 _logger.WriteLine($"Компания {code}: ID = {companyId}, Название = {companyTitle ?? "(не найдено)"}, Описание = {aboutPreview}, Сайт = {companySite ?? "(не найдено)"}, Рейтинг = {companyRating?.ToString() ?? "(не найдено)"}, Сотрудники = {employeesStr}, Подписчики = {followersStr}, Размер = {employeesCount ?? "(не найдено)"}");
                 
-                totalSuccess++;
-                totalProcessed++;
+                _statistics.IncrementSuccess();
+                _statistics.IncrementProcessed();
 
                 // Небольшая задержка между запросами
                 await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
@@ -520,11 +517,12 @@ public sealed class CompanyDetailScraper : IDisposable
             catch (Exception ex)
             {
                 _logger.WriteLine($"Ошибка при обработке компании {code}: {ex.Message}");
-                totalFailed++;
-                totalProcessed++;
+                _statistics.IncrementFailed();
+                _statistics.IncrementProcessed();
             }
         }
         
-        _logger.WriteLine($"Обход завершён. Обработано: {totalProcessed}, успешно: {totalSuccess}, ошибок: {totalFailed}, пропущено: {totalSkipped}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход завершён. {_statistics}");
     }
 }

@@ -15,6 +15,7 @@ public sealed class UserFriendsScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
+    private readonly Models.ScraperStatistics _statistics;
 
     public UserFriendsScraper(
         SmartHttpClient httpClient,
@@ -29,6 +30,7 @@ public sealed class UserFriendsScraper : IDisposable
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
+        _statistics = new Models.ScraperStatistics("UserFriendsScraper");
         
         _logger = new ConsoleLogger("UserFriendsScraper");
         _logger.SetOutputMode(outputMode);
@@ -93,9 +95,6 @@ public sealed class UserFriendsScraper : IDisposable
             return;
         }
 
-        var totalProcessed = 0;
-        var totalFriendsFound = 0;
-
         await AdaptiveForEach.ForEachAdaptiveAsync(
             source: userLinks,
             body: async userLink =>
@@ -123,7 +122,8 @@ public sealed class UserFriendsScraper : IDisposable
                     
                     if (page == 1)
                     {
-                        int completed = Interlocked.Increment(ref totalProcessed);
+                        _statistics.IncrementProcessed();
+                        _statistics.UpdateActiveRequests(_activeRequests.Count);
                         
                         Helper.Utils.ParallelScraperLogger.LogProgress(
                             _logger,
@@ -131,7 +131,7 @@ public sealed class UserFriendsScraper : IDisposable
                             friendsUrl,
                             elapsedSeconds,
                             (int)response.StatusCode,
-                            completed,
+                            _statistics.TotalProcessed,
                             totalLinks,
                             _activeRequests.Count);
                     }
@@ -189,7 +189,7 @@ public sealed class UserFriendsScraper : IDisposable
                 }
 
                 _logger.WriteLine($"Всего найдено {totalFriendsForUser} друзей для {userLink} ({page - 1} страниц)");
-                Interlocked.Add(ref totalFriendsFound, totalFriendsForUser);
+                _statistics.AddItemsCollected(totalFriendsForUser);
             }
             catch (Exception ex)
             {
@@ -204,6 +204,7 @@ public sealed class UserFriendsScraper : IDisposable
         ct: ct
         );
         
-        _logger.WriteLine($"Обход завершён. Обработано: {totalProcessed}, найдено друзей: {totalFriendsFound}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход завершён. {_statistics}");
     }
 }

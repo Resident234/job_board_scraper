@@ -18,6 +18,7 @@ public sealed class ResumeListPageScraper : IDisposable
     private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConsoleLogger _logger;
     private readonly AdaptiveConcurrencyController _controller;
+    private readonly Models.ScraperStatistics _statistics;
 
     public ResumeListPageScraper(
         SmartHttpClient httpClient,
@@ -32,6 +33,7 @@ public sealed class ResumeListPageScraper : IDisposable
         _enqueueToSaveQueue = enqueueToSaveQueue ?? throw new ArgumentNullException(nameof(enqueueToSaveQueue));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromMinutes(10);
+        _statistics = new Models.ScraperStatistics("ResumeListPageScraper");
         
         _logger = new ConsoleLogger("ResumeListPageScraper");
         _logger.SetOutputMode(outputMode);
@@ -126,8 +128,6 @@ public sealed class ResumeListPageScraper : IDisposable
         var orders = AppConfig.ResumeListOrderEnabled ? AppConfig.ResumeListOrders : new[] { "" };
         _logger.WriteLine($"Статусы для обхода: {string.Join(", ", workStates)} ({workStates.Length} шт.), сортировок: {orders.Length}");
 
-        var totalProfiles = 0;
-
         foreach (var workState in workStates)
         {
             if (ct.IsCancellationRequested) break;
@@ -158,7 +158,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     // Парсим профили на странице
                     var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
-                    totalProfiles += profilesFound;
+                    _statistics.AddItemsCollected(profilesFound);
 
                     _logger.WriteLine($"Статус {workState}{orderDesc}: найдено {profilesFound} профилей");
                 }
@@ -169,7 +169,8 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _logger.WriteLine($"Обход статусов завершён. Всего найдено профилей: {totalProfiles}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход статусов завершён. {_statistics}");
     }
 
     private async Task ScrapeExperiencesAsync(CancellationToken ct)
@@ -179,8 +180,6 @@ public sealed class ResumeListPageScraper : IDisposable
         var experiences = AppConfig.ResumeListExperiences;
         var orders = AppConfig.ResumeListOrderEnabled ? AppConfig.ResumeListOrders : new[] { "" };
         _logger.WriteLine($"Опыт для обхода: {string.Join(", ", experiences)} ({experiences.Length} шт.), сортировок: {orders.Length}");
-
-        var totalProfiles = 0;
 
         foreach (var experience in experiences)
         {
@@ -212,7 +211,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     // Парсим профили на странице
                     var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
-                    totalProfiles += profilesFound;
+                    _statistics.AddItemsCollected(profilesFound);
 
                     _logger.WriteLine($"Опыт {experience}{orderDesc}: найдено {profilesFound} профилей");
                 }
@@ -223,7 +222,8 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _logger.WriteLine($"Обход по опыту завершён. Всего найдено профилей: {totalProfiles}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход по опыту завершён. {_statistics}");
     }
 
     private async Task ScrapeQidsAsync(CancellationToken ct)
@@ -236,9 +236,6 @@ public sealed class ResumeListPageScraper : IDisposable
         var orders = AppConfig.ResumeListOrderEnabled ? AppConfig.ResumeListOrders : new[] { "" };
         
         _logger.WriteLine($"Диапазон qids: {startQid} - {endQid} ({totalQids} шт.), сортировок: {orders.Length}");
-
-        var processedCount = 0;
-        var totalProfiles = 0;
 
         for (var qid = startQid; qid <= endQid; qid++)
         {
@@ -261,13 +258,13 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (string.IsNullOrWhiteSpace(order))
                     {
-                        processedCount++;
+                        _statistics.IncrementProcessed();
                     }
-                    var percent = processedCount * 100.0 / totalQids;
+                    var percent = _statistics.TotalProcessed * 100.0 / totalQids;
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        _logger.WriteLine($"Qid {qid}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {processedCount}/{totalQids} ({percent:F2}%)");
+                        _logger.WriteLine($"Qid {qid}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {_statistics.TotalProcessed}/{totalQids} ({percent:F2}%)");
                         continue;
                     }
 
@@ -276,9 +273,9 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     // Парсим профили на странице
                     var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
-                    totalProfiles += profilesFound;
+                    _statistics.AddItemsCollected(profilesFound);
 
-                    _logger.WriteLine($"Qid {qid}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {processedCount}/{totalQids} ({percent:F2}%)");
+                    _logger.WriteLine($"Qid {qid}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalQids} ({percent:F2}%)");
                 }
                 catch (Exception ex)
                 {
@@ -287,7 +284,8 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _logger.WriteLine($"Обход по qids завершён. Обработано: {processedCount}, всего найдено профилей: {totalProfiles}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход по qids завершён. {_statistics}");
     }
 
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
@@ -317,10 +315,6 @@ public sealed class ResumeListPageScraper : IDisposable
         
         _logger.WriteLine($"Диапазон навыков: {startSkillId} - {endSkillId} ({totalSkills} навыков), сортировок: {orders.Length}");
 
-        var processedCount = 0;
-        var foundCount = 0;
-        var notFoundCount = 0;
-
         for (var skillId = startSkillId; skillId <= endSkillId; skillId++)
         {
             if (ct.IsCancellationRequested) break;
@@ -346,13 +340,13 @@ public sealed class ResumeListPageScraper : IDisposable
                     // Увеличиваем счетчик только для первого order каждого навыка
                     if (isFirstOrder)
                     {
-                        processedCount++;
+                        _statistics.IncrementProcessed();
                     }
-                    var percent = processedCount * 100.0 / totalSkills;
+                    var percent = _statistics.TotalProcessed * 100.0 / totalSkills;
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        _logger.WriteLine($"Навык {skillId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
+                        _logger.WriteLine($"Навык {skillId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {_statistics.TotalProcessed}/{totalSkills} ({percent:F2}%)");
                         continue;
                     }
 
@@ -361,7 +355,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     // Проверяем наличие сообщения "Специалисты не найдены"
                     if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
                     {
-                        _logger.WriteLine($"Навык {skillId}{orderDesc}: не найдено специалистов. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
+                        _logger.WriteLine($"Навык {skillId}{orderDesc}: не найдено специалистов. Прогресс: {_statistics.TotalProcessed}/{totalSkills} ({percent:F2}%)");
                         // Оптимизация: если на первой сортировке навык не найден, пропускаем остальные сортировки
                         if (isFirstOrder)
                         {
@@ -381,7 +375,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     var profilesFound = await ParseProfilesFromPage(doc, skillId, ct);
 
-                    _logger.WriteLine($"Навык {skillId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {processedCount}/{totalSkills} ({percent:F2}%)");
+                    _logger.WriteLine($"Навык {skillId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalSkills} ({percent:F2}%)");
                 
                     isFirstOrder = false;
                 }
@@ -394,15 +388,16 @@ public sealed class ResumeListPageScraper : IDisposable
             // После обработки всех orders для навыка, обновляем счетчики
             if (skillExists)
             {
-                foundCount++;
+                _statistics.IncrementFound();
             }
             else
             {
-                notFoundCount++;
+                _statistics.IncrementNotFound();
             }
         }
 
-        _logger.WriteLine($"Перебор навыков завершён. Обработано: {processedCount}, найдено: {foundCount}, не найдено: {notFoundCount}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Перебор навыков завершён. {_statistics}");
     }
 
     private async Task<int> ParseProfilesFromPage(AngleSharp.Dom.IDocument doc, int skillId, CancellationToken ct)

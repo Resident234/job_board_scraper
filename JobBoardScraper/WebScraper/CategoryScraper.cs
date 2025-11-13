@@ -12,6 +12,7 @@ public sealed class CategoryScraper : IDisposable
     private readonly Action<string, string> _enqueueCategory;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
+    private readonly Models.ScraperStatistics _statistics;
 
     public CategoryScraper(
         SmartHttpClient httpClient,
@@ -22,6 +23,7 @@ public sealed class CategoryScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueCategory = enqueueCategory ?? throw new ArgumentNullException(nameof(enqueueCategory));
         _interval = interval ?? TimeSpan.FromDays(7);
+        _statistics = new Models.ScraperStatistics("CategoryScraper");
         
         _logger = new ConsoleLogger("CategoryScraper");
         _logger.SetOutputMode(outputMode);
@@ -103,7 +105,6 @@ public sealed class CategoryScraper : IDisposable
 
             // Собираем все option с value
             var options = selectElement.QuerySelectorAll(AppConfig.CategoryOptionSelector);
-            var categoriesFound = 0;
 
             foreach (var option in options)
             {
@@ -115,14 +116,16 @@ public sealed class CategoryScraper : IDisposable
 
                 _enqueueCategory(value, text);
                 _logger.WriteLine($"В очередь: category_root_id={value} ({text})");
-                categoriesFound++;
+                _statistics.IncrementItemsCollected();
             }
 
-            _logger.WriteLine($"Сбор завершён. Найдено категорий: {categoriesFound}");
+            _statistics.EndTime = DateTime.Now;
+            _logger.WriteLine($"Сбор завершён. {_statistics}");
         }
         catch (Exception ex)
         {
             _logger.WriteLine($"Ошибка при сборе category_root_id: {ex.Message}");
+            _statistics.IncrementFailed();
         }
     }
 }

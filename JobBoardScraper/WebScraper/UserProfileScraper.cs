@@ -22,6 +22,7 @@ public sealed class UserProfileScraper : IDisposable
     private readonly Regex _workExperienceRegex;
     private readonly Regex _lastVisitRegex;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
+    private readonly Models.ScraperStatistics _statistics;
 
     public UserProfileScraper(
         SmartHttpClient httpClient,
@@ -39,6 +40,7 @@ public sealed class UserProfileScraper : IDisposable
         _salaryRegex = new Regex(AppConfig.UserProfileSalaryRegex, RegexOptions.Compiled);
         _workExperienceRegex = new Regex(AppConfig.UserProfileWorkExperienceRegex, RegexOptions.Compiled);
         _lastVisitRegex = new Regex(AppConfig.UserProfileLastVisitRegex, RegexOptions.Compiled);
+        _statistics = new Models.ScraperStatistics("UserProfileScraper");
         
         _logger = new ConsoleLogger("UserProfileScraper");
         _logger.SetOutputMode(outputMode);
@@ -104,11 +106,6 @@ public sealed class UserProfileScraper : IDisposable
             return;
         }
 
-        var totalProcessed = 0;
-        var totalSuccess = 0;
-        var totalFailed = 0;
-        var totalSkipped = 0;
-
         await AdaptiveForEach.ForEachAdaptiveAsync(
             source: userLinks,
             body: async userLink =>
@@ -120,8 +117,8 @@ public sealed class UserProfileScraper : IDisposable
                     if (string.IsNullOrWhiteSpace(userCode))
                     {
                         _logger.WriteLine($"Не удалось извлечь код пользователя из ссылки: {userLink}. Пропуск.");
-                        Interlocked.Increment(ref totalSkipped);
-                        Interlocked.Increment(ref totalProcessed);
+                        _statistics.IncrementSkipped();
+                        _statistics.IncrementProcessed();
                         return;
                     }
 
@@ -136,7 +133,8 @@ public sealed class UserProfileScraper : IDisposable
                     _controller.ReportLatency(sw.Elapsed);
                     
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                    int completed = Interlocked.Increment(ref totalProcessed);
+                    _statistics.IncrementProcessed();
+                    _statistics.UpdateActiveRequests(_activeRequests.Count);
                     
                     Helper.Utils.ParallelScraperLogger.LogProgress(
                         _logger,
@@ -144,13 +142,13 @@ public sealed class UserProfileScraper : IDisposable
                         friendsUrl,
                         elapsedSeconds,
                         (int)response.StatusCode,
-                        completed,
+                        _statistics.TotalProcessed,
                         totalLinks,
                         _activeRequests.Count);
                     
                     if (!response.IsSuccessStatusCode)
                     {
-                        Interlocked.Increment(ref totalSkipped);
+                        _statistics.IncrementSkipped();
                         _activeRequests.TryRemove(userLink, out _);
                         return;
                     }
@@ -199,7 +197,7 @@ public sealed class UserProfileScraper : IDisposable
                     {
                         _logger.WriteLine($"Пользователь {userLink}: Приватный профиль (редирект)");
                         _db.EnqueueUserProfile(userLink, userCode, null, null, null, null, null, null, null, false);
-                        Interlocked.Increment(ref totalSuccess);
+                        _statistics.IncrementSuccess();
                         return;
                     }
 
@@ -328,12 +326,12 @@ public sealed class UserProfileScraper : IDisposable
                     _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
                     _logger.WriteLine($"  Публичный профиль: Да");
                     
-                    Interlocked.Increment(ref totalSuccess);
+                    _statistics.IncrementSuccess();
                 }
                 catch (Exception ex)
                 {
                     _logger.WriteLine($"Ошибка при обработке пользователя {userLink}: {ex.Message}");
-                    Interlocked.Increment(ref totalFailed);
+                    _statistics.IncrementFailed();
                 }
                 finally
                 {
@@ -344,6 +342,7 @@ public sealed class UserProfileScraper : IDisposable
             ct: ct
         );
         
-        _logger.WriteLine($"Обход завершён. Обработано: {totalProcessed}, успешно: {totalSuccess}, ошибок: {totalFailed}, пропущено: {totalSkipped}");
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход завершён. {_statistics}");
     }
 }

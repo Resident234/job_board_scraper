@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Models;
 
 namespace JobBoardScraper.Helper.Utils;
 
@@ -33,6 +34,39 @@ public static class ParallelScraperLogger
                      $"Код ответа {statusCode}. " +
                      $"Обработано: {completed}/{total} ({percent:F2}%). " +
                      $"Параллельных процессов: {activeCount}.";
+        
+        if (logger != null)
+        {
+            logger.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
+        }
+    }
+    
+    /// <summary>
+    /// Логирует прогресс HTTP запроса в параллельном скрапере с использованием ScraperStatistics
+    /// </summary>
+    /// <param name="logger">Логгер (если null, используется Console.WriteLine)</param>
+    /// <param name="statistics">Статистика скрапера</param>
+    /// <param name="url">URL запроса</param>
+    /// <param name="elapsedSeconds">Время выполнения запроса в секундах</param>
+    /// <param name="statusCode">HTTP код ответа</param>
+    /// <param name="total">Общее количество элементов</param>
+    public static void LogProgress(
+        ConsoleLogger? logger,
+        ScraperStatistics statistics,
+        string url,
+        double elapsedSeconds,
+        int statusCode,
+        int total)
+    {
+        double percent = statistics.TotalProcessed * 100.0 / total;
+        var message = $"[{statistics.ScraperName}] HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
+                     $"Код ответа {statusCode}. " +
+                     $"Обработано: {statistics.TotalProcessed}/{total} ({percent:F2}%). " +
+                     $"Параллельных процессов: {statistics.ActiveRequests}.";
         
         if (logger != null)
         {

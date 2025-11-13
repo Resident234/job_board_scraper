@@ -15,6 +15,7 @@ public sealed class BruteForceUsernameScraper
     private readonly Helper.ConsoleHelper.ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly ConcurrentDictionary<int, int> _responseStats = new();
+    private readonly Models.ScraperStatistics _statistics;
 
     public BruteForceUsernameScraper(
         SmartHttpClient httpClient,
@@ -26,6 +27,7 @@ public sealed class BruteForceUsernameScraper
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _statistics = new Models.ScraperStatistics("BruteForceUsernameScraper");
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -90,6 +92,24 @@ public sealed class BruteForceUsernameScraper
                             completedCount = completed;
                         }
                         
+                        // Обновляем статистику
+                        _statistics.TotalProcessed = completedCount;
+                        _statistics.ActiveRequests = _activeRequests.Count;
+                        _statistics.AverageRequestTime = elapsedSeconds;
+                        
+                        if (result.IsNotFound)
+                        {
+                            _statistics.TotalSkipped++;
+                        }
+                        else if (result.IsSuccess)
+                        {
+                            _statistics.TotalSuccess++;
+                        }
+                        else
+                        {
+                            _statistics.TotalFailed++;
+                        }
+                        
                         Helper.Utils.ParallelScraperLogger.LogProgress(
                             _logger,
                             "BruteForceScraper",
@@ -112,6 +132,7 @@ public sealed class BruteForceUsernameScraper
                     }
                     catch (Exception ex)
                     {
+                        _statistics.TotalFailed++;
                         _logger.WriteLine($"[BruteForceScraper] Error for {link}: {ex.Message}");
                     }
                     finally
