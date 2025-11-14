@@ -280,6 +280,16 @@ public static class AppConfig
         (ConfigurationManager.AppSettings["ResumeList:Orders"] ?? "last_visited,salary_desc,salary_asc")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    public static bool ResumeListCompanyIdsEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:CompanyIdsEnabled"], out var value) && value;
+
+    public static string ResumeListCompanyIdsUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:CompanyIdsUrlTemplate"] ?? "/resumes?company_ids[]={0}&current_company=1";
+
+    public static string[] ResumeListCompanyIdsOrders =>
+        (ConfigurationManager.AppSettings["ResumeList:CompanyIdsOrders"] ?? "salary_desc,last_visited,relevance,salary_asc")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public static bool CategoryEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["Category:Enabled"], out var value) && value;
 

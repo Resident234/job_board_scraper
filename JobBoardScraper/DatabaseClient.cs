@@ -719,6 +719,37 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Получить все company_id из таблицы habr_companies где company_id не NULL
+    /// </summary>
+    public List<long> GetAllCompanyIds(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var companyIds = new List<long>();
+        
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+            using var cmd = new NpgsqlCommand("SELECT company_id FROM habr_companies WHERE company_id IS NOT NULL ORDER BY company_id", conn);
+            using var reader = cmd.ExecuteReader();
+            
+            while (reader.Read())
+            {
+                var companyId = reader.GetInt64(0);
+                companyIds.Add(companyId);
+            }
+            
+            Log($"[DB] Загружено {companyIds.Count} company_id из БД");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при загрузке company_id: {ex.Message}");
+        }
+        
+        return companyIds;
+    }
+
+    /// <summary>
     /// Получить все category_id из таблицы habr_category_root_ids
     /// </summary>
     public List<string> GetAllCategoryIds(NpgsqlConnection conn)

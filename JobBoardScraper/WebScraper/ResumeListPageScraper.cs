@@ -104,7 +104,13 @@ public sealed class ResumeListPageScraper : IDisposable
                 tasks.Add(Task.Run(() => ScrapeQidsAsync(ct), ct));
             }
 
-            // 5. Обход обычной страницы
+            // 5. Перебор по company_ids
+            if (AppConfig.ResumeListCompanyIdsEnabled)
+            {
+                tasks.Add(Task.Run(() => ScrapeCompanyIdsAsync(ct), ct));
+            }
+
+            // 6. Обход обычной страницы
             tasks.Add(Task.Run(() => ScrapeAndEnqueueAsync(ct), ct));
 
             // Ждем завершения всех задач
@@ -288,6 +294,77 @@ public sealed class ResumeListPageScraper : IDisposable
 
         _statistics.EndTime = DateTime.Now;
         _logger.WriteLine($"Обход по qids завершён. {_statistics}");
+    }
+
+    private async Task ScrapeCompanyIdsAsync(CancellationToken ct)
+    {
+        _logger.WriteLine("Начало обхода страниц по company_ids...");
+        
+        // Получаем список company_id из БД
+        using var conn = _db.DatabaseConnectionInit();
+        var companyIds = _db.GetAllCompanyIds(conn);
+        _db.DatabaseConnectionClose(conn);
+        
+        var totalCompanyIds = companyIds.Count;
+        var orders = AppConfig.ResumeListCompanyIdsOrders.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        
+        _logger.WriteLine($"Загружено company_ids: {totalCompanyIds} шт., сортировок: {orders.Length}");
+
+        if (totalCompanyIds == 0)
+        {
+            _logger.WriteLine("Нет company_ids для обработки.");
+            return;
+        }
+
+        foreach (var companyId in companyIds)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            foreach (var order in orders)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                try
+                {
+                    var baseUrl = string.Format(AppConfig.ResumeListCompanyIdsUrlTemplate, companyId);
+                    var url = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
+                    
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var response = await _httpClient.GetAsync(url, ct);
+                    sw.Stop();
+                    _controller.ReportLatency(sw.Elapsed);
+
+                    if (string.IsNullOrWhiteSpace(order))
+                    {
+                        _statistics.IncrementProcessed();
+                    }
+                    var percent = _statistics.TotalProcessed * 100.0 / totalCompanyIds;
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.WriteLine($"Company ID {companyId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
+                        continue;
+                    }
+
+                    var html = await response.Content.ReadAsStringAsync(ct);
+                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+                    // Парсим профили на странице
+                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    _statistics.AddItemsCollected(profilesFound);
+
+                    _logger.WriteLine($"Company ID {companyId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
+                }
+                catch (Exception ex)
+                {
+                    _logger.WriteLine($"Ошибка при обработке company_id {companyId}: {ex.Message}");
+                }
+            }
+        }
+
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход по company_ids завершён. {_statistics}");
     }
 
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
