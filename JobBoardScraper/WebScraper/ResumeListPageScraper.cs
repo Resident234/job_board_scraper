@@ -306,7 +306,7 @@ public sealed class ResumeListPageScraper : IDisposable
         _db.DatabaseConnectionClose(conn);
         
         var totalCompanyIds = companyIds.Count;
-        var orders = AppConfig.ResumeListCompanyIdsOrders.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var orders = AppConfig.ResumeListCompanyIdsOrders;
         
         _logger.WriteLine($"Загружено company_ids: {totalCompanyIds} шт., сортировок: {orders.Length}");
 
