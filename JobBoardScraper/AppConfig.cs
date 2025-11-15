@@ -386,6 +386,12 @@ public static class AppConfig
     public static string CompanyDetailCompanyIdRegex =>
         ConfigurationManager.AppSettings["CompanyDetail:CompanyIdRegex"] ?? "company_fav_button_(\\d+)";
 
+    public static string CompanyDetailAlternativeLinkSelector =>
+        ConfigurationManager.AppSettings["CompanyDetail:AlternativeLinkSelector"] ?? "a.row[href*='company_ids']";
+
+    public static string CompanyDetailAlternativeLinkRegex =>
+        ConfigurationManager.AppSettings["CompanyDetail:AlternativeLinkRegex"] ?? "company_ids%5B%5D=(\\d+)";
+
     public static string CompanyDetailPublicMemberSelector =>
         ConfigurationManager.AppSettings["CompanyDetail:PublicMemberSelector"] ?? "a.company-public-member";
 

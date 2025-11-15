@@ -16,6 +16,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Regex _companyIdRegex;
+    private readonly Regex _alternativeLinkRegex;
     private readonly Regex _employeesRegex;
     private readonly Regex _followersRegex;
     private readonly Models.ScraperStatistics _statistics;
@@ -32,6 +33,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _getCompanies = getCompanies ?? throw new ArgumentNullException(nameof(getCompanies));
         _interval = interval ?? TimeSpan.FromDays(30);
         _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
+        _alternativeLinkRegex = new Regex(AppConfig.CompanyDetailAlternativeLinkRegex, RegexOptions.Compiled);
         _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
         _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
         _statistics = new Models.ScraperStatistics("CompanyDetailScraper");
@@ -260,38 +262,54 @@ public sealed class CompanyDetailScraper : IDisposable
 
                 // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                 var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
+                long companyId = 0;
+                bool companyIdFound = false;
                 
-                if (favButton == null)
+                if (favButton != null)
                 {
-                    _logger.WriteLine($"Компания {code}: не найден элемент company_fav_button. Пропуск.");
-                    _statistics.IncrementSkipped();
-                    _statistics.IncrementProcessed();
-                    continue;
+                    var elementId = favButton.GetAttribute("id");
+                    if (!string.IsNullOrWhiteSpace(elementId))
+                    {
+                        // Извлекаем числовой ID из атрибута id
+                        var companyIdMatch = _companyIdRegex.Match(elementId);
+                        if (companyIdMatch.Success)
+                        {
+                            var companyIdStr = companyIdMatch.Groups[1].Value;
+                            if (long.TryParse(companyIdStr, out companyId))
+                            {
+                                companyIdFound = true;
+                                _logger.WriteLine($"Компания {code}: ID извлечен из company_fav_button: {companyId}");
+                            }
+                        }
+                    }
                 }
-
-                var elementId = favButton.GetAttribute("id");
-                if (string.IsNullOrWhiteSpace(elementId))
+                
+                // Если не нашли через company_fav_button, пробуем альтернативный способ
+                if (!companyIdFound)
                 {
-                    _logger.WriteLine($"Компания {code}: элемент найден, но id пустой. Пропуск.");
-                    _statistics.IncrementSkipped();
-                    _statistics.IncrementProcessed();
-                    continue;
+                    var alternativeLink = doc.QuerySelector(AppConfig.CompanyDetailAlternativeLinkSelector);
+                    if (alternativeLink != null)
+                    {
+                        var href = alternativeLink.GetAttribute("href");
+                        if (!string.IsNullOrWhiteSpace(href))
+                        {
+                            var altMatch = _alternativeLinkRegex.Match(href);
+                            if (altMatch.Success)
+                            {
+                                var companyIdStr = altMatch.Groups[1].Value;
+                                if (long.TryParse(companyIdStr, out companyId))
+                                {
+                                    companyIdFound = true;
+                                    _logger.WriteLine($"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
+                                }
+                            }
+                        }
+                    }
                 }
-
-                // Извлекаем числовой ID из атрибута id
-                var companyIdMatch = _companyIdRegex.Match(elementId);
-                if (!companyIdMatch.Success)
+                
+                if (!companyIdFound)
                 {
-                    _logger.WriteLine($"Компания {code}: не удалось извлечь ID из '{elementId}'. Пропуск.");
-                    _statistics.IncrementSkipped();
-                    _statistics.IncrementProcessed();
-                    continue;
-                }
-
-                var companyIdStr = companyIdMatch.Groups[1].Value;
-                if (!long.TryParse(companyIdStr, out var companyId))
-                {
-                    _logger.WriteLine($"Компания {code}: не удалось преобразовать '{companyIdStr}' в число. Пропуск.");
+                    _logger.WriteLine($"Компания {code}: не удалось извлечь company_id ни одним из способов. Пропуск.");
                     _statistics.IncrementSkipped();
                     _statistics.IncrementProcessed();
                     continue;
