@@ -296,10 +296,11 @@ public sealed class ResumeListPageScraper : IDisposable
         _logger.WriteLine($"Обход по qids завершён. {_statistics}");
     }
 
-    private async Task ScrapeCompanyIdsAsync(CancellationToken ct)
+    private async Task ScrapeCompanyIdsAsync(CancellationToken ct)//TODO для каждого таска префикс в консоль и лог выводить еще один
     {
         _logger.WriteLine("Начало обхода страниц по company_ids...");
         
+        //TODO прогресс не двигается
         // Получаем список company_id из БД
         using var conn = _db.DatabaseConnectionInit();
         var companyIds = _db.GetAllCompanyIds(conn);
@@ -353,6 +354,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     // Парсим профили на странице
                     var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
                     _statistics.AddItemsCollected(profilesFound);
+                    //TODO если найдено 0 профилей, то парсинг страницы с сортировкой пропускать 
 
                     _logger.WriteLine($"Company ID {companyId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
                 }
