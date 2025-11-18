@@ -40,7 +40,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
         _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
         _statistics = new Models.ScraperStatistics("CompanyDetailScraper");
-        
+
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация CompanyDetailScraper с режимом вывода: {outputMode}");
@@ -93,7 +93,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private async Task ScrapeAllCompanyDetailsAsync(CancellationToken ct)
     {
         _logger.WriteLine("Начало обхода детальных страниц компаний...");
-        
+
         // Получаем список компаний из БД
         var companies = _getCompanies();
         var totalCompanies = companies.Count;
@@ -111,17 +111,17 @@ public sealed class CompanyDetailScraper : IDisposable
             {
                 var (code, url) = company;
                 _activeRequests.TryAdd(code, Task.CompletedTask);
-                
+
                 try
                 {
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _controller.ReportLatency(sw.Elapsed);
-                    
+
                     _statistics.IncrementProcessed();
                     _statistics.UpdateActiveRequests(_activeRequests.Count);
-                    
+
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
                     Helper.Utils.ParallelScraperLogger.LogProgress(
                         _logger,
@@ -130,7 +130,7 @@ public sealed class CompanyDetailScraper : IDisposable
                         elapsedSeconds,
                         (int)response.StatusCode,
                         totalCompanies);
-                    
+
                     if (!response.IsSuccessStatusCode)
                     {
                         _statistics.IncrementSkipped();
@@ -139,22 +139,22 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     // Читаем HTML с правильной кодировкой
                     var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    
+
                     // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
                     var encoding = response.Content.Headers.ContentType?.CharSet != null
                         ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
                         : System.Text.Encoding.UTF8;
-                    
+
                     var html = encoding.GetString(htmlBytes);
-                    
+
                     // Сохраняем HTML в файл для отладки (только последнюю страницу)
                     var savedPath = await HtmlDebug.SaveHtmlAsync(
-                        html, 
-                        "CompanyDetailScraper", 
+                        html,
+                        "CompanyDetailScraper",
                         "last_page.html",
                         encoding: encoding,
                         ct: ct);
-                    
+
                     if (savedPath != null)
                     {
                         _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
@@ -168,7 +168,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     if (companyNameElement != null)
                     {
                         // Ищем ссылку внутри элемента
-                        var linkElement = companyNameElement.QuerySelector(AppConfig.CompanyDetailCompanyNameLinkSelector);
+                        var linkElement =
+                            companyNameElement.QuerySelector(AppConfig.CompanyDetailCompanyNameLinkSelector);
                         if (linkElement != null)
                         {
                             companyTitle = linkElement.TextContent?.Trim();
@@ -201,7 +202,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     var companySiteElement = doc.QuerySelector(AppConfig.CompanyDetailCompanySiteSelector);
                     if (companySiteElement != null)
                     {
-                        var siteLinkElement = companySiteElement.QuerySelector(AppConfig.CompanyDetailCompanySiteLinkSelector);
+                        var siteLinkElement =
+                            companySiteElement.QuerySelector(AppConfig.CompanyDetailCompanySiteLinkSelector);
                         if (siteLinkElement != null)
                         {
                             companySite = siteLinkElement.GetAttribute("href");
@@ -214,8 +216,9 @@ public sealed class CompanyDetailScraper : IDisposable
                     if (companyRatingElement != null)
                     {
                         var ratingText = companyRatingElement.TextContent?.Trim();
-                        if (!string.IsNullOrWhiteSpace(ratingText) && 
-                            decimal.TryParse(ratingText, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rating))
+                        if (!string.IsNullOrWhiteSpace(ratingText) &&
+                            decimal.TryParse(ratingText, System.Globalization.NumberStyles.Any,
+                                System.Globalization.CultureInfo.InvariantCulture, out var rating))
                         {
                             companyRating = rating;
                         }
@@ -227,7 +230,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     var employeesElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesSelector);
                     if (employeesElement != null)
                     {
-                        var countElement = employeesElement.QuerySelector(AppConfig.CompanyDetailEmployeesCountSelector);
+                        var countElement =
+                            employeesElement.QuerySelector(AppConfig.CompanyDetailEmployeesCountSelector);
                         if (countElement != null)
                         {
                             var countText = countElement.TextContent?.Trim();
@@ -240,6 +244,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                     {
                                         currentEmployees = current;
                                     }
+
                                     if (int.TryParse(employeesMatch.Groups[2].Value, out var past))
                                     {
                                         pastEmployees = past;
@@ -255,7 +260,8 @@ public sealed class CompanyDetailScraper : IDisposable
                     var followersElement = doc.QuerySelector(AppConfig.CompanyDetailFollowersSelector);
                     if (followersElement != null)
                     {
-                        var countElement = followersElement.QuerySelector(AppConfig.CompanyDetailFollowersCountSelector);
+                        var countElement =
+                            followersElement.QuerySelector(AppConfig.CompanyDetailFollowersCountSelector);
                         if (countElement != null)
                         {
                             var countText = countElement.TextContent?.Trim();
@@ -268,6 +274,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                     {
                                         followers = follower;
                                     }
+
                                     if (int.TryParse(followersMatch.Groups[2].Value, out var want))
                                     {
                                         wantWork = want;
@@ -281,7 +288,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
                     long companyId = 0;
                     bool companyIdFound = false;
-                    
+
                     if (favButton != null)
                     {
                         var elementId = favButton.GetAttribute("id");
@@ -295,12 +302,13 @@ public sealed class CompanyDetailScraper : IDisposable
                                 if (long.TryParse(companyIdStr, out companyId))
                                 {
                                     companyIdFound = true;
-                                    _logger.WriteLine($"Компания {code}: ID извлечен из company_fav_button: {companyId}");
+                                    _logger.WriteLine(
+                                        $"Компания {code}: ID извлечен из company_fav_button: {companyId}");
                                 }
                             }
                         }
                     }
-                    
+
                     // Если не нашли через company_fav_button, пробуем альтернативный способ
                     if (!companyIdFound)
                     {
@@ -317,16 +325,18 @@ public sealed class CompanyDetailScraper : IDisposable
                                     if (long.TryParse(companyIdStr, out companyId))
                                     {
                                         companyIdFound = true;
-                                        _logger.WriteLine($"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
+                                        _logger.WriteLine(
+                                            $"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
                                     }
                                 }
                             }
                         }
                     }
-                    
+
                     if (!companyIdFound)
                     {
-                        _logger.WriteLine($"Компания {code}: не удалось извлечь company_id ни одним из способов. Пропуск.");
+                        _logger.WriteLine(
+                            $"Компания {code}: не удалось извлечь company_id ни одним из способов. Пропуск.");
                         _statistics.IncrementSkipped();
                         return;
                     }
@@ -342,215 +352,223 @@ public sealed class CompanyDetailScraper : IDisposable
                     // Извлекаем контактных лиц компании
                     var publicMembers = doc.QuerySelectorAll(AppConfig.CompanyDetailPublicMemberSelector);
                     var memberCount = 0;
-                    var memberHrefRegex = new Regex(AppConfig.CompanyDetailPublicMemberHrefRegex, RegexOptions.Compiled);
-                    
-                    foreach (var member in publicMembers)
-                {
-                    try
-                    {
-                        // Извлекаем имя
-                        var nameElement = member.QuerySelector(AppConfig.CompanyDetailPublicMemberNameSelector);
-                        var memberName = nameElement?.TextContent?.Trim();
-                        
-                        // Извлекаем код из href
-                        var href = member.GetAttribute("href");
-                        if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(memberName))
-                            continue;
-                        
-                        var hrefMatch = memberHrefRegex.Match(href);
-                        if (!hrefMatch.Success)
-                            continue;
-                        
-                        var memberCode = hrefMatch.Groups[1].Value;
-                        
-                        // Формируем полную ссылку
-                        var memberLink = AppConfig.CompanyDetailPublicMemberBaseUrl + memberCode;
-                        
-                        // Сохраняем в БД (title = имя, code = код, link = полная ссылка)
-                        // Используем UpdateIfExists чтобы обновить title если запись уже существует
-                        _db.EnqueueResume(
-                            link: memberLink,
-                            title: memberName,
-                            slogan: null,
-                            mode: InsertMode.UpdateIfExists,
-                            code: memberCode,
-                            expert: null,
-                            workExperience: null
-                        );
-                        
-                        memberCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.WriteLine($"Ошибка при обработке контактного лица: {ex.Message}");
-                    }
-                }
-                
-                if (memberCount > 0)
-                {
-                    _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
-                }
+                    var memberHrefRegex =
+                        new Regex(AppConfig.CompanyDetailPublicMemberHrefRegex, RegexOptions.Compiled);
 
-                // Извлекаем сотрудников компании из списка
-                var employeeCount = 0;
-                var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
-                if (usersList != null)
-                {
-                    var userLinks = usersList.QuerySelectorAll(AppConfig.CompanyDetailUserLinkSelector);
-                    var userHrefRegex = new Regex(AppConfig.CompanyDetailUserHrefRegex, RegexOptions.Compiled);
-                    
-                    foreach (var userLink in userLinks)
+                    foreach (var member in publicMembers)
                     {
                         try
                         {
+                            // Извлекаем имя
+                            var nameElement = member.QuerySelector(AppConfig.CompanyDetailPublicMemberNameSelector);
+                            var memberName = nameElement?.TextContent?.Trim();
+
                             // Извлекаем код из href
-                            var href = userLink.GetAttribute("href");
-                            if (string.IsNullOrWhiteSpace(href))
+                            var href = member.GetAttribute("href");
+                            if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(memberName))
                                 continue;
-                            
-                            var hrefMatch = userHrefRegex.Match(href);
+
+                            var hrefMatch = memberHrefRegex.Match(href);
                             if (!hrefMatch.Success)
                                 continue;
-                            
-                            var userCode = hrefMatch.Groups[1].Value;
-                            
+
+                            var memberCode = hrefMatch.Groups[1].Value;
+
                             // Формируем полную ссылку
-                            var userFullLink = AppConfig.CompanyDetailUserBaseUrl + userCode;
-                            
-                            // Сохраняем в БД (code = код, link = полная ссылка, без title)
-                            // Используем SkipIfExists чтобы не дублировать записи
+                            var memberLink = AppConfig.CompanyDetailPublicMemberBaseUrl + memberCode;
+
+                            // Сохраняем в БД (title = имя, code = код, link = полная ссылка)
+                            // Используем UpdateIfExists чтобы обновить title если запись уже существует
                             _db.EnqueueResume(
-                                link: userFullLink,
-                                title: "", // Не сохраняем title для сотрудников
+                                link: memberLink,
+                                title: memberName,
                                 slogan: null,
-                                mode: InsertMode.SkipIfExists,
-                                code: userCode,
+                                mode: InsertMode.UpdateIfExists,
+                                code: memberCode,
                                 expert: null,
                                 workExperience: null
                             );
-                            
-                            employeeCount++;
+
+                            memberCount++;
                         }
                         catch (Exception ex)
                         {
-                            _logger.WriteLine($"Ошибка при обработке сотрудника: {ex.Message}");
+                            _logger.WriteLine($"Ошибка при обработке контактного лица: {ex.Message}");
                         }
                     }
-                }
-                
-                if (employeeCount > 0)
-                {
-                    _logger.WriteLine($"Найдено сотрудников: {employeeCount}");
-                }
 
-                // Извлекаем связанные компании из списка
-                var relatedCompanyCount = 0;
-                var inlineCompaniesList = doc.QuerySelector(AppConfig.CompanyDetailInlineCompaniesListSelector);
-                if (inlineCompaniesList != null)
-                {
-                    var companyItems = inlineCompaniesList.QuerySelectorAll(AppConfig.CompanyDetailCompanyItemSelector);
-                    var companyHrefRegex = new Regex(AppConfig.CompanyDetailCompanyHrefRegex, RegexOptions.Compiled);
-                    
-                    foreach (var companyItem in companyItems)
+                    if (memberCount > 0)
                     {
-                        try
-                        {
-                            // Извлекаем название компании и ссылку
-                            var titleLink = companyItem.QuerySelector(AppConfig.CompanyDetailCompanyTitleLinkSelector);
-                            if (titleLink == null)
-                                continue;
-                            
-                            var companyName = titleLink.TextContent?.Trim();
-                            var href = titleLink.GetAttribute("href");
-                            
-                            if (string.IsNullOrWhiteSpace(href))
-                                continue;
-                            
-                            var hrefMatch = companyHrefRegex.Match(href);
-                            if (!hrefMatch.Success)
-                                continue;
-                            
-                            var companyCode = hrefMatch.Groups[1].Value;
-                            
-                            // Формируем полную ссылку
-                            var companyUrl = AppConfig.CompanyDetailCompanyBaseUrl + companyCode;
-                            
-                            // Сохраняем в БД (code = код, url = полная ссылка, title = название)
-                            _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);
-                            
-                            relatedCompanyCount++;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.WriteLine($"Ошибка при обработке связанной компании: {ex.Message}");
-                        }
+                        _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
                     }
-                }
-                
-                if (relatedCompanyCount > 0)
-                {
-                    _logger.WriteLine($"Найдено связанных компаний: {relatedCompanyCount}");
-                }
 
-                // Извлекаем навыки компании
-                var skills = new List<string>();
-                var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
-                if (skillsContainer != null)
-                {
-                    var skillElements = skillsContainer.QuerySelectorAll(AppConfig.CompanyDetailSkillSelector);
-                    foreach (var skillElement in skillElements)
+                    // Извлекаем сотрудников компании из списка
+                    var employeeCount = 0;
+                    var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
+                    if (usersList != null)
                     {
-                        var skillTitle = skillElement.TextContent?.Trim();
-                        if (!string.IsNullOrWhiteSpace(skillTitle))
+                        var userLinks = usersList.QuerySelectorAll(AppConfig.CompanyDetailUserLinkSelector);
+                        var userHrefRegex = new Regex(AppConfig.CompanyDetailUserHrefRegex, RegexOptions.Compiled);
+
+                        foreach (var userLink in userLinks)
                         {
-                            skills.Add(skillTitle);
+                            try
+                            {
+                                // Извлекаем код из href
+                                var href = userLink.GetAttribute("href");
+                                if (string.IsNullOrWhiteSpace(href))
+                                    continue;
+
+                                var hrefMatch = userHrefRegex.Match(href);
+                                if (!hrefMatch.Success)
+                                    continue;
+
+                                var userCode = hrefMatch.Groups[1].Value;
+
+                                // Формируем полную ссылку
+                                var userFullLink = AppConfig.CompanyDetailUserBaseUrl + userCode;
+
+                                // Сохраняем в БД (code = код, link = полная ссылка, без title)
+                                // Используем SkipIfExists чтобы не дублировать записи
+                                _db.EnqueueResume(
+                                    link: userFullLink,
+                                    title: "", // Не сохраняем title для сотрудников
+                                    slogan: null,
+                                    mode: InsertMode.SkipIfExists,
+                                    code: userCode,
+                                    expert: null,
+                                    workExperience: null
+                                );
+
+                                employeeCount++;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.WriteLine($"Ошибка при обработке сотрудника: {ex.Message}");
+                            }
                         }
                     }
-                }
 
-                if (skills.Count > 0)
-                {
-                    _logger.WriteLine($"Найдено навыков: {skills.Count}");
-                    _db.EnqueueCompanySkills(code, skills);
-                }
-
-                // Проверяем, ведет ли компания блог на Хабре
-                bool? habr = null;
-                var allDivs = doc.QuerySelectorAll("div.title");
-                foreach (var div in allDivs)
-                {
-                    var divText = div.TextContent?.Trim();
-                    if (divText == AppConfig.CompanyDetailHabrBlogText)
+                    if (employeeCount > 0)
                     {
-                        habr = true;
-                        _logger.WriteLine($"Компания ведет блог на Хабре");
-                        break;
+                        _logger.WriteLine($"Найдено сотрудников: {employeeCount}");
                     }
-                }
 
-                // Сохраняем company_id, title, about, description, site, rating, employees, followers, employees_count и habr в БД
-                _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription, companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork, employeesCount, habr);
-                
-                // Детальный вывод всех спарсенных данных
-                _logger.WriteLine($"=== Компания {code} ===");
-                _logger.WriteLine($"  Company ID: {companyId}");
-                _logger.WriteLine($"  Название: {companyTitle ?? "(не найдено)"}");
-                _logger.WriteLine($"  Описание (about): {(companyAbout != null ? (companyAbout.Length > 100 ? companyAbout.Substring(0, 100) + "..." : companyAbout) : "(не найдено)")}");
-                _logger.WriteLine($"  Детальное описание: {(companyDescription != null ? (companyDescription.Length > 100 ? companyDescription.Substring(0, 100) + "..." : companyDescription) : "(не найдено)")}");
-                _logger.WriteLine($"  Сайт: {companySite ?? "(не найдено)"}");
-                _logger.WriteLine($"  Рейтинг: {companyRating?.ToString("F2") ?? "(не найдено)"}");
-                _logger.WriteLine($"  Текущие сотрудники: {currentEmployees?.ToString() ?? "(не найдено)"}");
-                _logger.WriteLine($"  Все сотрудники: {pastEmployees?.ToString() ?? "(не найдено)"}");
-                _logger.WriteLine($"  Подписчики: {followers?.ToString() ?? "(не найдено)"}");
-                _logger.WriteLine($"  Хотят работать: {wantWork?.ToString() ?? "(не найдено)"}");
-                _logger.WriteLine($"  Размер компании: {employeesCount ?? "(не найдено)"}");
-                _logger.WriteLine($"  Блог на Хабре: {(habr == true ? "Да" : "Нет")}");
-                _logger.WriteLine($"  Навыков: {skills.Count}");
-                _logger.WriteLine($"  Контактных лиц: {memberCount}");
-                _logger.WriteLine($"  Сотрудников в списке: {employeeCount}");
-                _logger.WriteLine($"  Связанных компаний: {relatedCompanyCount}");
-                
-                _statistics.IncrementSuccess();
+                    // Извлекаем связанные компании из списка
+                    var relatedCompanyCount = 0;
+                    var inlineCompaniesList = doc.QuerySelector(AppConfig.CompanyDetailInlineCompaniesListSelector);
+                    if (inlineCompaniesList != null)
+                    {
+                        var companyItems =
+                            inlineCompaniesList.QuerySelectorAll(AppConfig.CompanyDetailCompanyItemSelector);
+                        var companyHrefRegex =
+                            new Regex(AppConfig.CompanyDetailCompanyHrefRegex, RegexOptions.Compiled);
+
+                        foreach (var companyItem in companyItems)
+                        {
+                            try
+                            {
+                                // Извлекаем название компании и ссылку
+                                var titleLink =
+                                    companyItem.QuerySelector(AppConfig.CompanyDetailCompanyTitleLinkSelector);
+                                if (titleLink == null)
+                                    continue;
+
+                                var companyName = titleLink.TextContent?.Trim();
+                                var href = titleLink.GetAttribute("href");
+
+                                if (string.IsNullOrWhiteSpace(href))
+                                    continue;
+
+                                var hrefMatch = companyHrefRegex.Match(href);
+                                if (!hrefMatch.Success)
+                                    continue;
+
+                                var companyCode = hrefMatch.Groups[1].Value;
+
+                                // Формируем полную ссылку
+                                var companyUrl = AppConfig.CompanyDetailCompanyBaseUrl + companyCode;
+
+                                // Сохраняем в БД (code = код, url = полная ссылка, title = название)
+                                _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);
+
+                                relatedCompanyCount++;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.WriteLine($"Ошибка при обработке связанной компании: {ex.Message}");
+                            }
+                        }
+                    }
+
+                    if (relatedCompanyCount > 0)
+                    {
+                        _logger.WriteLine($"Найдено связанных компаний: {relatedCompanyCount}");
+                    }
+
+                    // Извлекаем навыки компании
+                    var skills = new List<string>();
+                    var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
+                    if (skillsContainer != null)
+                    {
+                        var skillElements = skillsContainer.QuerySelectorAll(AppConfig.CompanyDetailSkillSelector);
+                        foreach (var skillElement in skillElements)
+                        {
+                            var skillTitle = skillElement.TextContent?.Trim();
+                            if (!string.IsNullOrWhiteSpace(skillTitle))
+                            {
+                                skills.Add(skillTitle);
+                            }
+                        }
+                    }
+
+                    if (skills.Count > 0)
+                    {
+                        _logger.WriteLine($"Найдено навыков: {skills.Count}");
+                        _db.EnqueueCompanySkills(code, skills);
+                    }
+
+                    // Проверяем, ведет ли компания блог на Хабре
+                    bool? habr = null;
+                    var allDivs = doc.QuerySelectorAll("div.title");
+                    foreach (var div in allDivs)
+                    {
+                        var divText = div.TextContent?.Trim();
+                        if (divText == AppConfig.CompanyDetailHabrBlogText)
+                        {
+                            habr = true;
+                            _logger.WriteLine($"Компания ведет блог на Хабре");
+                            break;
+                        }
+                    }
+
+                    // Сохраняем company_id, title, about, description, site, rating, employees, followers, employees_count и habr в БД
+                    _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription,
+                        companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
+                        employeesCount, habr);
+
+                    // Детальный вывод всех спарсенных данных
+                    _logger.WriteLine($"=== Компания {code} ===");
+                    _logger.WriteLine($"  Company ID: {companyId}");
+                    _logger.WriteLine($"  Название: {companyTitle ?? "(не найдено)"}");
+                    _logger.WriteLine(
+                        $"  Описание (about): {(companyAbout != null ? (companyAbout.Length > 100 ? companyAbout.Substring(0, 100) + "..." : companyAbout) : "(не найдено)")}");
+                    _logger.WriteLine(
+                        $"  Детальное описание: {(companyDescription != null ? (companyDescription.Length > 100 ? companyDescription.Substring(0, 100) + "..." : companyDescription) : "(не найдено)")}");
+                    _logger.WriteLine($"  Сайт: {companySite ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Рейтинг: {companyRating?.ToString("F2") ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Текущие сотрудники: {currentEmployees?.ToString() ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Все сотрудники: {pastEmployees?.ToString() ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Подписчики: {followers?.ToString() ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Хотят работать: {wantWork?.ToString() ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Размер компании: {employeesCount ?? "(не найдено)"}");
+                    _logger.WriteLine($"  Блог на Хабре: {(habr == true ? "Да" : "Нет")}");
+                    _logger.WriteLine($"  Навыков: {skills.Count}");
+                    _logger.WriteLine($"  Контактных лиц: {memberCount}");
+                    _logger.WriteLine($"  Сотрудников в списке: {employeeCount}");
+                    _logger.WriteLine($"  Связанных компаний: {relatedCompanyCount}");
+
+                    _statistics.IncrementSuccess();
                 }
                 catch (Exception ex)
                 {
@@ -565,7 +583,7 @@ public sealed class CompanyDetailScraper : IDisposable
             controller: _controller,
             ct: ct
         );
-        
+
         _statistics.EndTime = DateTime.Now;
         _logger.WriteLine($"Обход завершён. {_statistics}");
     }
