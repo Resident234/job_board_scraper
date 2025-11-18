@@ -245,6 +245,7 @@ class Program
                 companyDetailHttpClient,
                 db,
                 getCompanies: () => db.GetAllCompaniesWithUrls(conn),
+                controller: controller,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.CompanyDetailOutputMode);
 

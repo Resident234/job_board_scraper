@@ -118,13 +118,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                 
                 Helper.Utils.ParallelScraperLogger.LogProgress(
                     _logger,
-                    "UserResumeDetailScraper",
+                    _statistics,
                     userLink,
                     elapsedSeconds,
                     (int)response.StatusCode,
-                    _statistics.TotalProcessed,
-                    totalLinks,
-                    _activeRequests.Count);
+                    totalLinks);
                 
                 if (!response.IsSuccessStatusCode)
                 {

@@ -138,13 +138,11 @@ public sealed class UserProfileScraper : IDisposable
                     
                     Helper.Utils.ParallelScraperLogger.LogProgress(
                         _logger,
-                        "UserProfileScraper",
+                        _statistics,
                         friendsUrl,
                         elapsedSeconds,
                         (int)response.StatusCode,
-                        _statistics.TotalProcessed,
-                        totalLinks,
-                        _activeRequests.Count);
+                        totalLinks);
                     
                     if (!response.IsSuccessStatusCode)
                     {

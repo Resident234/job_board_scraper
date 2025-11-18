@@ -127,13 +127,11 @@ public sealed class UserFriendsScraper : IDisposable
                         
                         Helper.Utils.ParallelScraperLogger.LogProgress(
                             _logger,
-                            "UserFriendsScraper",
+                            _statistics,
                             friendsUrl,
                             elapsedSeconds,
                             (int)response.StatusCode,
-                            _statistics.TotalProcessed,
-                            totalLinks,
-                            _activeRequests.Count);
+                            totalLinks);
                     }
                     else
                     {

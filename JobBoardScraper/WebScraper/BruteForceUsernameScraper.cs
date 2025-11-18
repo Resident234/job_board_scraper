@@ -105,13 +105,11 @@ public sealed class BruteForceUsernameScraper
                         
                         Helper.Utils.ParallelScraperLogger.LogProgress(
                             _logger,
-                            "BruteForceScraper",
+                            _statistics,
                             link,
                             elapsedSeconds,
                             (int)result.StatusCode,
-                            _statistics.TotalProcessed,
-                            totalLinks,
-                            _activeRequests.Count);
+                            totalLinks);
 
                         if (result.IsNotFound)
                             return;
