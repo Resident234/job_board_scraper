@@ -44,6 +44,8 @@ class Program
 
         // Создаем логгер для DatabaseClient
         var dbLogger = new Helper.ConsoleHelper.ConsoleLogger("DatabaseClient");
+        dbLogger.SetOutputMode(AppConfig.DatabaseClientOutputMode);
+        Console.WriteLine($"[Program] DatabaseClient: Режим вывода логов - {AppConfig.DatabaseClientOutputMode}");
         
         var db = new DatabaseClient(AppConfig.ConnectionString, dbLogger);
         using var conn = db.DatabaseConnectionInit();

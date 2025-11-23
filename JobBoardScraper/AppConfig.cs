@@ -40,6 +40,16 @@ public static class AppConfig
             ? value
             : true;
 
+    // Настройки для DatabaseClient
+    public static OutputMode DatabaseClientOutputMode
+    {
+        get
+        {
+            var modeStr = ConfigurationManager.AppSettings["DatabaseClient:OutputMode"];
+            return Enum.TryParse<OutputMode>(modeStr, out var mode) ? mode : OutputMode.Both;
+        }
+    }
+
     // Настройки для CompanyListScraper
     public static bool CompaniesEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["Companies:Enabled"], out var value) && value;

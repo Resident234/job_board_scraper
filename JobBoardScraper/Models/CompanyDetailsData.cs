@@ -4,7 +4,8 @@ namespace JobBoardScraper.Models;
 /// Структура для хранения детальных данных компании
 /// </summary>
 public readonly record struct CompanyDetailsData(
-    long CompanyId,
+    string Url,
+    long? CompanyId,
     string? Title,
     string? About,
     string? Description,

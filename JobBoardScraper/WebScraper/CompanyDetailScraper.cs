@@ -286,7 +286,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     // Ищем элемент с id="company_fav_button_XXXXXXXXXX"
                     var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
-                    long companyId = 0;
+                    long? companyId = null;
                     bool companyIdFound = false;
 
                     if (favButton != null)
@@ -299,8 +299,9 @@ public sealed class CompanyDetailScraper : IDisposable
                             if (companyIdMatch.Success)
                             {
                                 var companyIdStr = companyIdMatch.Groups[1].Value;
-                                if (long.TryParse(companyIdStr, out companyId))
+                                if (long.TryParse(companyIdStr, out var parsedId))
                                 {
+                                    companyId = parsedId;
                                     companyIdFound = true;
                                     _logger.WriteLine(
                                         $"Компания {code}: ID извлечен из company_fav_button: {companyId}");
@@ -322,8 +323,9 @@ public sealed class CompanyDetailScraper : IDisposable
                                 if (altMatch.Success)
                                 {
                                     var companyIdStr = altMatch.Groups[1].Value;
-                                    if (long.TryParse(companyIdStr, out companyId))
+                                    if (long.TryParse(companyIdStr, out var parsedId))
                                     {
+                                        companyId = parsedId;
                                         companyIdFound = true;
                                         _logger.WriteLine(
                                             $"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
@@ -542,8 +544,8 @@ public sealed class CompanyDetailScraper : IDisposable
                         }
                     }
 
-                    // Сохраняем company_id, title, about, description, site, rating, employees, followers, employees_count и habr в БД
-                    _db.EnqueueCompanyDetails(code, companyId, companyTitle, companyAbout, companyDescription,
+                    // Сохраняем company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в БД
+                    _db.EnqueueCompanyDetails(code, url, companyId, companyTitle, companyAbout, companyDescription,
                         companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
                         employeesCount, habr);
 

@@ -177,9 +177,44 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Log($"Записано в БД: {rowsAffected} строка, {link} | {title}" +
-                                  (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                                  (expert == true ? " | ЭКСПЕРТ" : ""));
+                
+                // Подробное логирование
+                var logParts = new List<string> { $"[DB] Resume {link}:" };
+                
+                if (title != null)
+                    logParts.Add($"Title={title}");
+                
+                if (!string.IsNullOrWhiteSpace(slogan))
+                    logParts.Add($"Slogan={slogan}");
+                
+                if (code != null)
+                    logParts.Add($"Code={code}");
+                
+                if (expert == true)
+                    logParts.Add("Expert=✓");
+                
+                if (workExperience != null)
+                    logParts.Add($"Experience={workExperience}");
+                
+                if (levelId.HasValue)
+                    logParts.Add($"LevelID={levelId.Value}");
+                
+                if (infoTech != null)
+                    logParts.Add($"InfoTech={infoTech}");
+                
+                if (salary.HasValue)
+                    logParts.Add($"Salary={salary.Value}");
+                
+                if (lastVisit != null)
+                    logParts.Add($"LastVisit={lastVisit}");
+                
+                if (isPublic.HasValue)
+                    logParts.Add($"Public={isPublic.Value}");
+                
+                logParts.Add($"RowsAffected={rowsAffected}");
+                logParts.Add("✓ Записано");
+                
+                Log(string.Join(" | ", logParts));
             }
             else // UpdateIfExists
             {
@@ -212,9 +247,44 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
-                Log($"Записано/обновлено в БД: {link} | {title}" +
-                                  (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                                  (expert == true ? " | ЭКСПЕРТ" : ""));
+                
+                // Подробное логирование
+                var logParts = new List<string> { $"[DB] Resume {link}:" };
+                
+                if (title != null)
+                    logParts.Add($"Title={title}");
+                
+                if (!string.IsNullOrWhiteSpace(slogan))
+                    logParts.Add($"Slogan={slogan}");
+                
+                if (code != null)
+                    logParts.Add($"Code={code}");
+                
+                if (expert == true)
+                    logParts.Add("Expert=✓");
+                
+                if (workExperience != null)
+                    logParts.Add($"Experience={workExperience}");
+                
+                if (levelId.HasValue)
+                    logParts.Add($"LevelID={levelId.Value}");
+                
+                if (infoTech != null)
+                    logParts.Add($"InfoTech={infoTech}");
+                
+                if (salary.HasValue)
+                    logParts.Add($"Salary={salary.Value}");
+                
+                if (lastVisit != null)
+                    logParts.Add($"LastVisit={lastVisit}");
+                
+                if (isPublic.HasValue)
+                    logParts.Add($"Public={isPublic.Value}");
+                
+                logParts.Add($"RowsAffected={rowsAffected}");
+                logParts.Add("✓ Записано/Обновлено");
+                
+                Log(string.Join(" | ", logParts));
             }
         }
         catch (PostgresException pgEx) when
@@ -307,8 +377,24 @@ public sealed class DatabaseClient
             cmd.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
 
             int rowsAffected = cmd.ExecuteNonQuery();
-            Log($"[DB] Записано в БД (companies): {companyCode} -> {companyUrl}" +
-                              (companyTitle != null ? $" | {companyTitle}" : ""));
+            
+            // Подробное логирование
+            var logParts = new List<string>
+            {
+                $"[DB] Компания {companyCode}:",
+                $"URL={companyUrl}"
+            };
+            
+            if (companyTitle != null)
+                logParts.Add($"Title={companyTitle}");
+            
+            if (companyId.HasValue)
+                logParts.Add($"CompanyID={companyId.Value}");
+            
+            logParts.Add($"RowsAffected={rowsAffected}");
+            logParts.Add(rowsAffected > 0 ? "✓ Записано/Обновлено" : "⚠ Не изменено");
+            
+            Log(string.Join(" | ", logParts));
         }
         catch (NpgsqlException dbEx)
         {
@@ -473,6 +559,7 @@ public sealed class DatabaseClient
                                 DatabaseUpdateCompanyDetails(
                                     conn,
                                     companyCode: record.PrimaryValue,
+                                    companyUrl: details.Url,
                                     companyId: details.CompanyId,
                                     companyTitle: details.Title,
                                     companyAbout: details.About,
@@ -875,9 +962,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
+    /// Добавить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
     /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, long companyId, string? companyTitle,
+    public bool EnqueueCompanyDetails(string companyCode, string companyUrl, long? companyId, string? companyTitle,
         string? companyAbout = null, string? companyDescription = null, string? companySite = null,
         decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null,
         int? wantWork = null, string? employeesCount = null, bool? habr = null)
@@ -886,6 +973,7 @@ public sealed class DatabaseClient
 
         // Создаём структуру с данными компании
         var companyDetails = new CompanyDetailsData(
+            Url: companyUrl,
             CompanyId: companyId,
             Title: companyTitle,
             About: companyAbout,
@@ -958,9 +1046,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить company_id, title, about, description, site, rating, employees, followers, employees_count и habr для компании
+    /// Обновить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, long companyId,
+    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
         string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
         decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
         string? employeesCount, bool? habr)
@@ -974,24 +1062,30 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_companies 
-                SET company_id = @company_id, 
-                    title = COALESCE(@title, title),
-                    about = COALESCE(@about, about),
-                    description = COALESCE(@description, description),
-                    site = COALESCE(@site, site),
-                    rating = COALESCE(@rating, rating),
-                    current_employees = COALESCE(@current_employees, current_employees),
-                    past_employees = COALESCE(@past_employees, past_employees),
-                    followers = COALESCE(@followers, followers),
-                    want_work = COALESCE(@want_work, want_work),
-                    employees_count = COALESCE(@employees_count, employees_count),
-                    habr = COALESCE(@habr, habr),
-                    updated_at = NOW()
-                WHERE code = @code", conn);
+                INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating, 
+                    current_employees, past_employees, followers, want_work, employees_count, habr, created_at, updated_at)
+                VALUES (@code, @url, @company_id, @title, @about, @description, @site, @rating, 
+                    @current_employees, @past_employees, @followers, @want_work, @employees_count, @habr, NOW(), NOW())
+                ON CONFLICT (code) 
+                DO UPDATE SET 
+                    url = EXCLUDED.url,
+                    company_id = EXCLUDED.company_id,
+                    title = COALESCE(EXCLUDED.title, habr_companies.title),
+                    about = COALESCE(EXCLUDED.about, habr_companies.about),
+                    description = COALESCE(EXCLUDED.description, habr_companies.description),
+                    site = COALESCE(EXCLUDED.site, habr_companies.site),
+                    rating = COALESCE(EXCLUDED.rating, habr_companies.rating),
+                    current_employees = COALESCE(EXCLUDED.current_employees, habr_companies.current_employees),
+                    past_employees = COALESCE(EXCLUDED.past_employees, habr_companies.past_employees),
+                    followers = COALESCE(EXCLUDED.followers, habr_companies.followers),
+                    want_work = COALESCE(EXCLUDED.want_work, habr_companies.want_work),
+                    employees_count = COALESCE(EXCLUDED.employees_count, habr_companies.employees_count),
+                    habr = COALESCE(EXCLUDED.habr, habr_companies.habr),
+                    updated_at = NOW()", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
-            cmd.Parameters.AddWithValue("@company_id", companyId);
+            cmd.Parameters.AddWithValue("@url", companyUrl);
+            cmd.Parameters.AddWithValue("@company_id", companyId.HasValue ? (object)companyId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@description", companyDescription ?? (object)DBNull.Value);
@@ -1009,16 +1103,51 @@ public sealed class DatabaseClient
 
             int rowsAffected = cmd.ExecuteNonQuery();
 
-            if (rowsAffected > 0)
+            // Подробное логирование
+            var logParts = new List<string> { $"[DB] CompanyDetails {companyCode}:" };
+            
+            if (companyId.HasValue)
+                logParts.Add($"CompanyID={companyId.Value}");
+            
+            logParts.Add($"URL={companyUrl}");
+            
+            if (companyTitle != null)
+                logParts.Add($"Title={companyTitle}");
+            
+            if (companyAbout != null)
             {
-                var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout.Length)) ?? "";
-                Log(
-                    $"[DB] Обновлены данные для {companyCode}: ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
+                var aboutPreview = companyAbout.Length > 50 ? companyAbout.Substring(0, 50) + "..." : companyAbout;
+                logParts.Add($"About={aboutPreview}");
             }
-            else
+            
+            if (companyDescription != null)
             {
-                Log($"[DB] Компания {companyCode} не найдена в БД.");
+                var descPreview = companyDescription.Length > 50 ? companyDescription.Substring(0, 50) + "..." : companyDescription;
+                logParts.Add($"Description={descPreview}");
             }
+            
+            if (companySite != null)
+                logParts.Add($"Site={companySite}");
+            
+            if (companyRating.HasValue)
+                logParts.Add($"Rating={companyRating.Value:F2}");
+            
+            if (currentEmployees.HasValue || pastEmployees.HasValue)
+                logParts.Add($"Employees={currentEmployees?.ToString() ?? "?"}/{pastEmployees?.ToString() ?? "?"}");
+            
+            if (followers.HasValue || wantWork.HasValue)
+                logParts.Add($"Followers={followers?.ToString() ?? "?"}/{wantWork?.ToString() ?? "?"}");
+            
+            if (employeesCount != null)
+                logParts.Add($"Size={employeesCount}");
+            
+            if (habr.HasValue)
+                logParts.Add($"Habr={habr.Value}");
+            
+            logParts.Add($"RowsAffected={rowsAffected}");
+            logParts.Add(rowsAffected > 0 ? "✓ Записано/Обновлено" : "⚠ Не найдено");
+            
+            Log(string.Join(" | ", logParts));
         }
         catch (NpgsqlException dbEx)
         {
