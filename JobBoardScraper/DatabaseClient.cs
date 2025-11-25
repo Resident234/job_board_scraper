@@ -368,8 +368,8 @@ public sealed class DatabaseClient
                 DO UPDATE SET 
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
-                    company_id = EXCLUDED.company_id,
-                    updated_at = NOW()", conn); //TODO при записи в конфоль все значения полей выводить, которые непустые
+                    company_id = COALESCE(EXCLUDED.company_id, habr_companies.company_id),
+                    updated_at = NOW()", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
