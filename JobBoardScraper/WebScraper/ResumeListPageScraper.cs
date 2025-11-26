@@ -296,11 +296,10 @@ public sealed class ResumeListPageScraper : IDisposable
         _logger.WriteLine($"Обход по qids завершён. {_statistics}");
     }
 
-    private async Task ScrapeCompanyIdsAsync(CancellationToken ct)//TODO для каждого таска префикс в консоль и лог выводить еще один
+    private async Task ScrapeCompanyIdsAsync(CancellationToken ct)
     {
         _logger.WriteLine("Начало обхода страниц по company_ids...");
         
-        //TODO прогресс не двигается
         // Получаем список company_id из БД
         using var conn = _db.DatabaseConnectionInit();
         var companyIds = _db.GetAllCompanyIds(conn);
@@ -309,7 +308,10 @@ public sealed class ResumeListPageScraper : IDisposable
         var totalCompanyIds = companyIds.Count;
         var orders = AppConfig.ResumeListCompanyIdsOrders;
         
-        _logger.WriteLine($"Загружено company_ids: {totalCompanyIds} шт., сортировок: {orders.Length}");
+        // Два варианта: с current_company и без
+        var currentCompanyVariants = new[] { "", "&current_company=1" };
+        
+        _logger.WriteLine($"Загружено company_ids: {totalCompanyIds} шт., сортировок: {orders.Length}, вариантов current_company: {currentCompanyVariants.Length}");
 
         if (totalCompanyIds == 0)
         {
@@ -321,46 +323,60 @@ public sealed class ResumeListPageScraper : IDisposable
         {
             if (ct.IsCancellationRequested) break;
 
-            foreach (var order in orders)
+            foreach (var currentCompanyParam in currentCompanyVariants)
             {
                 if (ct.IsCancellationRequested) break;
 
-                try
+                foreach (var order in orders)
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListCompanyIdsUrlTemplate, companyId);
-                    var url = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                    
-                    var sw = System.Diagnostics.Stopwatch.StartNew();
-                    var response = await _httpClient.GetAsync(url, ct);
-                    sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    if (ct.IsCancellationRequested) break;
 
-                    if (string.IsNullOrWhiteSpace(order))
+                    try
                     {
-                        _statistics.IncrementProcessed();
-                    }
-                    var percent = _statistics.TotalProcessed * 100.0 / totalCompanyIds;
+                        // Формируем базовый URL без current_company из шаблона
+                        var baseUrlTemplate = AppConfig.ResumeListCompanyIdsUrlTemplate.Replace("&current_company=1", "");
+                        var baseUrl = string.Format(baseUrlTemplate, companyId);
+                        
+                        // Добавляем current_company если нужно
+                        var urlWithCompany = baseUrl + currentCompanyParam;
+                        
+                        // Добавляем сортировку если указана
+                        var url = string.IsNullOrWhiteSpace(order) ? urlWithCompany : $"{urlWithCompany}&order={order}";
+                        
+                        var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam) ? "" : " (current_company=1)";
+                        var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
+                        
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var response = await _httpClient.GetAsync(url, ct);
+                        sw.Stop();
+                        _controller.ReportLatency(sw.Elapsed);
 
-                    if (!response.IsSuccessStatusCode)
+                        // Считаем прогресс только для первой комбинации (без сортировки и без current_company)
+                        if (string.IsNullOrWhiteSpace(order) && string.IsNullOrWhiteSpace(currentCompanyParam))
+                        {
+                            _statistics.IncrementProcessed();
+                        }
+                        var percent = _statistics.TotalProcessed * 100.0 / totalCompanyIds;
+
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            _logger.WriteLine($"Company ID {companyId}{currentCompanyDesc}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
+                            continue;
+                        }
+
+                        var html = await response.Content.ReadAsStringAsync(ct);
+                        var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+                        // Парсим профили на странице
+                        var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                        _statistics.AddItemsCollected(profilesFound);
+
+                        _logger.WriteLine($"Company ID {companyId}{currentCompanyDesc}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
+                    }
+                    catch (Exception ex)
                     {
-                        _logger.WriteLine($"Company ID {companyId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
-                        continue;
+                        _logger.WriteLine($"Ошибка при обработке company_id {companyId}: {ex.Message}");
                     }
-
-                    var html = await response.Content.ReadAsStringAsync(ct);
-                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                    // Парсим профили на странице
-                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
-                    _statistics.AddItemsCollected(profilesFound);
-                    //TODO если найдено 0 профилей, то парсинг страницы с сортировкой пропускать 
-
-                    _logger.WriteLine($"Company ID {companyId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {_statistics.TotalProcessed}/{totalCompanyIds} ({percent:F2}%)");
-                }
-                catch (Exception ex)
-                {
-                    _logger.WriteLine($"Ошибка при обработке company_id {companyId}: {ex.Message}");
                 }
             }
         }
