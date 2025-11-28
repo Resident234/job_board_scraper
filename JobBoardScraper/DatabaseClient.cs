@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
 using JobBoardScraper.Models;
+using JobBoardScraper.WebScraper;
 
 namespace JobBoardScraper;
 
@@ -16,6 +17,7 @@ public enum DbRecordType
     CompanyId,
     CompanyDetails,
     CompanySkills,
+    CompanyRating,
     UserProfile,
     UserAbout,
     UserSkills,
@@ -49,6 +51,7 @@ public readonly record struct DbRecord(
     string? WorkExperience = null,
     long? CompanyId = null,
     CompanyDetailsData? CompanyDetails = null,
+    CompanyRatingData? CompanyRating = null,
     List<string>? Skills = null,
     UserProfileData? UserProfile = null,
     UserExperienceData? UserExperience = null);
@@ -647,6 +650,12 @@ public sealed class DatabaseClient
                             if (record.UserExperience != null)
                             {
                                 DatabaseInsertUserExperience(conn, record.UserExperience);
+                            }
+                            break;
+                        case DbRecordType.CompanyRating:
+                            if (record.CompanyRating != null)
+                            {
+                                DatabaseInsertOrUpdateCompanyRating(conn, record.CompanyRating);
                             }
                             break;
                         }
@@ -1837,4 +1846,151 @@ public sealed class DatabaseClient
             Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Добавить данные рейтинга компании в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompanyRating(CompanyRatingData ratingData)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyRating,
+            PrimaryValue: ratingData.Code,
+            SecondaryValue: "", 
+            CompanyRating: ratingData
+        );
+        _saveQueue.Enqueue(record);
+
+        Log($"[DB Queue] CompanyRating: {ratingData.Code} -> Title={ratingData.Title}, Rating={ratingData.Rating}, City={ratingData.City}, Scores={ratingData.Scores}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Сохранить или обновить данные рейтинга компании в базе данных
+    /// </summary>
+    public void DatabaseInsertOrUpdateCompanyRating(NpgsqlConnection conn, CompanyRatingData ratingData)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (ratingData is null) throw new ArgumentNullException(nameof(ratingData));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Сначала получаем или создаем компанию
+            int companyId;
+            using (var cmdSelect = new NpgsqlCommand(@"
+                SELECT id FROM habr_companies WHERE code = @code", conn))
+            {
+                cmdSelect.Parameters.AddWithValue("@code", ratingData.Code);
+                var result = cmdSelect.ExecuteScalar();
+
+                if (result != null)
+                {
+                    // Компания существует - обновляем
+                    companyId = Convert.ToInt32(result);
+
+                    using var cmdUpdate = new NpgsqlCommand(@"
+                        UPDATE habr_companies 
+                        SET 
+                            url = @url,
+                            title = COALESCE(@title, title),
+                            rating = COALESCE(@rating, rating),
+                            about = COALESCE(@about, about),
+                            city = COALESCE(@city, city),
+                            awards = COALESCE(@awards, awards),
+                            scores = COALESCE(@scores, scores),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE code = @code", conn);
+
+                    cmdUpdate.Parameters.AddWithValue("@code", ratingData.Code);
+                    cmdUpdate.Parameters.AddWithValue("@url", ratingData.Url);
+                    cmdUpdate.Parameters.AddWithValue("@title", ratingData.Title ?? (object)DBNull.Value);
+                    cmdUpdate.Parameters.AddWithValue("@rating", ratingData.Rating ?? (object)DBNull.Value);
+                    cmdUpdate.Parameters.AddWithValue("@about", ratingData.About ?? (object)DBNull.Value);
+                    cmdUpdate.Parameters.AddWithValue("@city", ratingData.City ?? (object)DBNull.Value);
+                    cmdUpdate.Parameters.AddWithValue("@awards", ratingData.Awards?.ToArray() ?? (object)DBNull.Value);
+                    cmdUpdate.Parameters.AddWithValue("@scores", ratingData.Scores ?? (object)DBNull.Value);
+
+                    cmdUpdate.ExecuteNonQuery();
+                    Log($"[DB] Обновлена компания: {ratingData.Code}");
+                }
+                else
+                {
+                    // Компания не существует - создаем
+                    using var cmdInsert = new NpgsqlCommand(@"
+                        INSERT INTO habr_companies (code, url, title, rating, about, city, awards, scores, created_at, updated_at)
+                        VALUES (@code, @url, @title, @rating, @about, @city, @awards, @scores, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id", conn);
+
+                    cmdInsert.Parameters.AddWithValue("@code", ratingData.Code);
+                    cmdInsert.Parameters.AddWithValue("@url", ratingData.Url);
+                    cmdInsert.Parameters.AddWithValue("@title", ratingData.Title ?? (object)DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@rating", ratingData.Rating ?? (object)DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@about", ratingData.About ?? (object)DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@city", ratingData.City ?? (object)DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@awards", ratingData.Awards?.ToArray() ?? (object)DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@scores", ratingData.Scores ?? (object)DBNull.Value);
+
+                    var insertResult = cmdInsert.ExecuteScalar();
+                    companyId = Convert.ToInt32(insertResult!);
+                    Log($"[DB] Добавлена новая компания: {ratingData.Code} (ID={companyId})");
+                }
+            }
+
+            // Сохраняем отзыв, если он есть
+            if (!string.IsNullOrWhiteSpace(ratingData.ReviewText))
+            {
+                DatabaseInsertReview(conn, companyId, ratingData.ReviewText);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при сохранении рейтинга компании {ratingData.Code}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Сохранить отзыв о компании (с проверкой дубликатов по хешу)
+    /// </summary>
+    private void DatabaseInsertReview(NpgsqlConnection conn, int companyId, string reviewText)
+    {
+        try
+        {
+            var reviewHash = CompanyRatingScraper.ComputeReviewHash(reviewText);
+
+            // Проверяем, существует ли уже отзыв с таким хешем
+            using (var cmdCheck = new NpgsqlCommand(@"
+                SELECT COUNT(*) FROM habr_company_reviews WHERE review_hash = @review_hash", conn))
+            {
+                cmdCheck.Parameters.AddWithValue("@review_hash", reviewHash);
+                var count = Convert.ToInt32(cmdCheck.ExecuteScalar());
+
+                if (count > 0)
+                {
+                    Log($"[DB] Отзыв с хешем {reviewHash.Substring(0, 8)}... уже существует, пропускаем");
+                    return;
+                }
+            }
+
+            // Вставляем новый отзыв
+            using var cmdInsert = new NpgsqlCommand(@"
+                INSERT INTO habr_company_reviews (company_id, review_hash, review_text, created_at, updated_at)
+                VALUES (@company_id, @review_hash, @review_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", conn);
+
+            cmdInsert.Parameters.AddWithValue("@company_id", companyId);
+            cmdInsert.Parameters.AddWithValue("@review_hash", reviewHash);
+            cmdInsert.Parameters.AddWithValue("@review_text", reviewText);
+
+            cmdInsert.ExecuteNonQuery();
+            Log($"[DB] Добавлен новый отзыв для компании ID={companyId}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
+        }
+    }
+
 }

@@ -20,6 +20,7 @@ namespace JobBoardScraper;
 /// TODO через прокси или selenium https://career.habr.com/slo_omy, здесь ограничение на количество просматриваемых профилей в том числе и под инкогнито
 /// TODO в таблицу habr_levels иногда косячно записываются названия
 /// TODO info_tech криво парсится иногда
+/// TODO поработать через api https://career.habr.com/info/api#q1.7
 /// </summary>
 class Program
 {
@@ -355,6 +356,38 @@ class Program
         else
         {
             Console.WriteLine("[Program] UserResumeDetailScraper: ОТКЛЮЧЕН");
+        }
+
+        // Процесс 11: Периодический обход страниц рейтингов компаний
+        if (AppConfig.CompanyRatingEnabled)
+        {
+            Console.WriteLine("[Program] CompanyRatingScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Режим вывода CompanyRatingScraper: {AppConfig.CompanyRatingOutputMode}");
+            Console.WriteLine($"[Program] Timeout CompanyRatingScraper: {AppConfig.CompanyRatingTimeout.TotalSeconds} секунд");
+            
+            // Создаём отдельный HttpClient с нужным timeout
+            var companyRatingBaseHttpClient = HttpClientFactory.CreateDefaultClient(
+                timeoutSeconds: (int)AppConfig.CompanyRatingTimeout.TotalSeconds);
+            
+            var companyRatingHttpClient = new SmartHttpClient(
+                companyRatingBaseHttpClient, 
+                "CompanyRatingScraper", 
+                trafficStats,
+                enableRetry: AppConfig.CompanyRatingEnableRetry,
+                enableTrafficMeasuring: AppConfig.CompanyRatingEnableTrafficMeasuring,
+                timeout: AppConfig.CompanyRatingTimeout);
+            var companyRatingScraper = new CompanyRatingScraper(
+                companyRatingHttpClient,
+                db,
+                controller: controller,
+                interval: TimeSpan.FromDays(30),
+                outputMode: AppConfig.CompanyRatingOutputMode);
+
+            _ = companyRatingScraper.StartAsync(cts.Token);
+        }
+        else
+        {
+            Console.WriteLine("[Program] CompanyRatingScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей

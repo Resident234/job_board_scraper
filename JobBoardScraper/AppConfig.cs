@@ -672,4 +672,78 @@ public static class AppConfig
 
     public static string UserResumeDetailCompanySizeUrlPattern =>
         ConfigurationManager.AppSettings["UserResumeDetail:CompanySizeUrlPattern"] ?? "/companies?sz=";
+
+    // Настройки для CompanyRatingScraper
+    public static bool CompanyRatingEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["CompanyRating:Enabled"], out var value) && value;
+
+    public static TimeSpan CompanyRatingTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["CompanyRating:TimeoutSeconds"], out var value)
+                ? value
+                : 60;
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
+
+    public static bool CompanyRatingEnableRetry =>
+        bool.TryParse(ConfigurationManager.AppSettings["CompanyRating:EnableRetry"], out var value) ? value : true;
+
+    public static bool CompanyRatingEnableTrafficMeasuring =>
+        bool.TryParse(ConfigurationManager.AppSettings["CompanyRating:EnableTrafficMeasuring"], out var value)
+            ? value
+            : true;
+
+    public static OutputMode CompanyRatingOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["CompanyRating:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+        }
+    }
+
+    public static string CompanyRatingSectionSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:SectionSelector"] ?? ".section-box";
+
+    public static string CompanyRatingTitleLinkSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:TitleLinkSelector"] ?? ".rating-card__company-title a";
+
+    public static string CompanyRatingTitleTextSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:TitleTextSelector"] ?? "h2.rating-card__company-title-text";
+
+    public static string CompanyRatingRatingSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:RatingSelector"] ?? ".rating-card__company-rating";
+
+    public static string CompanyRatingDescriptionSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:DescriptionSelector"] ?? ".rating-card__company-description";
+
+    public static string CompanyRatingMetaSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:MetaSelector"] ?? ".rating-card__company-meta";
+
+    public static string CompanyRatingCityLinkSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:CityLinkSelector"] ?? "a[href*='city_id']";
+
+    public static string CompanyRatingAwardsSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:AwardsSelector"] ?? ".rating-card__company-awards";
+
+    public static string CompanyRatingAwardImageSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:AwardImageSelector"] ?? "img[alt]";
+
+    public static string CompanyRatingScoresSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:ScoresSelector"] ?? ".rating-card__scores-value";
+
+    public static string CompanyRatingReviewSelector =>
+        ConfigurationManager.AppSettings["CompanyRating:ReviewSelector"] ?? ".rating-card__review-message";
+
+    public static string CompanyRatingBaseUrl =>
+        ConfigurationManager.AppSettings["CompanyRating:BaseUrl"] ?? "https://career.habr.com/companies/ratings";
+
+    public static string CompanyRatingCompanyUrlTemplate =>
+        ConfigurationManager.AppSettings["CompanyRating:CompanyUrlTemplate"] ?? "https://career.habr.com/companies/{0}";
+
+    public static string CompanyRatingCompanyPathPrefix =>
+        ConfigurationManager.AppSettings["CompanyRating:CompanyPathPrefix"] ?? "companies/";
 }
