@@ -1368,7 +1368,10 @@ public sealed class DatabaseClient
 
             var query = onlyPublic
                 ? "SELECT link FROM habr_resumes WHERE link IS NOT NULL AND public = true ORDER BY link"
-                : "SELECT link FROM habr_resumes WHERE link IS NOT NULL ORDER BY link";
+                : @"SELECT link FROM habr_resumes 
+                    WHERE link IS NOT NULL 
+                    AND NOT (public = false AND about = 'Доступ ограничен настройками приватности')
+                    ORDER BY link";
 
             using var cmd = new NpgsqlCommand(query, conn);
 

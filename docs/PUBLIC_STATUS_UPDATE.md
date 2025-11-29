@@ -175,32 +175,36 @@ ORDER BY updated_at DESC;
 
 ## Преимущества
 
-1. **Автоматическая маркировка** - не нужно вручную отмечать публичные профили
+1. **Автоматическая маркировка** - не нужно вручную отмечать публичные/приватные профили
 2. **Точность** - если данные извлечены, профиль точно публичный
 3. **Фильтрация** - легко найти только публичные профили для дальнейшей обработки
 4. **Статистика** - можно подсчитать соотношение публичных/приватных профилей
+5. **Пропуск приватных** - при повторной обработке приватные профили автоматически пропускаются
 
 ## Использование
+
+### Получить профили для обработки
+
+```csharp
+// В DatabaseClient.GetAllUserLinks()
+// Автоматически исключает уже обработанные приватные профили
+var query = @"SELECT link FROM habr_resumes 
+              WHERE link IS NOT NULL 
+              AND NOT (public = false AND about = 'Доступ ограничен настройками приватности')
+              ORDER BY link";
+```
+
+**Логика фильтрации:**
+- Включаются все профили с `public = true`
+- Включаются профили с `public = NULL` (еще не обработаны)
+- Исключаются профили с `public = false` и `about = 'Доступ ограничен настройками приватности'`
 
 ### Получить только публичные профили
 
 ```csharp
 // В DatabaseClient
-public List<string> GetPublicUserLinks(NpgsqlConnection conn)
-{
-    var links = new List<string>();
-    using var cmd = new NpgsqlCommand(@"
-        SELECT link 
-        FROM habr_resumes 
-        WHERE public = true", conn);
-    
-    using var reader = cmd.ExecuteReader();
-    while (reader.Read())
-    {
-        links.Add(reader.GetString(0));
-    }
-    return links;
-}
+var links = db.GetAllUserLinks(conn, onlyPublic: true);
+// SELECT link FROM habr_resumes WHERE link IS NOT NULL AND public = true
 ```
 
 ### Статистика
