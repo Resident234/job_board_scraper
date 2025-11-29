@@ -7,6 +7,7 @@ namespace JobBoardScraper;
 /// Умная обёртка над HttpClient с поддержкой:
 /// - Автоматических повторов при ошибках (retry)
 /// - Измерения трафика
+/// - Ротации прокси-серверов
 /// - Настройки через конфигурацию
 /// </summary>
 public sealed class SmartHttpClient
@@ -20,6 +21,7 @@ public sealed class SmartHttpClient
     private readonly TimeSpan _baseDelay;
     private readonly TimeSpan _maxDelay;
     private readonly TimeSpan _timeout;
+    private readonly ProxyRotator? _proxyRotator;
 
     public SmartHttpClient(
         HttpClient httpClient,
@@ -30,7 +32,8 @@ public sealed class SmartHttpClient
         int maxRetries = 5,
         TimeSpan? baseDelay = null,
         TimeSpan? maxDelay = null,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null,
+        ProxyRotator? proxyRotator = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _scraperName = scraperName ?? throw new ArgumentNullException(nameof(scraperName));
@@ -41,6 +44,26 @@ public sealed class SmartHttpClient
         _baseDelay = baseDelay ?? TimeSpan.FromMilliseconds(500);
         _maxDelay = maxDelay ?? TimeSpan.FromSeconds(30);
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
+        _proxyRotator = proxyRotator;
+    }
+
+    /// <summary>
+    /// Получить информацию о текущем прокси (если включен)
+    /// </summary>
+    public string GetProxyStatus()
+    {
+        return _proxyRotator?.GetStatus() ?? "No proxy";
+    }
+
+    /// <summary>
+    /// Ротировать прокси вручную (переключиться на следующий)
+    /// </summary>
+    public void RotateProxy()
+    {
+        if (_proxyRotator?.IsEnabled == true)
+        {
+            _proxyRotator.GetNextProxy();
+        }
     }
 
     /// <summary>

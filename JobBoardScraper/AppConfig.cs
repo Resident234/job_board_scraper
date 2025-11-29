@@ -746,4 +746,39 @@ public static class AppConfig
 
     public static string CompanyRatingCompanyPathPrefix =>
         ConfigurationManager.AppSettings["CompanyRating:CompanyPathPrefix"] ?? "companies/";
+
+    // Настройки для ProxyRotator
+    public static bool ProxyEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["Proxy:Enabled"], out var value) && value;
+
+    public static List<string> ProxyList =>
+        (ConfigurationManager.AppSettings["Proxy:List"] ?? "")
+        .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .ToList();
+
+    public static int ProxyRotationIntervalSeconds =>
+        int.TryParse(ConfigurationManager.AppSettings["Proxy:RotationIntervalSeconds"], out var value) ? value : 0;
+
+    public static bool ProxyAutoRotate =>
+        bool.TryParse(ConfigurationManager.AppSettings["Proxy:AutoRotate"], out var value) && value;
+
+    // Настройки для FreeProxyListScraper
+    public static bool EnableFreeProxyRotation =>
+        bool.TryParse(ConfigurationManager.AppSettings["FreeProxy:Enabled"], out var value) && value;
+
+    public static int ProxyRefreshIntervalMinutes =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:RefreshIntervalMinutes"], out var value) 
+            ? value : 10;
+
+    public static int ProxyPoolMaxSize =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:PoolMaxSize"], out var value) 
+            ? value : 1000;
+
+    public static string FreeProxyListUrl =>
+        ConfigurationManager.AppSettings["FreeProxy:ListUrl"] 
+            ?? "https://free-proxy-list.net/ru/";
+
+    public static int ProxyWaitTimeoutSeconds =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:WaitTimeoutSeconds"], out var value) 
+            ? value : 30;
 }

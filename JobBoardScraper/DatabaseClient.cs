@@ -629,6 +629,11 @@ public sealed class DatabaseClient
                                     isPublic: profile.IsPublic
                                 );
                             }
+                            // Если это просто обновление статуса публичности
+                            else if (record.Mode == InsertMode.UpdateIfExists && bool.TryParse(record.SecondaryValue, out var isPublic))
+                            {
+                                DatabaseUpdateUserPublicStatus(conn, userLink: record.PrimaryValue, isPublic: isPublic);
+                            }
 
                             break;
                         case DbRecordType.UserAbout:
@@ -1429,6 +1434,28 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Обновить статус публичности профиля пользователя
+    /// </summary>
+    public bool EnqueueUpdateUserPublicStatus(string userLink, bool isPublic)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // Используем тип UserProfile для обновления is_public
+        var record = new DbRecord(
+            Type: DbRecordType.UserProfile,
+            PrimaryValue: userLink,
+            SecondaryValue: isPublic.ToString(),
+            Mode: InsertMode.UpdateIfExists
+        );
+        _saveQueue.Enqueue(record);
+        
+        Log($"[DB Queue] UpdateUserPublicStatus: {userLink} -> public={isPublic}");
+        
+        return true;
+    }
+
+    /// <summary>
     /// Обновить информацию "О себе" для пользователя
     /// </summary>
     public void DatabaseUpdateUserAbout(NpgsqlConnection conn, string userLink, string? about)
@@ -1468,6 +1495,49 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обновить статус публичности профиля пользователя
+    /// </summary>
+    public void DatabaseUpdateUserPublicStatus(NpgsqlConnection conn, string userLink, bool isPublic)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes 
+                SET public = @public,
+                    updated_at = NOW()
+                WHERE link = @link", conn);
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@public", isPublic);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                Log($"[DB] Обновлен статус публичности для {userLink}: public={isPublic}");
+            }
+            else
+            {
+                Log($"[DB] Пользователь {userLink} не найден в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Неожиданная ошибка при обновлении статуса публичности для {userLink}: {ex.Message}");
         }
     }
 

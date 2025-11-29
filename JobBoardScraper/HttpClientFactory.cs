@@ -1,47 +1,138 @@
-﻿using System;
-using System.Net.Http;
+﻿using System.Net;
 
 namespace JobBoardScraper;
 
 /// <summary>
-/// Фабрика для создания настроенных экземпляров HttpClient
+/// Фабрика для создания HttpClient с поддержкой прокси
 /// </summary>
 public static class HttpClientFactory
 {
     /// <summary>
-    /// Создает настроенный HttpClient для работы с API
+    /// Создать HttpClient с опциональной поддержкой прокси
     /// </summary>
-    /// <param name="baseUrl">Базовый URL для запросов</param>
-    /// <param name="timeoutSeconds">Таймаут в секундах</param>
-    /// <returns>Настроенный экземпляр HttpClient</returns>
-    public static HttpClient CreateClient(string baseUrl, int timeoutSeconds = 10)
+    public static HttpClient CreateHttpClient(ProxyRotator? proxyRotator = null, TimeSpan? timeout = null)
     {
-        var client = new HttpClient
-        {
-            BaseAddress = new Uri(baseUrl)
-        };
+        HttpMessageHandler handler;
 
-        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HabrScraper/1.0 Safari/537.36");
-        
-        // Принимаем только HTML/XML контент для экономии трафика
-        client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
-        
-        // Поддержка сжатия для экономии трафика (временно отключено для отладки)
-        // client.DefaultRequestHeaders.AcceptEncoding.ParseAdd("gzip, deflate, br");
+        if (proxyRotator?.IsEnabled == true)
+        {
+            var proxy = proxyRotator.GetNextProxy();
+            var httpClientHandler = new HttpClientHandler
+            {
+                Proxy = proxy,
+                UseProxy = true,
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+            handler = httpClientHandler;
+        }
+        else
+        {
+            var httpClientHandler = new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+            handler = httpClientHandler;
+        }
+
+        var client = new HttpClient(handler)
+        {
+            Timeout = timeout ?? TimeSpan.FromSeconds(30)
+        };
 
         return client;
     }
 
     /// <summary>
-    /// Создает настроенный HttpClient с использованием URL из конфигурации
+    /// Создать ProxyRotator из конфигурации
     /// </summary>
-    /// <param name="timeoutSeconds">Таймаут в секундах</param>
-    /// <returns>Настроенный экземпляр HttpClient</returns>
-    public static HttpClient CreateDefaultClient(int timeoutSeconds = 10)
+    public static ProxyRotator? CreateProxyRotator()
     {
-        return CreateClient(AppConfig.BaseUrl, timeoutSeconds);
+        if (!AppConfig.ProxyEnabled)
+            return null;
+
+        var proxyList = AppConfig.ProxyList;
+        
+        // Если список пуст, загрузить из публичных источников
+        if (proxyList.Count == 0)
+        {
+            Console.WriteLine("[HttpClientFactory] Список прокси пуст. Загрузка из публичных источников...");
+            var provider = new ProxyProvider();
+            
+            try
+            {
+                // Синхронная загрузка (блокирующая)
+                var task1 = provider.LoadFromProxyScrapeAsync();
+                task1.Wait();
+                Console.WriteLine($"[HttpClientFactory] ProxyScrape: загружено {provider.GetProxies().Count} прокси");
+                
+                var task2 = provider.LoadFromGeoNodeAsync(50);
+                task2.Wait();
+                Console.WriteLine($"[HttpClientFactory] GeoNode: загружено {provider.GetProxies().Count} прокси");
+                
+                proxyList = provider.GetProxies();
+                
+                if (proxyList.Count == 0)
+                {
+                    Console.WriteLine("[HttpClientFactory] ⚠️ Не удалось загрузить прокси из публичных источников");
+                    return null;
+                }
+                
+                Console.WriteLine($"[HttpClientFactory] ✓ Загружено {proxyList.Count} прокси");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[HttpClientFactory] ⚠️ Ошибка загрузки прокси: {ex.Message}");
+                return null;
+            }
+        }
+
+        return new ProxyRotator(proxyList);
+    }
+
+    /// <summary>
+    /// Создать HttpClient по умолчанию (для обратной совместимости)
+    /// </summary>
+    public static HttpClient CreateDefaultClient(int timeoutSeconds = 30)
+    {
+        return CreateHttpClient(null, TimeSpan.FromSeconds(timeoutSeconds));
+    }
+
+    /// <summary>
+    /// Создать ProxyProvider с автоматической загрузкой прокси
+    /// </summary>
+    public static async Task<ProxyProvider> CreateProxyProviderAsync()
+    {
+        var provider = new ProxyProvider();
+        
+        // Загрузить из конфигурации
+        var configProxies = AppConfig.ProxyList;
+        foreach (var proxy in configProxies)
+        {
+            provider.AddProxy(proxy);
+        }
+        
+        // Если в конфиге нет прокси, загрузить из публичных источников
+        if (configProxies.Count == 0)
+        {
+            Console.WriteLine("[HttpClientFactory] Загрузка прокси из публичных источников...");
+            await provider.LoadFromProxyScrapeAsync();
+            await provider.LoadFromGeoNodeAsync(50);
+            
+            var count = provider.GetProxies().Count;
+            Console.WriteLine($"[HttpClientFactory] Загружено {count} прокси");
+        }
+        
+        return provider;
+    }
+
+    /// <summary>
+    /// Создать DynamicProxyRotator с автоматическим обновлением
+    /// </summary>
+    public static async Task<DynamicProxyRotator> CreateDynamicProxyRotatorAsync(
+        TimeSpan? updateInterval = null,
+        bool autoUpdate = true)
+    {
+        var provider = await CreateProxyProviderAsync();
+        return new DynamicProxyRotator(provider, updateInterval, autoUpdate);
     }
 }

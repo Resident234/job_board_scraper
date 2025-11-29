@@ -74,3 +74,93 @@ dotnet run --project JobBoardScraper
 - Интеграция с таблицами habr_skills, habr_user_skills, habr_user_experience и habr_user_experience_skills
 
 ### 🔧 Улучшения 
+-
+ **SmartHttpClient**: Умная обёртка над HttpClient с автоматическими повторами, измерением трафика и поддержкой прокси
+- **ProxyRotator**: Автоматическая ротация прокси-серверов для распределения нагрузки
+- **TrafficStatistics**: Детальная статистика трафика по скраперам
+- **AdaptiveConcurrencyController**: Динамическое управление параллелизмом
+- **DatabaseClient**: Универсальный клиент для работы с PostgreSQL
+
+---
+
+## 🌐 Поддержка прокси
+
+Система поддерживает автоматическую ротацию прокси-серверов для обхода ограничений и распределения нагрузки.
+
+### Быстрая настройка
+
+```xml
+<!-- В App.config -->
+<add key="Proxy:Enabled" value="true" />
+<add key="Proxy:List" value="http://proxy1:8080;http://proxy2:8080" />
+```
+
+### Использование
+
+```csharp
+// Создать ProxyRotator из конфигурации
+var proxyRotator = HttpClientFactory.CreateProxyRotator();
+
+// Создать HttpClient с прокси
+var httpClient = HttpClientFactory.CreateHttpClient(proxyRotator);
+
+// Создать SmartHttpClient с поддержкой прокси
+var smartClient = new SmartHttpClient(
+    httpClient,
+    scraperName: "MyScraper",
+    proxyRotator: proxyRotator
+);
+```
+
+**Подробнее:** 
+- [PROXY_ROTATION.md](docs/PROXY_ROTATION.md) - Полная документация
+- [PROXY_USAGE_EXAMPLE.md](docs/PROXY_USAGE_EXAMPLE.md) - Примеры использования
+- [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md) - Динамическое обновление прокси
+- [PROXY_SERVICES.md](docs/PROXY_SERVICES.md) - Коммерческие прокси-сервисы
+
+---
+
+## 📚 Документация
+
+- [QUICKSTART.md](docs/QUICKSTART.md) - Быстрый старт
+- [EXAMPLES.md](docs/EXAMPLES.md) - Примеры использования
+- [MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) - Миграция с v1.x
+- [CHANGELOG.md](docs/CHANGELOG.md) - История изменений
+- [TRAFFIC_OPTIMIZATION.md](docs/TRAFFIC_OPTIMIZATION.md) - Оптимизация трафика
+- [PROXY_ROTATION.md](docs/PROXY_ROTATION.md) - Ротация прокси
+- [PROXY_USAGE_EXAMPLE.md](docs/PROXY_USAGE_EXAMPLE.md) - Примеры использования прокси
+
+### Скраперы
+
+- [COMPANY_DETAIL_SCRAPER.md](docs/COMPANY_DETAIL_SCRAPER.md)
+- [COMPANY_RATING_SCRAPER.md](docs/COMPANY_RATING_SCRAPER.md)
+- [USER_PROFILE_SCRAPER.md](docs/USER_PROFILE_SCRAPER.md)
+- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md)
+
+---
+
+## 🛠️ Технологии
+
+- **.NET 9.0** - Современная платформа разработки
+- **PostgreSQL 12+** - Надёжная база данных
+- **AngleSharp** - Парсинг HTML
+- **Npgsql** - Драйвер PostgreSQL для .NET
+- **ProxyRotator** - Ротация прокси-серверов
+
+---
+
+## 📝 Лицензия
+
+MIT License - см. [LICENSE](LICENSE)
+
+---
+
+## 🤝 Вклад
+
+Приветствуются pull requests и issues!
+
+---
+
+## 📧 Контакты
+
+Если у вас есть вопросы или предложения, создайте issue в репозитории.

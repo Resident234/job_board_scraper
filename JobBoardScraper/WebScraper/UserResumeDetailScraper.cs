@@ -21,12 +21,15 @@ public sealed class UserResumeDetailScraper : IDisposable
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly Models.ScraperStatistics _statistics;
+    private readonly FreeProxyPool? _proxyPool;
+    private readonly int _proxyWaitTimeout;
 
     public UserResumeDetailScraper(
         SmartHttpClient httpClient,
         DatabaseClient db,
         Func<List<string>> getUserCodes,
         AdaptiveConcurrencyController controller,
+        FreeProxyPool? proxyPool = null,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
     {
@@ -34,12 +37,75 @@ public sealed class UserResumeDetailScraper : IDisposable
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _proxyPool = proxyPool;
         _interval = interval ?? TimeSpan.FromDays(30);
+        _proxyWaitTimeout = AppConfig.ProxyWaitTimeoutSeconds;
         _statistics = new Models.ScraperStatistics("UserResumeDetailScraper");
         
         _logger = new ConsoleLogger("UserResumeDetailScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
+        
+        if (_proxyPool != null)
+        {
+            _logger.WriteLine($"[UserResumeDetailScraper] Proxy rotation enabled (pool size: {_proxyPool.GetCount()})");
+        }
+    }
+
+    /// <summary>
+    /// Get proxy from pool with timeout
+    /// </summary>
+    private async Task<string?> GetProxyWithTimeoutAsync(CancellationToken ct)
+    {
+        if (_proxyPool == null)
+            return null;
+        
+        var proxy = _proxyPool.GetNextProxy();
+        
+        if (proxy != null)
+            return proxy;
+        
+        // Pool is empty, wait for new proxies
+        _logger.WriteLine($"[UserResumeDetailScraper] Proxy pool empty, waiting up to {_proxyWaitTimeout} seconds...");
+        
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(_proxyWaitTimeout);
+        
+        while ((DateTime.UtcNow - startTime) < timeout && !ct.IsCancellationRequested)
+        {
+            await Task.Delay(1000, ct);
+            
+            proxy = _proxyPool.GetNextProxy();
+            if (proxy != null)
+            {
+                _logger.WriteLine($"[UserResumeDetailScraper] Proxy became available after waiting");
+                return proxy;
+            }
+        }
+        
+        _logger.WriteLine($"[UserResumeDetailScraper] Timeout waiting for proxy");
+        return null;
+    }
+    
+    /// <summary>
+    /// Create HttpClient configured with proxy
+    /// </summary>
+    private HttpClient CreateHttpClientWithProxy(string proxyUrl)
+    {
+        var proxy = new System.Net.WebProxy(new Uri(proxyUrl));
+        var handler = new HttpClientHandler
+        {
+            Proxy = proxy,
+            UseProxy = true,
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+        };
+        
+        var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(AppConfig.UserResumeDetailTimeout.TotalSeconds)
+        };
+        
+        return client;
     }
 
     public void Dispose()
@@ -107,8 +173,44 @@ public sealed class UserResumeDetailScraper : IDisposable
             _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
             try
             {
+                // Get proxy from pool if available
+                string? proxyUrl = null;
+                HttpClient? proxyHttpClient = null;
+                
+                if (_proxyPool != null)
+                {
+                    proxyUrl = await GetProxyWithTimeoutAsync(ct);
+                    
+                    if (proxyUrl != null)
+                    {
+                        _logger.WriteLine($"[UserResumeDetailScraper] Using proxy: {proxyUrl}");
+                        proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"[UserResumeDetailScraper] No proxy available, proceeding without proxy");
+                    }
+                }
+                
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var response = await _httpClient.GetAsync(userLink, ct);
+                HttpResponseMessage response;
+                
+                if (proxyHttpClient != null)
+                {
+                    try
+                    {
+                        response = await proxyHttpClient.GetAsync(userLink, ct);
+                    }
+                    finally
+                    {
+                        proxyHttpClient.Dispose();
+                    }
+                }
+                else
+                {
+                    response = await _httpClient.GetAsync(userLink, ct);
+                }
+                
                 sw.Stop();
                 _controller.ReportLatency(sw.Elapsed);
                 
@@ -297,10 +399,15 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Сохраняем информацию
                 _db.EnqueueUserResumeDetail(userLink, about, skills);
                 
+                // Если удалось извлечь данные, значит профиль публичный
+                // Устанавливаем public = true
+                _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: true);
+                
                 _logger.WriteLine($"Пользователь {userLink}:");
                 _logger.WriteLine($"  О себе: {(string.IsNullOrWhiteSpace(about) ? "(не найдено)" : $"{about.Substring(0, Math.Min(100, about.Length))}...")}");
                 _logger.WriteLine($"  Навыки: {skills.Count} шт.");
                 _logger.WriteLine($"  Опыт работы: {experienceCount} записей");
+                _logger.WriteLine($"  Статус: публичный профиль");
                 
                 _statistics.IncrementSuccess();
             }

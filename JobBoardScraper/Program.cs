@@ -325,6 +325,34 @@ class Program
             Console.WriteLine("[Program] UserFriendsScraper: ОТКЛЮЧЕН");
         }
 
+        // Инициализация FreeProxyListScraper если включен
+        FreeProxyPool? freeProxyPool = null;
+        FreeProxyListScraper? freeProxyListScraper = null;
+        
+        if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
+        {
+            Console.WriteLine("[Program] FreeProxyListScraper: ВКЛЮЧЕН");
+            Console.WriteLine($"[Program] Refresh interval: {AppConfig.ProxyRefreshIntervalMinutes} минут");
+            Console.WriteLine($"[Program] Pool max size: {AppConfig.ProxyPoolMaxSize}");
+            Console.WriteLine($"[Program] Proxy list URL: {AppConfig.FreeProxyListUrl}");
+            
+            freeProxyPool = new FreeProxyPool(
+                maxSize: AppConfig.ProxyPoolMaxSize,
+                logger: new Helper.ConsoleHelper.ConsoleLogger("FreeProxyPool"));
+            
+            freeProxyListScraper = new FreeProxyListScraper(
+                freeProxyPool,
+                refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
+                outputMode: AppConfig.UserResumeDetailOutputMode,
+                proxyListUrl: AppConfig.FreeProxyListUrl);
+            
+            freeProxyListScraper.Start();
+        }
+        else if (AppConfig.UserResumeDetailEnabled)
+        {
+            Console.WriteLine("[Program] FreeProxyListScraper: ОТКЛЮЧЕН (работа без прокси)");
+        }
+
         // Процесс 10: Периодический обход резюме пользователей для извлечения "О себе" и навыков
         if (AppConfig.UserResumeDetailEnabled)
         {
@@ -332,7 +360,16 @@ class Program
             Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
             Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
             
-            // Создаём отдельный HttpClient с нужным timeout
+            if (freeProxyPool != null)
+            {
+                Console.WriteLine($"[Program] UserResumeDetailScraper: Прокси ВКЛЮЧЕНЫ (pool size: {freeProxyPool.GetCount()})");
+            }
+            else
+            {
+                Console.WriteLine("[Program] UserResumeDetailScraper: Прокси ОТКЛЮЧЕНЫ (работа без прокси)");
+            }
+            
+            // Создаём отдельный HttpClient БЕЗ прокси (прокси будут применяться динамически)
             var userResumeDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.UserResumeDetailTimeout.TotalSeconds);
             
@@ -348,6 +385,7 @@ class Program
                 db,
                 getUserCodes: () => db.GetAllUserLinks(conn),
                 controller: controller,
+                proxyPool: freeProxyPool,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.UserResumeDetailOutputMode);
 
@@ -450,6 +488,14 @@ class Program
         }
 
         cts.Cancel();
+
+        // Остановка FreeProxyListScraper
+        if (freeProxyListScraper != null)
+        {
+            Console.WriteLine("[Program] Остановка FreeProxyListScraper...");
+            freeProxyListScraper.Stop();
+            freeProxyListScraper.Dispose();
+        }
 
         await db.StopWriterTask();
         db.DatabaseConnectionClose(conn);
