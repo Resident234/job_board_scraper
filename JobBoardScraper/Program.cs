@@ -386,7 +386,7 @@ class Program
                 getUserCodes: () => db.GetAllUserLinks(conn),
                 controller: controller,
                 proxyPool: freeProxyPool,
-                interval: TimeSpan.FromDays(30),
+                interval: TimeSpan.FromMinutes(20),
                 outputMode: AppConfig.UserResumeDetailOutputMode);
 
             _ = userResumeDetailScraper.StartAsync(cts.Token);
