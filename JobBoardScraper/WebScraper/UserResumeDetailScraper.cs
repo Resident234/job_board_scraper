@@ -10,6 +10,7 @@ namespace JobBoardScraper.WebScraper;
 /// Извлекает: about, навыки, опыт работы
 /// TODO начинет сыпать ошибкой "Вы исчерпали суточный лимит на просмотр профилей специалистов. Зарегистрируйтесь или войдите в свой аккаунт, чтобы увидеть больше профилей."
 /// или смотреть через selenium или организовывать прокси 
+/// TODO версионность сделать
 /// </summary>
 public sealed class UserResumeDetailScraper : IDisposable
 {
@@ -276,6 +277,23 @@ public sealed class UserResumeDetailScraper : IDisposable
                     : System.Text.Encoding.UTF8;
                 var html = encoding.GetString(htmlBytes);
                 
+                // Проверяем на приватный профиль сразу в HTML
+                const string privateProfileText = "Доступ ограничен настройками приватности";
+                if (html.Contains(privateProfileText))
+                {
+                    // Профиль приватный - сохраняем статус и переходим к следующему
+                    _db.EnqueueUserResumeDetail(userLink, privateProfileText, new List<string>());
+                    _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: false);
+                    
+                    _logger.WriteLine($"Пользователь {userLink}:");
+                    _logger.WriteLine($"  Статус: приватный профиль");
+                    _logger.WriteLine($"  Сообщение: {privateProfileText}");
+                    
+                    _statistics.IncrementSuccess();
+                    _activeRequests.TryRemove(userLink, out _);
+                    return;
+                }
+                
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                 // Извлекаем текст "О себе"
@@ -434,7 +452,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     }
                 }
 
-                // Сохраняем информацию
+                // Сохраняем информацию для публичного профиля
                 _db.EnqueueUserResumeDetail(userLink, about, skills);
                 
                 // Если удалось извлечь данные, значит профиль публичный
