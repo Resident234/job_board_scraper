@@ -483,5 +483,9 @@ public sealed class UserResumeDetailScraper : IDisposable
         
         _statistics.EndTime = DateTime.Now;
         _logger.WriteLine($"Обход завершён. {_statistics}");
+        
+        // Задержка 20 минут перед следующим циклом
+        _logger.WriteLine("Ожидание 20 минут перед следующим циклом...");
+        await Task.Delay(TimeSpan.FromMinutes(20), ct);
     }
 }
