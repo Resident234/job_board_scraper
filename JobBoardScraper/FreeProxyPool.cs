@@ -34,12 +34,12 @@ public sealed class FreeProxyPool
         {
             if (_proxies.Count == 0)
             {
-                _logger?.WriteLine("[FreeProxyPool] Pool empty, no proxy available");
+                _logger?.WriteLine("Pool empty, no proxy available");
                 return null;
             }
 
             var proxy = _proxies.Dequeue();
-            _logger?.WriteLine($"[FreeProxyPool] Retrieved proxy: {proxy} (remaining: {_proxies.Count})");
+            _logger?.WriteLine($"Retrieved proxy: {proxy} (remaining: {_proxies.Count})");
             return proxy;
         }
     }
@@ -58,19 +58,19 @@ public sealed class FreeProxyPool
             // Check if already at max size
             if (_proxies.Count >= _maxSize)
             {
-                _logger?.WriteLine($"[FreeProxyPool] Pool at max size ({_maxSize}), cannot add proxy");
+                _logger?.WriteLine($"Pool at max size ({_maxSize}), cannot add proxy");
                 return false;
             }
 
             // Check for duplicates
             if (_proxies.Contains(proxyUrl))
             {
-                _logger?.WriteLine($"[FreeProxyPool] Proxy already in pool: {proxyUrl}");
+                _logger?.WriteLine($"Proxy already in pool: {proxyUrl}");
                 return false;
             }
 
             _proxies.Enqueue(proxyUrl);
-            _logger?.WriteLine($"[FreeProxyPool] Added proxy: {proxyUrl} (total: {_proxies.Count})");
+            _logger?.WriteLine($"Added proxy: {proxyUrl} (total: {_proxies.Count})");
             return true;
         }
     }
@@ -106,7 +106,7 @@ public sealed class FreeProxyPool
         {
             var count = _proxies.Count;
             _proxies.Clear();
-            _logger?.WriteLine($"[FreeProxyPool] Cleared {count} proxies from pool");
+            _logger?.WriteLine($"Cleared {count} proxies from pool");
         }
     }
 
@@ -129,7 +129,7 @@ public sealed class FreeProxyPool
 
             if (removed > 0)
             {
-                _logger?.WriteLine($"[FreeProxyPool] Removed {removed} oldest proxies (remaining: {_proxies.Count})");
+                _logger?.WriteLine($"Removed {removed} oldest proxies (remaining: {_proxies.Count})");
             }
 
             return removed;

@@ -48,7 +48,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         
         if (_proxyPool != null)
         {
-            _logger.WriteLine($"[UserResumeDetailScraper] Proxy rotation enabled (pool size: {_proxyPool.GetCount()})");
+            _logger.WriteLine($"Proxy rotation enabled (pool size: {_proxyPool.GetCount()})");
         }
     }
 
@@ -66,7 +66,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             return proxy;
         
         // Pool is empty, wait for new proxies
-        _logger.WriteLine($"[UserResumeDetailScraper] Proxy pool empty, waiting up to {_proxyWaitTimeout} seconds...");
+        _logger.WriteLine($"Proxy pool empty, waiting up to {_proxyWaitTimeout} seconds...");
         
         var startTime = DateTime.UtcNow;
         var timeout = TimeSpan.FromSeconds(_proxyWaitTimeout);
@@ -78,12 +78,12 @@ public sealed class UserResumeDetailScraper : IDisposable
             proxy = _proxyPool.GetNextProxy();
             if (proxy != null)
             {
-                _logger.WriteLine($"[UserResumeDetailScraper] Proxy became available after waiting");
+                _logger.WriteLine($"Proxy became available after waiting");
                 return proxy;
             }
         }
         
-        _logger.WriteLine($"[UserResumeDetailScraper] Timeout waiting for proxy");
+        _logger.WriteLine($"Timeout waiting for proxy");
         return null;
     }
     
@@ -155,6 +155,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     private async Task ScrapeAllUserResumesAsync(CancellationToken ct)
     {
         _logger.WriteLine("Начало обхода резюме пользователей...");
+        //TOOD поменять стратегию: использовать один прокси, если он работает, до тех пор, пока хабр не начлет отдавать сообщение "Вы исчерпали..."
         
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
@@ -183,12 +184,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                     
                     if (proxyUrl != null)
                     {
-                        _logger.WriteLine($"[UserResumeDetailScraper] Using proxy: {proxyUrl}");
+                        _logger.WriteLine($"Using proxy: {proxyUrl}");
                         proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
                     }
                     else
                     {
-                        _logger.WriteLine($"[UserResumeDetailScraper] No proxy available, proceeding without proxy");
+                        _logger.WriteLine($"No proxy available, proceeding without proxy");
                     }
                 }
                 
