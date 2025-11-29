@@ -174,42 +174,79 @@ public sealed class UserResumeDetailScraper : IDisposable
             _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
             try
             {
-                // Get proxy from pool if available
-                string? proxyUrl = null;
-                HttpClient? proxyHttpClient = null;
-                
-                if (_proxyPool != null)
-                {
-                    proxyUrl = await GetProxyWithTimeoutAsync(ct);
-                    
-                    if (proxyUrl != null)
-                    {
-                        _logger.WriteLine($"Using proxy: {proxyUrl}");
-                        proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
-                    }
-                    else
-                    {
-                        _logger.WriteLine($"No proxy available, proceeding without proxy");
-                    }
-                }
-                
+                HttpResponseMessage? response = null;
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                HttpResponseMessage response;
+                int attempt = 0;
+                int maxRetries = _proxyPool != null ? AppConfig.ProxyMaxRetries : 1;
                 
-                if (proxyHttpClient != null)
+                // Retry loop with different proxies
+                while (attempt < maxRetries && response == null)
                 {
+                    attempt++;
+                    string? proxyUrl = null;
+                    HttpClient? proxyHttpClient = null;
+                    
                     try
                     {
-                        response = await proxyHttpClient.GetAsync(userLink, ct);
+                        // Get proxy from pool if available
+                        if (_proxyPool != null)
+                        {
+                            proxyUrl = await GetProxyWithTimeoutAsync(ct);
+                            
+                            if (proxyUrl != null)
+                            {
+                                _logger.WriteLine($"Using proxy: {proxyUrl} (attempt {attempt}/{maxRetries})");
+                                proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
+                            }
+                            else
+                            {
+                                _logger.WriteLine($"No proxy available, proceeding without proxy");
+                            }
+                        }
+                        
+                        // Make request
+                        if (proxyHttpClient != null)
+                        {
+                            try
+                            {
+                                response = await proxyHttpClient.GetAsync(userLink, ct);
+                            }
+                            finally
+                            {
+                                proxyHttpClient.Dispose();
+                            }
+                        }
+                        else
+                        {
+                            response = await _httpClient.GetAsync(userLink, ct);
+                        }
+                        
+                        // Success - break retry loop
+                        break;
                     }
-                    finally
+                    catch (Exception ex) when (attempt < maxRetries && _proxyPool != null)
                     {
-                        proxyHttpClient.Dispose();
+                        // Log error and try next proxy
+                        _logger.WriteLine($"Proxy error (attempt {attempt}/{maxRetries}): {ex.Message}");
+                        
+                        if (attempt < maxRetries)
+                        {
+                            _logger.WriteLine($"Trying next proxy...");
+                            await Task.Delay(1000, ct); // Small delay before retry
+                        }
+                        else
+                        {
+                            // Last attempt failed, rethrow
+                            throw;
+                        }
                     }
                 }
-                else
+                
+                if (response == null)
                 {
-                    response = await _httpClient.GetAsync(userLink, ct);
+                    _logger.WriteLine($"Failed to get response after {maxRetries} attempts");
+                    _activeRequests.TryRemove(userLink, out _);
+                    return;
                 }
                 
                 sw.Stop();

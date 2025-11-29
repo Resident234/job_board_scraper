@@ -792,4 +792,8 @@ public static class AppConfig
             return TimeSpan.FromSeconds(seconds);
         }
     }
+
+    public static int ProxyMaxRetries =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:MaxRetries"], out var value) 
+            ? value : 3; // По умолчанию 3 попытки с разными прокси
 }
