@@ -781,4 +781,15 @@ public static class AppConfig
     public static int ProxyWaitTimeoutSeconds =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:WaitTimeoutSeconds"], out var value) 
             ? value : 30;
+
+    public static TimeSpan ProxyRequestTimeout
+    {
+        get
+        {
+            var seconds = int.TryParse(ConfigurationManager.AppSettings["FreeProxy:RequestTimeoutSeconds"], out var value)
+                ? value
+                : 120; // По умолчанию 120 секунд для прокси (в 2 раза больше обычного)
+            return TimeSpan.FromSeconds(seconds);
+        }
+    }
 }

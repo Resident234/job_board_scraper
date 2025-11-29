@@ -102,7 +102,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         
         var client = new HttpClient(handler)
         {
-            Timeout = TimeSpan.FromSeconds(AppConfig.UserResumeDetailTimeout.TotalSeconds)
+            Timeout = AppConfig.ProxyRequestTimeout // Используем увеличенный таймаут для прокси
         };
         
         return client;
