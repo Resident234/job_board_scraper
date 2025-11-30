@@ -21,7 +21,8 @@ public enum DbRecordType
     UserProfile,
     UserAbout,
     UserSkills,
-    UserExperience
+    UserExperience,
+    UserAdditionalData
 }
 
 public enum InsertMode
@@ -54,7 +55,8 @@ public readonly record struct DbRecord(
     CompanyRatingData? CompanyRating = null,
     List<string>? Skills = null,
     UserProfileData? UserProfile = null,
-    UserExperienceData? UserExperience = null);
+    UserExperienceData? UserExperience = null,
+    Dictionary<string, string?>? AdditionalData = null);
 
 public sealed class DatabaseClient
 {
@@ -655,6 +657,12 @@ public sealed class DatabaseClient
                             if (record.UserExperience != null)
                             {
                                 DatabaseInsertUserExperience(conn, record.UserExperience);
+                            }
+                            break;
+                        case DbRecordType.UserAdditionalData:
+                            if (record.AdditionalData != null)
+                            {
+                                DatabaseUpdateUserAdditionalData(conn, userLink: record.PrimaryValue, additionalData: record.AdditionalData);
                             }
                             break;
                         case DbRecordType.CompanyRating:
@@ -1402,6 +1410,23 @@ public sealed class DatabaseClient
     /// </summary>
     public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
     {
+        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null);
+    }
+    
+    /// <summary>
+    /// Добавить детальную информацию о резюме пользователя в очередь (с дополнительными полями)
+    /// </summary>
+    public bool EnqueueUserResumeDetail(
+        string userLink, 
+        string? about, 
+        List<string>? skills,
+        string? age,
+        string? experienceText,
+        string? registration,
+        string? lastVisit,
+        string? citizenship,
+        bool? remoteWork)
+    {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
@@ -1431,7 +1456,32 @@ public sealed class DatabaseClient
             _saveQueue.Enqueue(skillsRecord);
         }
         
-        Log($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}");
+        // Добавляем дополнительные данные профиля
+        if (!string.IsNullOrWhiteSpace(age) || 
+            !string.IsNullOrWhiteSpace(experienceText) ||
+            !string.IsNullOrWhiteSpace(registration) || 
+            !string.IsNullOrWhiteSpace(lastVisit) ||
+            !string.IsNullOrWhiteSpace(citizenship) || 
+            remoteWork.HasValue)
+        {
+            var additionalDataRecord = new DbRecord(
+                Type: DbRecordType.UserAdditionalData,
+                PrimaryValue: userLink,
+                SecondaryValue: "",
+                AdditionalData: new Dictionary<string, string?>
+                {
+                    { "age", age },
+                    { "experience_text", experienceText },
+                    { "registration", registration },
+                    { "last_visit", lastVisit },
+                    { "citizenship", citizenship },
+                    { "remote_work", remoteWork?.ToString() }
+                }
+            );
+            _saveQueue.Enqueue(additionalDataRecord);
+        }
+        
+        Log($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}");
         
         return true;
     }
@@ -1498,6 +1548,99 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обновить дополнительные данные профиля пользователя (возраст, регистрация, гражданство, удаленная работа)
+    /// </summary>
+    public void DatabaseUpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+        if (additionalData == null || additionalData.Count == 0)
+            return;
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            var setClauses = new List<string>();
+            var cmd = new NpgsqlCommand { Connection = conn };
+
+            if (additionalData.TryGetValue("age", out var age) && !string.IsNullOrWhiteSpace(age))
+            {
+                setClauses.Add("age = @age");
+                cmd.Parameters.AddWithValue("@age", age);
+            }
+
+            if (additionalData.TryGetValue("experience_text", out var experienceText) && !string.IsNullOrWhiteSpace(experienceText))
+            {
+                setClauses.Add("experience_text = @experience_text");
+                cmd.Parameters.AddWithValue("@experience_text", experienceText);
+            }
+
+            if (additionalData.TryGetValue("registration", out var registration) && !string.IsNullOrWhiteSpace(registration))
+            {
+                setClauses.Add("registration = @registration");
+                cmd.Parameters.AddWithValue("@registration", registration);
+            }
+
+            if (additionalData.TryGetValue("last_visit", out var lastVisit) && !string.IsNullOrWhiteSpace(lastVisit))
+            {
+                setClauses.Add("last_visit = @last_visit");
+                cmd.Parameters.AddWithValue("@last_visit", lastVisit);
+            }
+
+            if (additionalData.TryGetValue("citizenship", out var citizenship) && !string.IsNullOrWhiteSpace(citizenship))
+            {
+                setClauses.Add("citizenship = @citizenship");
+                cmd.Parameters.AddWithValue("@citizenship", citizenship);
+            }
+
+            if (additionalData.TryGetValue("remote_work", out var remoteWorkStr) && !string.IsNullOrWhiteSpace(remoteWorkStr))
+            {
+                setClauses.Add("remote_work = @remote_work");
+                // Парсим строку в boolean
+                if (bool.TryParse(remoteWorkStr, out var remoteWorkBool))
+                {
+                    cmd.Parameters.AddWithValue("@remote_work", remoteWorkBool);
+                }
+                else
+                {
+                    cmd.Parameters.AddWithValue("@remote_work", DBNull.Value);
+                }
+            }
+
+            if (setClauses.Count == 0)
+                return;
+
+            cmd.CommandText = $@"
+                UPDATE habr_resumes 
+                SET {string.Join(", ", setClauses)}
+                WHERE link = @link";
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                Log($"[DB] Обновлены дополнительные данные для {userLink}: Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWorkStr}");
+            }
+            else
+            {
+                Log($"[DB] Пользователь {userLink} не найден в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Неожиданная ошибка при обновлении дополнительных данных для {userLink}: {ex.Message}");
         }
     }
 

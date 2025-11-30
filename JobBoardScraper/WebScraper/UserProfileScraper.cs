@@ -263,42 +263,9 @@ public sealed class UserProfileScraper : IDisposable
                     }
 
                     // Извлекаем опыт работы и последний визит из всех секций .basic-section
-                    string? workExperience = null;
-                    string? lastVisit = null;
-                    var basicSectionElements = doc.QuerySelectorAll(AppConfig.UserProfileBasicSectionSelector);
-                    foreach (var basicSectionElement in basicSectionElements)
-                    {
-                        // Ищем все div элементы в секции
-                        var divElements = basicSectionElement.QuerySelectorAll("div");
-                        foreach (var div in divElements)
-                        {
-                            var textContent = div.TextContent?.Trim();
-                            if (string.IsNullOrWhiteSpace(textContent))
-                                continue;
-                            
-                            // Проверяем на опыт работы
-                            if (textContent.Contains("Опыт работы:"))
-                            {
-                                // Извлекаем текст после "Опыт работы:"
-                                var parts = textContent.Split(new[] { "Опыт работы:" }, StringSplitOptions.None);
-                                if (parts.Length > 1)
-                                {
-                                    workExperience = parts[1].Trim();
-                                }
-                            }
-                            
-                            // Проверяем на последний визит
-                            if (textContent.Contains("Последний визит:"))
-                            {
-                                // Извлекаем текст после "Последний визит:"
-                                var parts = textContent.Split(new[] { "Последний визит:" }, StringSplitOptions.None);
-                                if (parts.Length > 1)
-                                {
-                                    lastVisit = parts[1].Trim();
-                                }
-                            }
-                        }
-                    }
+                    var (workExperience, lastVisit) = Helper.Dom.ProfileDataExtractor.ExtractWorkExperienceAndLastVisit(
+                        doc, 
+                        AppConfig.UserProfileBasicSectionSelector);
 
                     // Сохраняем информацию о пользователе (публичный профиль)
                     _db.EnqueueUserProfile(

@@ -452,8 +452,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                     }
                 }
 
+                // Извлекаем дополнительные данные профиля (возраст, опыт работы, регистрация, последний визит, гражданство, удаленная работа)
+                var (age, experienceText, registration, lastVisit, citizenship, remoteWork) = Helper.Dom.ProfileDataExtractor.ExtractAdditionalProfileData(doc);
+                
                 // Сохраняем информацию для публичного профиля
-                _db.EnqueueUserResumeDetail(userLink, about, skills);
+                _db.EnqueueUserResumeDetail(userLink, about, skills, age, experienceText, registration, lastVisit, citizenship, remoteWork);
                 
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
@@ -463,6 +466,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  О себе: {(string.IsNullOrWhiteSpace(about) ? "(не найдено)" : $"{about.Substring(0, Math.Min(100, about.Length))}...")}");
                 _logger.WriteLine($"  Навыки: {skills.Count} шт.");
                 _logger.WriteLine($"  Опыт работы: {experienceCount} записей");
+                _logger.WriteLine($"  Возраст: {age ?? "(не найдено)"}");
+                _logger.WriteLine($"  Опыт работы (текст): {experienceText ?? "(не найдено)"}");
+                _logger.WriteLine($"  Регистрация: {registration ?? "(не найдено)"}");
+                _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
+                _logger.WriteLine($"  Гражданство: {citizenship ?? "(не найдено)"}");
+                _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
                 _statistics.IncrementSuccess();
