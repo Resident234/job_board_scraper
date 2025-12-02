@@ -148,7 +148,8 @@ public sealed class DatabaseClient
         string? infoTech = null,
         int? salary = null,
         string? lastVisit = null,
-        bool? isPublic = null)
+        bool? isPublic = null,
+        string? jobSearchStatus = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -167,7 +168,7 @@ public sealed class DatabaseClient
                 }
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
@@ -180,6 +181,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 
@@ -216,6 +218,9 @@ public sealed class DatabaseClient
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
                 
+                if (jobSearchStatus != null)
+                    logParts.Add($"JobStatus={jobSearchStatus}");
+                
                 logParts.Add($"RowsAffected={rowsAffected}");
                 logParts.Add("✓ Записано");
                 
@@ -224,8 +229,8 @@ public sealed class DatabaseClient
             else // UpdateIfExists
             {
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, created_at, updated_at) 
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, NOW(), NOW())
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, created_at, updated_at) 
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, NOW(), NOW())
                     ON CONFLICT (link) 
                     DO UPDATE SET 
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
@@ -238,6 +243,7 @@ public sealed class DatabaseClient
                         salary = COALESCE(EXCLUDED.salary, habr_resumes.salary),
                         last_visit = COALESCE(EXCLUDED.last_visit, habr_resumes.last_visit),
                         public = COALESCE(EXCLUDED.public, habr_resumes.public),
+                        job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
                         updated_at = NOW()", conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
@@ -250,6 +256,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
 
                 int rowsAffected = cmd.ExecuteNonQuery();
                 
@@ -527,7 +534,8 @@ public sealed class DatabaseClient
                                 infoTech: record.UserProfile?.InfoTech,
                                 salary: record.UserProfile?.Salary,
                                 lastVisit: record.UserProfile?.LastVisit,
-                                isPublic: record.UserProfile?.IsPublic
+                                isPublic: record.UserProfile?.IsPublic,
+                                jobSearchStatus: record.UserProfile?.JobSearchStatus
                             );
                             
                             // Если есть навыки, добавляем их
@@ -628,7 +636,8 @@ public sealed class DatabaseClient
                                     infoTech: profile.InfoTech,
                                     salary: profile.Salary,
                                     lastVisit: profile.LastVisit,
-                                    isPublic: profile.IsPublic
+                                    isPublic: profile.IsPublic,
+                                    jobSearchStatus: profile.JobSearchStatus
                                 );
                             }
                             // Если это просто обновление статуса публичности
@@ -1345,7 +1354,8 @@ public sealed class DatabaseClient
             Salary: salary,
             WorkExperience: workExperience,
             LastVisit: lastVisit,
-            IsPublic: isPublic
+            IsPublic: isPublic,
+            JobSearchStatus: null
         );
 
         var record = new DbRecord(
@@ -1425,13 +1435,43 @@ public sealed class DatabaseClient
         string? registration,
         string? lastVisit,
         string? citizenship,
-        bool? remoteWork)
+        bool? remoteWork,
+        string? userName = null,
+        string? infoTech = null,
+        string? levelTitle = null,
+        int? salary = null,
+        string? jobSearchStatus = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
-        // Для about используем структуру UserProfileData (можно расширить позже)
-        // Для skills используем отдельную запись
+        // Обновляем основные данные профиля (имя, техническая информация, уровень, зарплата)
+        if (!string.IsNullOrWhiteSpace(userName) || 
+            !string.IsNullOrWhiteSpace(infoTech) || 
+            !string.IsNullOrWhiteSpace(levelTitle) || 
+            salary.HasValue ||
+            !string.IsNullOrWhiteSpace(lastVisit))
+        {
+            var profileRecord = new DbRecord(
+                Type: DbRecordType.UserProfile,
+                PrimaryValue: userLink,
+                SecondaryValue: "",
+                Mode: InsertMode.UpdateIfExists,
+                UserProfile: new UserProfileData(
+                    UserCode: null,
+                    UserName: userName,
+                    IsExpert: null,
+                    LevelTitle: levelTitle,
+                    InfoTech: infoTech,
+                    Salary: salary,
+                    WorkExperience: experienceText,
+                    LastVisit: lastVisit,
+                    IsPublic: null,
+                    JobSearchStatus: jobSearchStatus
+                )
+            );
+            _saveQueue.Enqueue(profileRecord);
+        }
         
         // Обновляем about
         if (!string.IsNullOrWhiteSpace(about))
@@ -1458,11 +1498,10 @@ public sealed class DatabaseClient
         
         // Добавляем дополнительные данные профиля
         if (!string.IsNullOrWhiteSpace(age) || 
-            !string.IsNullOrWhiteSpace(experienceText) ||
             !string.IsNullOrWhiteSpace(registration) || 
-            !string.IsNullOrWhiteSpace(lastVisit) ||
             !string.IsNullOrWhiteSpace(citizenship) || 
-            remoteWork.HasValue)
+            remoteWork.HasValue ||
+            !string.IsNullOrWhiteSpace(jobSearchStatus))
         {
             var additionalDataRecord = new DbRecord(
                 Type: DbRecordType.UserAdditionalData,
@@ -1471,17 +1510,16 @@ public sealed class DatabaseClient
                 AdditionalData: new Dictionary<string, string?>
                 {
                     { "age", age },
-                    { "experience_text", experienceText },
                     { "registration", registration },
-                    { "last_visit", lastVisit },
                     { "citizenship", citizenship },
-                    { "remote_work", remoteWork?.ToString() }
+                    { "remote_work", remoteWork?.ToString() },
+                    { "job_search_status", jobSearchStatus }
                 }
             );
             _saveQueue.Enqueue(additionalDataRecord);
         }
         
-        Log($"[DB Queue] UserResumeDetail: {userLink} -> About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}");
+        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}");
         
         return true;
     }
@@ -2006,7 +2044,8 @@ public sealed class DatabaseClient
                 Salary: profileData.Salary,
                 WorkExperience: null,
                 LastVisit: null,
-                IsPublic: null
+                IsPublic: null,
+                JobSearchStatus: null
             ),
             Skills: profileData.Skills
         );

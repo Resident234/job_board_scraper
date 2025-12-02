@@ -12,5 +12,6 @@ public readonly record struct UserProfileData(
     int? Salary,
     string? WorkExperience,
     string? LastVisit,
-    bool? IsPublic
+    bool? IsPublic,
+    string? JobSearchStatus
 );

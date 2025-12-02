@@ -511,9 +511,8 @@ public sealed class ResumeListPageScraper : IDisposable
                 if (profileLink == null) continue;
 
                 var href = profileLink.GetAttribute("href");
-                var name = profileLink.TextContent?.Trim();
                 
-                if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(name))
+                if (string.IsNullOrWhiteSpace(href))
                     continue;
 
                 // Проверяем и извлекаем код пользователя с помощью regex
@@ -534,57 +533,16 @@ public sealed class ResumeListPageScraper : IDisposable
                 var expertIcon = section.QuerySelector(AppConfig.ResumeListExpertIconSelector);
                 var isExpert = expertIcon != null;
 
-                // 3) Извлекаем должности и уровень
-                string? infoTech = null;
-                string? levelTitle = null;
-                
-                var positionsDiv = section.QuerySelector("div");
-                if (positionsDiv != null)
-                {
-                    var separators = positionsDiv.QuerySelectorAll(AppConfig.ResumeListSeparatorSelector);
-                    if (separators.Length > 0)
-                    {
-                        var allText = positionsDiv.TextContent?.Trim();
-                        if (!string.IsNullOrWhiteSpace(allText))
-                        {
-                            // Разбиваем по разделителю
-                            var parts = allText.Split('•', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                            if (parts.Length > 0)
-                            {
-                                // Последний элемент - уровень
-                                levelTitle = parts[^1].Trim();
-                                
-                                // Остальные - должности
-                                if (parts.Length > 1)
-                                {
-                                    infoTech = string.Join(" • ", parts[..^1]);
-                                }
-                            }
-                        }
-                    }
-                }
+                // 3) Извлекаем имя, должности и уровень используя Helper.Dom.ProfileDataExtractor
+                var (name, infoTech, levelTitle) = Helper.Dom.ProfileDataExtractor.ExtractNameInfoTechAndLevel(
+                    section, 
+                    AppConfig.ResumeListProfileLinkSelector, 
+                    AppConfig.ResumeListSeparatorSelector);
 
-                // 4) Извлекаем зарплату
-                int? salary = null;
-                var salarySpans = section.QuerySelectorAll("span");
-                foreach (var span in salarySpans)
-                {
-                    var text = span.TextContent?.Trim();
-                    if (!string.IsNullOrWhiteSpace(text) && text.Contains("От") && text.Contains("₽"))
-                    {
-                        // Извлекаем число
-                        var salaryMatch = System.Text.RegularExpressions.Regex.Match(text, AppConfig.ResumeListSalaryRegex);
-                        if (salaryMatch.Success)
-                        {
-                            var salaryStr = salaryMatch.Groups[1].Value.Replace(" ", "");
-                            if (int.TryParse(salaryStr, out var salaryValue))
-                            {
-                                salary = salaryValue;
-                            }
-                        }
-                        break;
-                    }
-                }
+                // 4) Извлекаем зарплату используя Helper.Dom.ProfileDataExtractor
+                var salary = Helper.Dom.ProfileDataExtractor.ExtractSalaryFromSection(
+                    section, 
+                    AppConfig.ResumeListSalaryRegex);
 
                 // 5) Извлекаем навыки
                 var skills = new List<string>();
@@ -601,6 +559,10 @@ public sealed class ResumeListPageScraper : IDisposable
                         }
                     }
                 }
+
+                // Проверяем, что имя не null
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
 
                 // Создаём структуру данных и добавляем в очередь
                 var profileData = new ResumeProfileData(

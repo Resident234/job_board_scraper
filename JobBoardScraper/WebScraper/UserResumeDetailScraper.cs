@@ -296,6 +296,15 @@ public sealed class UserResumeDetailScraper : IDisposable
                 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
+                // Извлекаем имя пользователя
+                var userName = Helper.Dom.ProfileDataExtractor.ExtractUserName(doc);
+                
+                // Извлекаем техническую информацию и уровень
+                var (infoTech, levelTitle) = Helper.Dom.ProfileDataExtractor.ExtractInfoTechAndLevel(doc);
+                
+                // Извлекаем зарплату и статус поиска работы
+                var (salary, jobSearchStatus) = Helper.Dom.ProfileDataExtractor.ExtractSalaryAndJobStatus(doc);
+
                 // Извлекаем текст "О себе"
                 string? about = null;
                 var contentSection = doc.QuerySelector(AppConfig.UserResumeDetailContentSelector);
@@ -456,13 +465,32 @@ public sealed class UserResumeDetailScraper : IDisposable
                 var (age, experienceText, registration, lastVisit, citizenship, remoteWork) = Helper.Dom.ProfileDataExtractor.ExtractAdditionalProfileData(doc);
                 
                 // Сохраняем информацию для публичного профиля
-                _db.EnqueueUserResumeDetail(userLink, about, skills, age, experienceText, registration, lastVisit, citizenship, remoteWork);
+                _db.EnqueueUserResumeDetail(
+                    userLink, 
+                    about, 
+                    skills, 
+                    age, 
+                    experienceText, 
+                    registration, 
+                    lastVisit, 
+                    citizenship, 
+                    remoteWork,
+                    userName,
+                    infoTech,
+                    levelTitle,
+                    salary,
+                    jobSearchStatus);
                 
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
                 _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: true);
                 
                 _logger.WriteLine($"Пользователь {userLink}:");
+                _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
+                _logger.WriteLine($"  Техническая информация: {infoTech ?? "(не найдено)"}");
+                _logger.WriteLine($"  Уровень: {levelTitle ?? "(не найдено)"}");
+                _logger.WriteLine($"  Зарплата: {(salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)")}");
+                _logger.WriteLine($"  Статус поиска работы: {jobSearchStatus ?? "(не найдено)"}");
                 _logger.WriteLine($"  О себе: {(string.IsNullOrWhiteSpace(about) ? "(не найдено)" : $"{about.Substring(0, Math.Min(100, about.Length))}...")}");
                 _logger.WriteLine($"  Навыки: {skills.Count} шт.");
                 _logger.WriteLine($"  Опыт работы: {experienceCount} записей");

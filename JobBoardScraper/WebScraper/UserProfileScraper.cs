@@ -177,18 +177,8 @@ public sealed class UserProfileScraper : IDisposable
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                     // Извлекаем имя пользователя и определяем публичность профиля
-                    string? userName = null;
-                    bool isPublic = false;
-                    var pageTitleElement = doc.QuerySelector(AppConfig.UserProfilePageTitleSelector);
-                    if (pageTitleElement != null)
-                    {
-                        userName = pageTitleElement.TextContent?.Trim();
-                        // Если имя найдено, профиль публичный
-                        if (!string.IsNullOrWhiteSpace(userName))
-                        {
-                            isPublic = true;
-                        }
-                    }
+                    var userName = Helper.Dom.ProfileDataExtractor.ExtractUserName(doc, AppConfig.UserProfilePageTitleSelector);
+                    bool isPublic = !string.IsNullOrWhiteSpace(userName);
 
                     // Если профиль приватный (редирект на главную), сохраняем только флаг и продолжаем
                     if (!isPublic)
@@ -208,59 +198,16 @@ public sealed class UserProfileScraper : IDisposable
                     }
 
                     // Извлекаем уровень и техническую информацию
-                    string? levelTitle = null;
-                    string? infoTech = null;
-                    var metaElement = doc.QuerySelector(AppConfig.UserProfileMetaSelector);
-                    if (metaElement != null)
-                    {
-                        var inlineList = metaElement.QuerySelector(AppConfig.UserProfileInlineListSelector);
-                        if (inlineList != null)
-                        {
-                            var spans = inlineList.QuerySelectorAll("span > span:first-child");
-                            var textParts = new List<string>();
-                            
-                            foreach (var span in spans)
-                            {
-                                var text = span.TextContent?.Trim();
-                                if (!string.IsNullOrWhiteSpace(text))
-                                {
-                                    textParts.Add(text);
-                                }
-                            }
-                            
-                            // Последний элемент - это уровень
-                            if (textParts.Count > 0)
-                            {
-                                levelTitle = textParts[textParts.Count - 1];
-                                
-                                // Остальные элементы - техническая информация
-                                if (textParts.Count > 1)
-                                {
-                                    infoTech = string.Join(" • ", textParts.Take(textParts.Count - 1));
-                                }
-                            }
-                        }
-                    }
+                    var (infoTech, levelTitle) = Helper.Dom.ProfileDataExtractor.ExtractInfoTechAndLevel(
+                        doc,
+                        AppConfig.UserProfileMetaSelector,
+                        AppConfig.UserProfileInlineListSelector);
 
-                    // Извлекаем зарплату
-                    int? salary = null;
-                    var careerElement = doc.QuerySelector(AppConfig.UserProfileCareerSelector);
-                    if (careerElement != null)
-                    {
-                        var careerText = careerElement.TextContent?.Trim();
-                        if (!string.IsNullOrWhiteSpace(careerText))
-                        {
-                            var salaryMatch = _salaryRegex.Match(careerText);
-                            if (salaryMatch.Success && salaryMatch.Groups.Count >= 2)
-                            {
-                                var salaryStr = salaryMatch.Groups[1].Value.Replace(" ", "");
-                                if (int.TryParse(salaryStr, out var salaryValue))
-                                {
-                                    salary = salaryValue;
-                                }
-                            }
-                        }
-                    }
+                    // Извлекаем зарплату и статус поиска работы
+                    var (salary, jobSearchStatus) = Helper.Dom.ProfileDataExtractor.ExtractSalaryAndJobStatus(
+                        doc,
+                        AppConfig.UserProfileCareerSelector,
+                        AppConfig.UserProfileSalaryRegex);
 
                     // Извлекаем опыт работы и последний визит из всех секций .basic-section
                     var (workExperience, lastVisit) = Helper.Dom.ProfileDataExtractor.ExtractWorkExperienceAndLastVisit(
