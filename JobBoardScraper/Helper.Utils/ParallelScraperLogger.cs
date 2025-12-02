@@ -63,7 +63,7 @@ public static class ParallelScraperLogger
         int total)
     {
         double percent = statistics.TotalProcessed * 100.0 / total;
-        var message = $"[{statistics.ScraperName}] HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
+        var message = $"HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
                      $"Код ответа {statusCode}. " +
                      $"Обработано: {statistics.TotalProcessed}/{total} ({percent:F2}%). " +
                      $"Параллельных процессов: {statistics.ActiveRequests}.";
@@ -74,7 +74,7 @@ public static class ParallelScraperLogger
         }
         else
         {
-            Console.WriteLine(message);
+            Console.WriteLine($"[{statistics.ScraperName}] {message}");
         }
     }
 }
