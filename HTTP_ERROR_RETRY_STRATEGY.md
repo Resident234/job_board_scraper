@@ -7,10 +7,15 @@
 ## Проблема
 
 При работе с прокси часто возникают ошибки:
-- **503 Service Unavailable** - сервер временно недоступен
 - **500 Internal Server Error** - внутренняя ошибка сервера
 - **502 Bad Gateway** - прокси не может подключиться к серверу
+- **503 Service Unavailable** - сервер временно недоступен
+- **403 Forbidden** - IP заблокирован или доступ запрещён
+- **429 Too Many Requests** - превышен лимит запросов (rate limiting)
+- **408 Request Timeout** - таймаут запроса
 - **Socket errors** - ошибки подключения к прокси
+
+**Важно:** Страница считается обработанной ТОЛЬКО при получении ответа 200 OK. Любой другой код ответа приводит к повторной попытке со сменой прокси.
 
 ## Решение
 
@@ -28,9 +33,29 @@ var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
 // baseDelay=500мс, maxDelay=10000мс, jitter=20%
 ```
 
-### 2. Примеры задержек
+### 2. Обрабатываемые коды ответов
 
-**Для ошибок сервера (503, 500, 502):**
+| Код | Описание | Стратегия | Задержка |
+|-----|----------|-----------|----------|
+| 200 | OK | Успех | - |
+| 404 | Not Found | **Не повторять**, записать "Ошибка 404" в title | - |
+| 5xx | Server errors (500, 502, 503, 504) | Exponential backoff | 2-60 сек |
+| 403 | Forbidden (IP blocked) | Смена прокси | 0.5-10 сек |
+| 429 | Rate limited | Retry-After или 2x backoff | По заголовку или 4-120 сек |
+| 408 | Request timeout | Смена прокси | 0.5-10 сек |
+| Другие | Любой не-200/404 ответ | Смена прокси | 0.5-10 сек |
+
+### Особая обработка 404 Not Found
+
+При получении ответа 404:
+- Страница считается обработанной (не повторяется)
+- В поле `title` записывается "Ошибка 404"
+- В поле `about` записывается "Ошибка 404"
+- Это позволяет отслеживать удалённые или несуществующие профили
+
+### 3. Примеры задержек
+
+**Для ошибок сервера (5xx):**
 ```
 Попытка 1:  2.0 ± 0.6 сек  (1.4 - 2.6 сек)
 Попытка 2:  4.0 ± 1.2 сек  (2.8 - 5.2 сек)
@@ -40,7 +65,7 @@ var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
 Попытка 6+: 60.0 сек max   (ограничено maxDelay)
 ```
 
-**Для ошибок прокси/сети:**
+**Для ошибок 403/408/прокси/сети:**
 ```
 Попытка 1: 0.5 ± 0.1 сек  (0.4 - 0.6 сек)
 Попытка 2: 1.0 ± 0.2 сек  (0.8 - 1.2 сек)
@@ -48,6 +73,10 @@ var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
 Попытка 4: 4.0 ± 0.8 сек  (3.2 - 4.8 сек)
 Попытка 5+: 10.0 сек max  (ограничено maxDelay)
 ```
+
+**Для 429 Rate Limited:**
+- Если есть заголовок `Retry-After` - используется значение из заголовка
+- Иначе - удвоенная задержка server error (4-120 сек)
 
 ### 3. Троттлинг
 
@@ -70,23 +99,32 @@ _controller.ReportLatency(sw.Elapsed);
 [UserResumeDetailScraper] HTTP запрос: 503 Service Unavailable
 [UserResumeDetailScraper] Skipping user (non-success status code)
 ```
+Страница считалась обработанной, хотя данные не были получены.
 
 ### После изменений:
 ```
-[UserResumeDetailScraper] Using proxy: http://213.157.6.50:80 (attempt 16/30)
-[UserResumeDetailScraper] Server error 503 (attempt 16/30). Backoff delay: 2.1с
+[UserResumeDetailScraper] Using proxy: http://213.157.6.50:80 (attempt 1/30)
+[UserResumeDetailScraper] Server error 500 (attempt 1/30). Backoff delay: 2.1с
 [UserResumeDetailScraper] Retrying with next proxy after delay...
-[UserResumeDetailScraper] Using proxy: http://77.76.189.189:8092 (attempt 17/30)
+[UserResumeDetailScraper] Using proxy: http://159.203.61.169:3128 (attempt 2/30)
+[UserResumeDetailScraper] Forbidden (IP blocked) 403 (attempt 2/30). Backoff delay: 0.6с
+[UserResumeDetailScraper] Retrying with next proxy after delay...
+[UserResumeDetailScraper] Using proxy: http://77.76.189.189:8092 (attempt 3/30)
 [UserResumeDetailScraper] HTTP запрос: 200 OK
 ```
+Страница повторяется до получения 200 OK или исчерпания попыток.
 
 ## Преимущества
 
-1. **Экспоненциальный рост задержки** - дает серверу время восстановиться
-2. **Jitter (рандомизация)** - предотвращает "thundering herd" (одновременные повторы)
-3. **Разные параметры** - для server errors и proxy errors
-4. **Ограничение максимальной задержки** - не ждем слишком долго
-5. **Подробное логирование** - видно задержку в логах
+1. **Страница не считается обработанной до 200 OK** - гарантия получения данных
+2. **Обработка всех типов ошибок** - 5xx, 403, 429, 408 и любые другие не-200
+3. **Экспоненциальный рост задержки** - дает серверу время восстановиться
+4. **Jitter (рандомизация)** - предотвращает "thundering herd" (одновременные повторы)
+5. **Разные параметры** - для server errors и proxy/client errors
+6. **Поддержка Retry-After** - для 429 используется значение из заголовка
+7. **Автоматическая смена прокси** - при каждой ошибке берётся новый прокси
+8. **Ограничение максимальной задержки** - не ждем слишком долго
+9. **Подробное логирование** - видно тип ошибки и задержку в логах
 
 ## Конфигурация
 

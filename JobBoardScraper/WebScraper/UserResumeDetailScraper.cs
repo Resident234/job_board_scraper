@@ -222,25 +222,106 @@ public sealed class UserResumeDetailScraper : IDisposable
                             response = await _httpClient.GetAsync(userLink, ct);
                         }
                         
-                        // Check for server errors (5xx) that should be retried
-                        if (response != null && (int)response.StatusCode >= 500 && (int)response.StatusCode < 600)
+                        // Check for retryable HTTP errors
+                        if (response != null)
                         {
-                            var serverErrorDelay = ExponentialBackoff.CalculateServerErrorDelay(attempt);
-                            _logger.WriteLine($"Server error {(int)response.StatusCode} (attempt {attempt}/{maxRetries}). " +
-                                $"Backoff delay: {ExponentialBackoff.GetDelayDescription(serverErrorDelay)}");
+                            var statusCode = (int)response.StatusCode;
+                            bool shouldRetry = false;
+                            int delayMs = 0;
+                            string errorType = "";
                             
-                            if (attempt < maxRetries && _proxyPool != null)
+                            // Server errors (5xx) - retry with exponential backoff
+                            if (statusCode >= 500 && statusCode < 600)
                             {
+                                shouldRetry = true;
+                                delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt);
+                                errorType = "Server error";
+                            }
+                            // 403 Forbidden - likely IP blocked, change proxy immediately
+                            else if (statusCode == 403)
+                            {
+                                shouldRetry = true;
+                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                errorType = "Forbidden (IP blocked)";
+                            }
+                            // 429 Too Many Requests - rate limited, need longer delay
+                            else if (statusCode == 429)
+                            {
+                                shouldRetry = true;
+                                // Check for Retry-After header
+                                if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
+                                {
+                                    var retryAfter = retryAfterValues.FirstOrDefault();
+                                    if (int.TryParse(retryAfter, out var seconds))
+                                    {
+                                        delayMs = seconds * 1000;
+                                    }
+                                    else
+                                    {
+                                        delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2; // Double delay for rate limiting
+                                    }
+                                }
+                                else
+                                {
+                                    delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
+                                }
+                                errorType = "Rate limited";
+                            }
+                            // 408 Request Timeout - retry with same or different proxy
+                            else if (statusCode == 408)
+                            {
+                                shouldRetry = true;
+                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                errorType = "Request timeout";
+                            }
+                            // 404 Not Found - don't retry, will be handled separately
+                            else if (statusCode == 404)
+                            {
+                                shouldRetry = false;
+                            }
+                            
+                            if (shouldRetry && attempt < maxRetries && _proxyPool != null)
+                            {
+                                _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
+                                    $"Backoff delay: {ExponentialBackoff.GetDelayDescription(delayMs)}");
                                 _logger.WriteLine($"Retrying with next proxy after delay...");
                                 response.Dispose();
                                 response = null;
-                                await Task.Delay(serverErrorDelay, ct);
+                                await Task.Delay(delayMs, ct);
                                 continue;
+                            }
+                            else if (shouldRetry)
+                            {
+                                _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
+                                    $"No more retries available.");
                             }
                         }
                         
-                        // Success or non-retryable error - break retry loop
-                        break;
+                        // Success (200) - break retry loop
+                        if (response != null && response.IsSuccessStatusCode)
+                        {
+                            break;
+                        }
+                        
+                        // Non-retryable error or no proxy pool - break retry loop
+                        if (_proxyPool == null || attempt >= maxRetries)
+                        {
+                            break;
+                        }
+                        
+                        // Any other non-success status - retry with next proxy (except 404)
+                        if (response != null && !response.IsSuccessStatusCode && (int)response.StatusCode != 404)
+                        {
+                            var statusCode = (int)response.StatusCode;
+                            var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                            _logger.WriteLine($"HTTP error {statusCode} (attempt {attempt}/{maxRetries}). " +
+                                $"Backoff delay: {ExponentialBackoff.GetDelayDescription(delayMs)}");
+                            _logger.WriteLine($"Retrying with next proxy after delay...");
+                            response.Dispose();
+                            response = null;
+                            await Task.Delay(delayMs, ct);
+                            continue;
+                        }
                     }
                     catch (Exception ex) when (attempt < maxRetries && _proxyPool != null)
                     {
@@ -284,6 +365,32 @@ public sealed class UserResumeDetailScraper : IDisposable
                     elapsedSeconds,
                     (int)response.StatusCode,
                     totalLinks);
+                
+                // Handle 404 Not Found - save as "Ошибка 404" and mark as processed
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    const string notFoundMessage = "Ошибка 404";
+                    // Используем полную перегрузку с userName для записи в title
+                    _db.EnqueueUserResumeDetail(
+                        userLink, 
+                        about: notFoundMessage, 
+                        skills: new List<string>(),
+                        age: null,
+                        experienceText: null,
+                        registration: null,
+                        lastVisit: null,
+                        citizenship: null,
+                        remoteWork: null,
+                        userName: notFoundMessage);
+                    
+                    _logger.WriteLine($"Пользователь {userLink}:");
+                    _logger.WriteLine($"  Статус: страница не найдена (404)");
+                    _logger.WriteLine($"  Title: {notFoundMessage}");
+                    
+                    _statistics.IncrementSuccess();
+                    _activeRequests.TryRemove(userLink, out _);
+                    return;
+                }
                 
                 if (!response.IsSuccessStatusCode)
                 {
