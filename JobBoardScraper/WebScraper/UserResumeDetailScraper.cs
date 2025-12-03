@@ -366,6 +366,9 @@ public sealed class UserResumeDetailScraper : IDisposable
                     (int)response.StatusCode,
                     totalLinks);
                 
+                // Записываем статистику по коду ответа
+                _statistics.RecordStatusCode((int)response.StatusCode);
+                
                 // Handle 404 Not Found - save as "Ошибка 404" and mark as processed
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
@@ -647,5 +650,9 @@ public sealed class UserResumeDetailScraper : IDisposable
         
         _statistics.EndTime = DateTime.Now;
         _logger.WriteLine($"Обход завершён. {_statistics}");
+        _logger.WriteLine($"Статистика HTTP кодов: {_statistics.GetStatusCodeStatsString()}");
+        
+        // Записываем статистику в отдельный лог-файл
+        _statistics.WriteToLogFile();
     }
 }
