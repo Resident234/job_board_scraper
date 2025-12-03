@@ -28,7 +28,11 @@ psql -U postgres -d jobs -f sql/add_company_details_columns.sql
 psql -U postgres -d jobs -f sql/create_levels_table.sql
 psql -U postgres -d jobs -f sql/add_user_profile_columns.sql
 
-# 4. Запустить приложение
+# 4. Применить дополнительные миграции (если нужно)
+psql -U postgres -d jobs -f sql/alter_resumes_add_additional_fields.sql
+psql -U postgres -d jobs -f sql/alter_resumes_add_job_search_status.sql
+
+# 5. Запустить приложение
 dotnet run --project JobBoardScraper
 ```
 
@@ -80,12 +84,14 @@ dotnet run --project JobBoardScraper
 - Поддержка прокси-ротации для обхода лимитов
 
 ### 🔧 Улучшения 
--
- **SmartHttpClient**: Умная обёртка над HttpClient с автоматическими повторами, измерением трафика и поддержкой прокси
+- **SmartHttpClient**: Умная обёртка над HttpClient с автоматическими повторами, измерением трафика и поддержкой прокси
 - **ProxyRotator**: Автоматическая ротация прокси-серверов для распределения нагрузки
 - **TrafficStatistics**: Детальная статистика трафика по скраперам
 - **AdaptiveConcurrencyController**: Динамическое управление параллелизмом
 - **DatabaseClient**: Универсальный клиент для работы с PostgreSQL
+- **ExponentialBackoff**: Умная стратегия повторов с экспоненциальной задержкой и jitter для HTTP ошибок
+- **ProfileDataExtractor**: Централизованный класс для извлечения данных профиля из HTML
+- **job_search_status**: Новое поле для хранения статуса поиска работы пользователя
 
 ---
 
@@ -143,6 +149,17 @@ var smartClient = new SmartHttpClient(
 - [USER_PROFILE_SCRAPER.md](docs/USER_PROFILE_SCRAPER.md)
 - [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md)
 - [USER_ADDITIONAL_DATA_EXTRACTION.md](docs/USER_ADDITIONAL_DATA_EXTRACTION.md) - Извлечение дополнительных данных профиля
+
+### Алгоритмы и стратегии
+
+- [BACKOFF_ALGORITHMS.md](docs/BACKOFF_ALGORITHMS.md) - Алгоритмы задержки между повторами
+- [HTTP_ERROR_RETRY_STRATEGY.md](HTTP_ERROR_RETRY_STRATEGY.md) - Стратегия повторов для HTTP ошибок
+
+### Рефакторинг и изменения
+
+- [REFACTORING_PROFILE_EXTRACTOR.md](REFACTORING_PROFILE_EXTRACTOR.md) - Рефакторинг извлечения данных профиля
+- [SAVE_EXTRACTED_DATA_TO_DB.md](SAVE_EXTRACTED_DATA_TO_DB.md) - Сохранение извлечённых данных в БД
+- [JOB_SEARCH_STATUS_FIELD_SUMMARY.md](JOB_SEARCH_STATUS_FIELD_SUMMARY.md) - Поле статуса поиска работы
 
 ### Быстрые старты
 

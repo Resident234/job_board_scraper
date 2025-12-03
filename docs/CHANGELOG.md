@@ -2,6 +2,61 @@
 
 Все значимые изменения в проекте JobBoardScraper документируются в этом файле.
 
+## [2.2.0] - 2024-12-03
+
+### Добавлено
+
+#### ExponentialBackoff - умная стратегия повторов
+- Класс `ExponentialBackoff` в `Helper.Utils/ExponentialBackoff.cs`
+- Алгоритм Exponential Backoff with Jitter для HTTP ошибок
+- Специализированные методы для разных типов ошибок:
+  - `CalculateServerErrorDelay()` - для ошибок сервера (5xx): baseDelay=2с, maxDelay=60с
+  - `CalculateProxyErrorDelay()` - для ошибок прокси/сети: baseDelay=0.5с, maxDelay=10с
+- Метод `GetDelayDescription()` для форматированного вывода задержки
+- Потокобезопасная реализация с использованием `lock`
+
+#### Поле job_search_status
+- Новое поле `job_search_status` в таблице `habr_resumes`
+- SQL миграция `sql/alter_resumes_add_job_search_status.sql`
+- Поддержка значений: "Ищу работу", "Не ищу работу", "Рассматриваю предложения"
+- Индекс для быстрого поиска по статусу
+
+#### Документация
+- [BACKOFF_ALGORITHMS.md](docs/BACKOFF_ALGORITHMS.md) - полное описание алгоритмов задержки
+- [HTTP_ERROR_RETRY_STRATEGY.md](HTTP_ERROR_RETRY_STRATEGY.md) - стратегия повторов для HTTP ошибок
+- [REFACTORING_PROFILE_EXTRACTOR.md](REFACTORING_PROFILE_EXTRACTOR.md) - рефакторинг извлечения данных
+- [SAVE_EXTRACTED_DATA_TO_DB.md](SAVE_EXTRACTED_DATA_TO_DB.md) - сохранение данных в БД
+- [JOB_SEARCH_STATUS_FIELD_SUMMARY.md](JOB_SEARCH_STATUS_FIELD_SUMMARY.md) - поле статуса поиска работы
+
+### Изменено
+
+#### Рефакторинг ProfileDataExtractor
+- Перенос кода извлечения данных из `ResumeListPageScraper` в `ProfileDataExtractor`
+- Новые методы:
+  - `ExtractNameInfoTechAndLevel()` - имя, должности и уровень из списка резюме
+  - `ExtractSalaryFromSection()` - зарплата из секции профиля
+  - `ExtractJobSearchStatusFromSection()` - статус поиска работы
+- Устранено дублирование кода между скраперами
+
+#### Улучшение UserResumeDetailScraper
+- Интеграция ExponentialBackoff для HTTP ошибок
+- Разные параметры задержки для server errors и proxy errors
+- Улучшенное логирование с отображением задержки
+
+#### Обновление DatabaseClient
+- Метод `EnqueueUserResumeDetail` принимает параметр `jobSearchStatus`
+- Метод `DatabaseInsert` поддерживает поле `job_search_status`
+- Обновлены SQL запросы INSERT и UPDATE
+
+#### Исправление ParallelScraperLogger
+- Удалены дублирующиеся префиксы имени класса в логах
+
+### Исправлено
+
+- Дублирование кода извлечения данных между скраперами
+- Фиксированная задержка при HTTP ошибках (заменена на экспоненциальную)
+- Дублирование имени класса в логах ParallelScraperLogger
+
 ## [2.1.0] - 2024-11-28
 
 ### Добавлено

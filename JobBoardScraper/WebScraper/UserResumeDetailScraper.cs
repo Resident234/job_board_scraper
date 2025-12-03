@@ -181,7 +181,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 int maxRetries = _proxyPool != null ? AppConfig.ProxyMaxRetries : 1;
                 
                 // Retry loop with different proxies
-                while (attempt < maxRetries && response == null)
+                while (attempt < maxRetries)
                 {
                     attempt++;
                     string? proxyUrl = null;
@@ -222,18 +222,38 @@ public sealed class UserResumeDetailScraper : IDisposable
                             response = await _httpClient.GetAsync(userLink, ct);
                         }
                         
-                        // Success - break retry loop
+                        // Check for server errors (5xx) that should be retried
+                        if (response != null && (int)response.StatusCode >= 500 && (int)response.StatusCode < 600)
+                        {
+                            var serverErrorDelay = ExponentialBackoff.CalculateServerErrorDelay(attempt);
+                            _logger.WriteLine($"Server error {(int)response.StatusCode} (attempt {attempt}/{maxRetries}). " +
+                                $"Backoff delay: {ExponentialBackoff.GetDelayDescription(serverErrorDelay)}");
+                            
+                            if (attempt < maxRetries && _proxyPool != null)
+                            {
+                                _logger.WriteLine($"Retrying with next proxy after delay...");
+                                response.Dispose();
+                                response = null;
+                                await Task.Delay(serverErrorDelay, ct);
+                                continue;
+                            }
+                        }
+                        
+                        // Success or non-retryable error - break retry loop
                         break;
                     }
                     catch (Exception ex) when (attempt < maxRetries && _proxyPool != null)
                     {
-                        // Log error and try next proxy
-                        _logger.WriteLine($"Proxy error (attempt {attempt}/{maxRetries}): {ex.Message}");
+                        // Calculate delay using exponential backoff with jitter
+                        var proxyErrorDelay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                        
+                        _logger.WriteLine($"Proxy error (attempt {attempt}/{maxRetries}): {ex.Message}. " +
+                            $"Backoff delay: {ExponentialBackoff.GetDelayDescription(proxyErrorDelay)}");
                         
                         if (attempt < maxRetries)
                         {
-                            _logger.WriteLine($"Trying next proxy...");
-                            await Task.Delay(1000, ct); // Small delay before retry
+                            _logger.WriteLine($"Trying next proxy after delay...");
+                            await Task.Delay(proxyErrorDelay, ct);
                         }
                         else
                         {
