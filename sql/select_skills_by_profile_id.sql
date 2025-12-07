@@ -5,6 +5,10 @@ SELECT * FROM habr_skills;
 
 SELECT * FROM habr_user_skills WHERE user_id = 103203;
 
+SELECT * FROM habr_user_skills
+WHERE created_at >= NOW() - INTERVAL '2 days'
+ORDER BY created_at DESC;
+
 -- Вариант 1: Получить навыки с полной информацией
 SELECT 
     hs.id AS skill_id,
@@ -13,7 +17,7 @@ SELECT
     hus.created_at AS added_at
 FROM habr_user_skills hus
 JOIN habr_skills hs ON hus.skill_id = hs.id
-WHERE hus.user_id = 103203
+WHERE hus.user_id = 17539
 ORDER BY hs.title;
 
 -- Вариант 2: Получить только названия навыков (простой список)
