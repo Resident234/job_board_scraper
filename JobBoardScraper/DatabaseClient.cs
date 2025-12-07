@@ -1473,16 +1473,13 @@ public sealed class DatabaseClient
             _saveQueue.Enqueue(profileRecord);
         }
         
-        // Обновляем about
-        if (!string.IsNullOrWhiteSpace(about))
-        {
-            var record = new DbRecord(
-                Type: DbRecordType.UserAbout,
-                PrimaryValue: userLink,
-                SecondaryValue: about
-            );
-            _saveQueue.Enqueue(record);
-        }
+        // Обновляем about (записываем пустую строку если не найден)
+        var aboutRecord = new DbRecord(
+            Type: DbRecordType.UserAbout,
+            PrimaryValue: userLink,
+            SecondaryValue: about ?? ""
+        );
+        _saveQueue.Enqueue(aboutRecord);
         
         // Добавляем навыки
         if (skills != null && skills.Count > 0)
