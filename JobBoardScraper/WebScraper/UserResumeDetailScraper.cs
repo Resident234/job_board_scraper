@@ -452,7 +452,31 @@ public sealed class UserResumeDetailScraper : IDisposable
                 var contentSection = doc.QuerySelector(AppConfig.UserResumeDetailContentSelector);
                 if (contentSection != null)
                 {
-                    about = contentSection.TextContent?.Trim();
+                    // Берём только содержимое из .style-ugc (без заголовка "Обо мне")
+                    var ugcContent = contentSection.QuerySelector(".style-ugc");
+                    if (ugcContent != null)
+                    {
+                        // Сохраняем переносы строк: заменяем <br> и </p> на \n перед извлечением текста
+                        var aboutHtml = ugcContent.InnerHtml;
+                        // Заменяем <br>, <br/>, <br /> на перенос строки
+                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        // Заменяем </p> на перенос строки (начало нового абзаца)
+                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        // Заменяем </li> на перенос строки
+                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        // Удаляем все остальные HTML теги
+                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<[^>]+>", "");
+                        // Декодируем HTML entities (&nbsp; и т.д.)
+                        aboutHtml = System.Net.WebUtility.HtmlDecode(aboutHtml);
+                        // Убираем множественные переносы строк
+                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"\n{3,}", "\n\n");
+                        about = aboutHtml.Trim();
+                    }
+                    else
+                    {
+                        // Fallback: если .style-ugc не найден, берём весь текст
+                        about = contentSection.TextContent?.Trim();
+                    }
                 }
 
                 // Извлекаем навыки
