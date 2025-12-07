@@ -487,6 +487,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем навыки
                 var skills = new List<string>();
                 var skillElements = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector);
+                _logger.WriteLine($"  [DEBUG] Найдено элементов навыков: {skillElements.Length} (селектор: {AppConfig.UserResumeDetailSkillSelector})");
                 foreach (var skillElement in skillElements)
                 {
                     var skillTitle = skillElement.TextContent?.Trim();
@@ -495,6 +496,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         skills.Add(skillTitle);
                     }
                 }
+                _logger.WriteLine($"  [DEBUG] Извлечено навыков: {skills.Count}");
 
                 // Извлекаем опыт работы
                 var experienceCount = 0;
