@@ -408,16 +408,28 @@ public sealed class UserResumeDetailScraper : IDisposable
                 var html = encoding.GetString(htmlBytes);
                 
                 // Проверяем на приватный профиль сразу в HTML
-                const string privateProfileText = "Доступ ограничен настройками приватности";
-                if (html.Contains(privateProfileText))
+                // Проверяем несколько признаков приватного профиля:
+                // 1. Текст "Доступ ограничен настройками приватности"
+                // 2. Текст "Информация скрыта"
+                // 3. CSS класс "user-page-sidebar--status-hidden"
+                const string privateProfileText1 = "Доступ ограничен настройками приватности";
+                const string privateProfileText2 = "Информация скрыта";
+                const string privateProfileClass = "user-page-sidebar--status-hidden";
+                
+                bool isPrivateProfile = html.Contains(privateProfileText1) || 
+                                        html.Contains(privateProfileText2) ||
+                                        html.Contains(privateProfileClass);
+                
+                if (isPrivateProfile)
                 {
                     // Профиль приватный - сохраняем статус и переходим к следующему
-                    _db.EnqueueUserResumeDetail(userLink, privateProfileText, new List<string>());
+                    const string privateMessage = "Доступ ограничен настройками приватности";
+                    _db.EnqueueUserResumeDetail(userLink, privateMessage, new List<string>());
                     _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: false);
                     
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: приватный профиль");
-                    _logger.WriteLine($"  Сообщение: {privateProfileText}");
+                    _logger.WriteLine($"  Сообщение: {privateMessage}");
                     
                     _statistics.IncrementSuccess();
                     _activeRequests.TryRemove(userLink, out _);

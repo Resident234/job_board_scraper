@@ -635,7 +635,7 @@ public static class AppConfig
 
     public static string UserResumeDetailExperienceContainerSelector =>
         ConfigurationManager.AppSettings["UserResumeDetail:ExperienceContainerSelector"] ??
-        ".job-experience-item__positions";
+        ".resume-job-experience .separated-list";
 
     public static string UserResumeDetailExperienceItemSelector =>
         ConfigurationManager.AppSettings["UserResumeDetail:ExperienceItemSelector"] ?? ".job-experience-item";

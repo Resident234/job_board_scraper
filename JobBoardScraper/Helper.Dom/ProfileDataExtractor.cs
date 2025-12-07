@@ -215,15 +215,23 @@ public static class ProfileDataExtractor
             var inlineList = metaElement.QuerySelector(inlineListSelector);
             if (inlineList != null)
             {
-                var spans = inlineList.QuerySelectorAll("span > span:first-child");
+                // Выбираем только прямые дочерние span элементы inline-list,
+                // затем берём первый span внутри каждого (который содержит текст, а не разделитель)
+                // Структура: .inline-list > span > span:first-child (текст) + span.inline-separator
+                var directChildren = inlineList.Children.Where(c => c.TagName.ToLower() == "span");
                 var textParts = new List<string>();
                 
-                foreach (var span in spans)
+                foreach (var child in directChildren)
                 {
-                    var text = span.TextContent?.Trim();
-                    if (!string.IsNullOrWhiteSpace(text))
+                    // Берём первый вложенный span (который содержит текст)
+                    var textSpan = child.QuerySelector("span:first-child");
+                    if (textSpan != null)
                     {
-                        textParts.Add(text);
+                        var text = textSpan.TextContent?.Trim();
+                        if (!string.IsNullOrWhiteSpace(text) && !text.Contains("•"))
+                        {
+                            textParts.Add(text);
+                        }
                     }
                 }
                 
