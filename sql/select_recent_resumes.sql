@@ -7,6 +7,11 @@ FROM habr_resumes
 WHERE updated_at >= NOW() - INTERVAL '2 days'
 ORDER BY updated_at DESC;
 
+SELECT *
+FROM habr_resumes
+WHERE id = 103203
+ORDER BY updated_at DESC;
+
 -- Вариант 2: Только основные поля
 SELECT 
     id,
