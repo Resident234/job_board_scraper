@@ -447,37 +447,42 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем зарплату и статус поиска работы
                 var (salary, jobSearchStatus) = Helper.Dom.ProfileDataExtractor.ExtractSalaryAndJobStatus(doc);
 
-                // Извлекаем текст "О себе"
+                // Извлекаем текст "О себе" - ищем секцию с заголовком "Обо мне"
                 string? about = null;
-                var contentSection = doc.QuerySelector(AppConfig.UserResumeDetailContentSelector);
-                if (contentSection != null)
+                var contentSections = doc.QuerySelectorAll(AppConfig.UserResumeDetailContentSelector);
+                foreach (var section in contentSections)
                 {
-                    // Берём только содержимое из .style-ugc (без заголовка "Обо мне")
-                    var ugcContent = contentSection.QuerySelector(".style-ugc");
-                    if (ugcContent != null)
+                    // Проверяем заголовок секции
+                    var titleElement = section.QuerySelector(".content-section__title");
+                    var titleText = titleElement?.TextContent?.Trim();
+                    
+                    // Ищем только секцию "Обо мне"
+                    if (titleText != null && titleText.Contains("Обо мне", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Сохраняем переносы строк: заменяем <br> и </p> на \n перед извлечением текста
-                        var aboutHtml = ugcContent.InnerHtml;
-                        // Заменяем <br>, <br/>, <br /> на перенос строки
-                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                        // Заменяем </p> на перенос строки (начало нового абзаца)
-                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                        // Заменяем </li> на перенос строки
-                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                        // Удаляем все остальные HTML теги
-                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<[^>]+>", "");
-                        // Декодируем HTML entities (&nbsp; и т.д.)
-                        aboutHtml = System.Net.WebUtility.HtmlDecode(aboutHtml);
-                        // Убираем множественные переносы строк
-                        aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"\n{3,}", "\n\n");
-                        about = aboutHtml.Trim();
-                    }
-                    else
-                    {
-                        // Fallback: если .style-ugc не найден, берём весь текст
-                        about = contentSection.TextContent?.Trim();
+                        // Берём только содержимое из .style-ugc (без заголовка "Обо мне")
+                        var ugcContent = section.QuerySelector(".style-ugc");
+                        if (ugcContent != null)
+                        {
+                            // Сохраняем переносы строк: заменяем <br> и </p> на \n перед извлечением текста
+                            var aboutHtml = ugcContent.InnerHtml;
+                            // Заменяем <br>, <br/>, <br /> на перенос строки
+                            aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            // Заменяем </p> на перенос строки (начало нового абзаца)
+                            aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            // Заменяем </li> на перенос строки
+                            aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            // Удаляем все остальные HTML теги
+                            aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"<[^>]+>", "");
+                            // Декодируем HTML entities (&nbsp; и т.д.)
+                            aboutHtml = System.Net.WebUtility.HtmlDecode(aboutHtml);
+                            // Убираем множественные переносы строк
+                            aboutHtml = System.Text.RegularExpressions.Regex.Replace(aboutHtml, @"\n{3,}", "\n\n");
+                            about = aboutHtml.Trim();
+                        }
+                        break; // Нашли секцию "Обо мне", выходим из цикла
                     }
                 }
+                // Если секция "Обо мне" не найдена, about останется null - это нормально
 
                 // Извлекаем навыки
                 var skills = new List<string>();
