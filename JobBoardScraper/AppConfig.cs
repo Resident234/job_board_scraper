@@ -848,4 +848,23 @@ public static class AppConfig
 
     public static string CurrentPeriodText =>
         ConfigurationManager.AppSettings["Education:CurrentPeriodText"] ?? "По настоящее время";
+
+    // Настройки для парсинга блока "Дополнительное образование"
+    public static string AdditionalEducationSectionTitleText =>
+        ConfigurationManager.AppSettings["AdditionalEducation:SectionTitleText"] ?? "Дополнительное образование";
+
+    public static string AdditionalEducationContainerSelector =>
+        ConfigurationManager.AppSettings["AdditionalEducation:ContainerSelector"] ?? ".resume-educations";
+
+    public static string AdditionalEducationItemSelector =>
+        ConfigurationManager.AppSettings["AdditionalEducation:ItemSelector"] ?? ".resume-educations__item";
+
+    public static string AdditionalEducationTitleSelector =>
+        ConfigurationManager.AppSettings["AdditionalEducation:TitleSelector"] ?? ".resume-educations__title";
+
+    public static string AdditionalEducationCourseSelector =>
+        ConfigurationManager.AppSettings["AdditionalEducation:CourseSelector"] ?? ".resume-educations__course";
+
+    public static string AdditionalEducationDurationSelector =>
+        ConfigurationManager.AppSettings["AdditionalEducation:DurationSelector"] ?? ".resume-educations__duration";
 }

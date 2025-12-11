@@ -706,4 +706,111 @@ public static class ProfileDataExtractor
         
         return null;
     }
+
+    /// <summary>
+    /// Извлекает данные о дополнительном образовании из профиля пользователя
+    /// Секция "Дополнительное образование" (курсы, тренинги)
+    /// </summary>
+    /// <param name="doc">Документ для парсинга</param>
+    /// <returns>Список данных о дополнительном образовании или пустой список если секция не найдена</returns>
+    public static List<AdditionalEducationData> ExtractAdditionalEducationData(IDocument doc)
+    {
+        var result = new List<AdditionalEducationData>();
+        
+        try
+        {
+            // Ищем секцию "Дополнительное образование"
+            var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
+            IElement? additionalEducationSection = null;
+            
+            foreach (var section in sections)
+            {
+                var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
+                var titleText = titleElement?.TextContent?.Trim();
+                
+                if (titleText != null && titleText.Contains(AppConfig.AdditionalEducationSectionTitleText, StringComparison.OrdinalIgnoreCase))
+                {
+                    additionalEducationSection = section;
+                    break;
+                }
+            }
+            
+            if (additionalEducationSection == null)
+            {
+                return result; // Секция не найдена - возвращаем пустой список
+            }
+            
+            // Ищем контейнер с элементами образования
+            var container = additionalEducationSection.QuerySelector(AppConfig.AdditionalEducationContainerSelector);
+            if (container == null)
+            {
+                // Пробуем искать элементы напрямую в секции
+                container = additionalEducationSection;
+            }
+            
+            // Ищем элементы образования
+            var educationItems = container.QuerySelectorAll(AppConfig.AdditionalEducationItemSelector);
+            
+            foreach (var item in educationItems)
+            {
+                try
+                {
+                    var educationData = ExtractSingleAdditionalEducationItem(item);
+                    if (educationData != null)
+                    {
+                        result.Add(educationData);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем элемент при ошибке парсинга
+                    continue;
+                }
+            }
+        }
+        catch
+        {
+            // При любой ошибке возвращаем пустой список
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Извлекает данные из одного элемента дополнительного образования
+    /// </summary>
+    private static AdditionalEducationData? ExtractSingleAdditionalEducationItem(IElement item)
+    {
+        // Извлекаем название организации/платформы
+        var titleElement = item.QuerySelector(AppConfig.AdditionalEducationTitleSelector);
+        var title = titleElement?.TextContent?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null; // Название обязательно
+        }
+        
+        // Извлекаем название курса
+        string? course = null;
+        var courseElement = item.QuerySelector(AppConfig.AdditionalEducationCourseSelector);
+        if (courseElement != null)
+        {
+            course = courseElement.TextContent?.Trim();
+        }
+        
+        // Извлекаем период обучения
+        string? duration = null;
+        var durationElement = item.QuerySelector(AppConfig.AdditionalEducationDurationSelector);
+        if (durationElement != null)
+        {
+            duration = durationElement.TextContent?.Trim();
+        }
+        
+        return new AdditionalEducationData
+        {
+            Title = title,
+            Course = course,
+            Duration = duration
+        };
+    }
 }

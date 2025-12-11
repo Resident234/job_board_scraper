@@ -693,6 +693,9 @@ public sealed class DatabaseClient
                     // Обрабатываем очереди университетов
                     FlushUniversityQueue(conn);
                     FlushUserUniversityQueue(conn);
+                    
+                    // Обрабатываем очередь дополнительного образования
+                    FlushAdditionalEducationQueue(conn);
 
                     await Task.Delay(delayMs, linkedToken);
                 }
@@ -2398,6 +2401,106 @@ public sealed class DatabaseClient
 
         int rowsAffected = cmd.ExecuteNonQuery();
         Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}");
+    }
+
+    #endregion
+
+    #region Additional Education Methods
+
+    private readonly ConcurrentQueue<Models.AdditionalEducationData> _additionalEducationQueue = new();
+
+    /// <summary>
+    /// Добавить дополнительное образование в очередь на сохранение
+    /// </summary>
+    public void EnqueueAdditionalEducation(Models.AdditionalEducationData data)
+    {
+        _additionalEducationQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Сохранить все записи дополнительного образования из очереди в БД
+    /// </summary>
+    public void FlushAdditionalEducationQueue(NpgsqlConnection conn)
+    {
+        while (_additionalEducationQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                DatabaseInsertAdditionalEducation(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении дополнительного образования: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Вставить запись дополнительного образования в БД
+    /// </summary>
+    private void DatabaseInsertAdditionalEducation(NpgsqlConnection conn, Models.AdditionalEducationData data)
+    {
+        DatabaseEnsureConnectionOpen(conn);
+
+        // Получаем resume_id по ссылке
+        int? resumeId = null;
+        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+        {
+            cmdUser.Parameters.AddWithValue("@link", data.UserLink);
+            var result = cmdUser.ExecuteScalar();
+            if (result != null)
+            {
+                resumeId = Convert.ToInt32(result);
+            }
+        }
+
+        if (!resumeId.HasValue)
+        {
+            Log($"[DB] Пользователь не найден для дополнительного образования: {data.UserLink}");
+            return;
+        }
+
+        using var cmd = new NpgsqlCommand(@"
+            INSERT INTO habr_resumes_educations (resume_id, title, course, duration, created_at, updated_at)
+            VALUES (@resume_id, @title, @course, @duration, NOW(), NOW())
+            ON CONFLICT DO NOTHING", conn);
+
+        cmd.Parameters.AddWithValue("@resume_id", resumeId.Value);
+        cmd.Parameters.AddWithValue("@title", data.Title);
+        cmd.Parameters.AddWithValue("@course", data.Course ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@duration", data.Duration ?? (object)DBNull.Value);
+
+        int rowsAffected = cmd.ExecuteNonQuery();
+        Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}, course={data.Course ?? "(нет)"}");
+    }
+
+    /// <summary>
+    /// Удалить все записи дополнительного образования пользователя перед добавлением новых
+    /// </summary>
+    public void DeleteUserAdditionalEducation(NpgsqlConnection conn, string userLink)
+    {
+        DatabaseEnsureConnectionOpen(conn);
+
+        // Получаем resume_id по ссылке
+        int? resumeId = null;
+        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+        {
+            cmdUser.Parameters.AddWithValue("@link", userLink);
+            var result = cmdUser.ExecuteScalar();
+            if (result != null)
+            {
+                resumeId = Convert.ToInt32(result);
+            }
+        }
+
+        if (!resumeId.HasValue)
+        {
+            return;
+        }
+
+        using var cmd = new NpgsqlCommand("DELETE FROM habr_resumes_educations WHERE resume_id = @resume_id", conn);
+        cmd.Parameters.AddWithValue("@resume_id", resumeId.Value);
+        cmd.ExecuteNonQuery();
     }
 
     #endregion

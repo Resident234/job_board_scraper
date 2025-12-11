@@ -637,7 +637,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем дополнительные данные профиля (возраст, опыт работы, регистрация, последний визит, гражданство, удаленная работа)
                 var (age, experienceText, registration, lastVisit, citizenship, remoteWork) = Helper.Dom.ProfileDataExtractor.ExtractAdditionalProfileData(doc);
                 
-                // Извлекаем данные об образовании
+                // Извлекаем данные о высшем образовании
                 var educationData = Helper.Dom.ProfileDataExtractor.ExtractEducationData(doc);
                 var educationCount = 0;
                 foreach (var education in educationData)
@@ -654,6 +654,16 @@ public sealed class UserResumeDetailScraper : IDisposable
                         Description = education.Description
                     });
                     educationCount++;
+                }
+                
+                // Извлекаем данные о дополнительном образовании
+                var additionalEducationData = Helper.Dom.ProfileDataExtractor.ExtractAdditionalEducationData(doc);
+                var additionalEducationCount = 0;
+                foreach (var additionalEducation in additionalEducationData)
+                {
+                    additionalEducation.UserLink = userLink;
+                    _db.EnqueueAdditionalEducation(additionalEducation);
+                    additionalEducationCount++;
                 }
                 
                 // Сохраняем информацию для публичного профиля
@@ -692,7 +702,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
                 _logger.WriteLine($"  Гражданство: {citizenship ?? "(не найдено)"}");
                 _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
-                _logger.WriteLine($"  Образование: {educationCount} записей");
+                _logger.WriteLine($"  Высшее образование: {educationCount} записей");
+                _logger.WriteLine($"  Дополнительное образование: {additionalEducationCount} записей");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
                 _statistics.IncrementSuccess();
