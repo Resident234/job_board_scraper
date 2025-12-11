@@ -1,4 +1,5 @@
 using AngleSharp.Dom;
+using JobBoardScraper.Models;
 
 namespace JobBoardScraper.Helper.Dom;
 
@@ -421,6 +422,286 @@ public static class ProfileDataExtractor
             {
                 return "Рассматриваю предложения";
             }
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Извлекает данные о высшем образовании из профиля пользователя
+    /// </summary>
+    /// <param name="doc">Документ для парсинга</param>
+    /// <returns>Список данных об образовании или пустой список если секция не найдена</returns>
+    public static List<UniversityEducationData> ExtractEducationData(IDocument doc)
+    {
+        var result = new List<UniversityEducationData>();
+        
+        try
+        {
+            // Ищем секцию "Высшее образование"
+            var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
+            IElement? educationSection = null;
+            
+            foreach (var section in sections)
+            {
+                var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
+                var titleText = titleElement?.TextContent?.Trim();
+                
+                if (titleText != null && titleText.Contains(AppConfig.EducationSectionTitleText, StringComparison.OrdinalIgnoreCase))
+                {
+                    educationSection = section;
+                    break;
+                }
+            }
+            
+            if (educationSection == null)
+            {
+                return result; // Секция не найдена - возвращаем пустой список
+            }
+            
+            // Ищем элементы образования внутри секции
+            var educationItems = educationSection.QuerySelectorAll(AppConfig.EducationItemSelector);
+            
+            foreach (var item in educationItems)
+            {
+                try
+                {
+                    var educationData = ExtractSingleEducationItem(item);
+                    if (educationData != null)
+                    {
+                        result.Add(educationData);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем элемент при ошибке парсинга
+                    continue;
+                }
+            }
+        }
+        catch
+        {
+            // При любой ошибке возвращаем пустой список
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Извлекает данные из одного элемента образования
+    /// </summary>
+    private static UniversityEducationData? ExtractSingleEducationItem(IElement item)
+    {
+        // Извлекаем ссылку на университет и его ID
+        var universityLink = item.QuerySelector(AppConfig.EducationUniversityLinkSelector);
+        if (universityLink == null)
+        {
+            return null; // Без ссылки на университет не можем получить ID
+        }
+        
+        var href = universityLink.GetAttribute("href");
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return null;
+        }
+        
+        // Извлекаем ID университета из URL
+        var idMatch = System.Text.RegularExpressions.Regex.Match(href, AppConfig.UniversityIdRegex);
+        if (!idMatch.Success || !int.TryParse(idMatch.Groups[1].Value, out var universityHabrId))
+        {
+            return null;
+        }
+        
+        // Извлекаем название университета
+        var universityName = universityLink.TextContent?.Trim();
+        if (string.IsNullOrWhiteSpace(universityName))
+        {
+            // Пробуем альтернативный селектор
+            var nameElement = item.QuerySelector(AppConfig.EducationUniversityNameSelector);
+            universityName = nameElement?.TextContent?.Trim();
+        }
+        
+        if (string.IsNullOrWhiteSpace(universityName))
+        {
+            return null; // Название обязательно
+        }
+        
+        // Извлекаем город и количество выпускников
+        string? city = null;
+        int? graduateCount = null;
+        
+        var locationElement = item.QuerySelector(AppConfig.EducationLocationSelector);
+        if (locationElement != null)
+        {
+            var locationText = locationElement.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(locationText))
+            {
+                // Формат: "Волгоград • 63 выпускника"
+                var parts = locationText.Split('•', StringSplitOptions.TrimEntries);
+                if (parts.Length > 0)
+                {
+                    city = parts[0].Trim();
+                }
+                
+                if (parts.Length > 1)
+                {
+                    var graduateMatch = System.Text.RegularExpressions.Regex.Match(parts[1], AppConfig.GraduateCountRegex);
+                    if (graduateMatch.Success && int.TryParse(graduateMatch.Groups[1].Value, out var count))
+                    {
+                        graduateCount = count;
+                    }
+                }
+            }
+        }
+        
+        // Извлекаем курсы
+        var courses = ExtractCourses(item);
+        
+        // Извлекаем описание
+        string? description = null;
+        var descriptionElement = item.QuerySelector(AppConfig.EducationDescriptionSelector);
+        if (descriptionElement != null)
+        {
+            description = descriptionElement.TextContent?.Trim();
+        }
+        
+        return new UniversityEducationData
+        {
+            University = new UniversityData(
+                HabrId: universityHabrId,
+                Name: universityName,
+                City: city,
+                GraduateCount: graduateCount
+            ),
+            Courses = courses,
+            Description = description
+        };
+    }
+
+    /// <summary>
+    /// Извлекает список курсов из элемента образования
+    /// </summary>
+    private static List<CourseData> ExtractCourses(IElement item)
+    {
+        var courses = new List<CourseData>();
+        
+        var coursesContainer = item.QuerySelector(AppConfig.EducationCoursesContainerSelector);
+        if (coursesContainer == null)
+        {
+            return courses;
+        }
+        
+        var courseElements = coursesContainer.QuerySelectorAll(AppConfig.EducationCourseSelector);
+        
+        foreach (var courseElement in courseElements)
+        {
+            try
+            {
+                var course = ExtractSingleCourse(courseElement);
+                if (course != null)
+                {
+                    courses.Add(course);
+                }
+            }
+            catch
+            {
+                // Пропускаем курс при ошибке
+                continue;
+            }
+        }
+        
+        return courses;
+    }
+
+    /// <summary>
+    /// Извлекает данные одного курса
+    /// </summary>
+    private static CourseData? ExtractSingleCourse(IElement courseElement)
+    {
+        // Извлекаем название курса
+        var nameElement = courseElement.QuerySelector(AppConfig.EducationCourseNameSelector);
+        var courseName = nameElement?.TextContent?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(courseName))
+        {
+            return null;
+        }
+        
+        // Извлекаем период
+        var periodElement = courseElement.QuerySelector(AppConfig.EducationCoursePeriodSelector);
+        var periodText = periodElement?.TextContent?.Trim();
+        
+        var (startDate, endDate, duration, isCurrent) = ParseCoursePeriod(periodText);
+        
+        return new CourseData
+        {
+            Name = courseName,
+            StartDate = startDate,
+            EndDate = endDate,
+            Duration = duration,
+            IsCurrent = isCurrent
+        };
+    }
+
+    /// <summary>
+    /// Парсит строку периода курса
+    /// Формат: "Сентябрь 2023 — По настоящее время (2 года и 3 месяца)"
+    /// или: "Сентябрь 2019 — Июль 2023 (3 года и 10 месяцев)"
+    /// </summary>
+    public static (string? startDate, string? endDate, string? duration, bool isCurrent) ParseCoursePeriod(string? periodText)
+    {
+        if (string.IsNullOrWhiteSpace(periodText))
+        {
+            return (null, null, null, false);
+        }
+        
+        string? startDate = null;
+        string? endDate = null;
+        string? duration = null;
+        bool isCurrent = false;
+        
+        // Проверяем на "По настоящее время"
+        if (periodText.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
+        {
+            isCurrent = true;
+        }
+        
+        // Парсим с помощью regex
+        var match = System.Text.RegularExpressions.Regex.Match(periodText, AppConfig.CoursePeriodRegex);
+        
+        if (match.Success)
+        {
+            startDate = match.Groups[1].Value.Trim();
+            
+            var endPart = match.Groups[2].Value.Trim();
+            if (!endPart.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
+            {
+                endDate = endPart;
+            }
+            
+            if (match.Groups.Count > 3 && !string.IsNullOrWhiteSpace(match.Groups[3].Value))
+            {
+                duration = match.Groups[3].Value.Trim();
+            }
+        }
+        
+        return (startDate, endDate, duration, isCurrent);
+    }
+
+    /// <summary>
+    /// Извлекает ID университета из URL
+    /// </summary>
+    public static int? ExtractUniversityIdFromUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+        
+        var match = System.Text.RegularExpressions.Regex.Match(url, AppConfig.UniversityIdRegex);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var id))
+        {
+            return id;
         }
         
         return null;

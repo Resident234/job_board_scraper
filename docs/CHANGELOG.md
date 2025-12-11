@@ -2,6 +2,47 @@
 
 Все значимые изменения в проекте JobBoardScraper документируются в этом файле.
 
+## [2.3.0] - 2024-12-10
+
+### Добавлено
+
+#### Парсинг высшего образования (University Education Scraper)
+- Извлечение блока "Высшее образование" из профилей резюме
+- Новые модели данных:
+  - `UniversityData` - данные университета (HabrId, Name, City, GraduateCount)
+  - `CourseData` - данные курса с JSON-сериализацией
+  - `UserUniversityData` - связь пользователь-университет
+  - `UniversityEducationData` - комбинированная модель
+- Новые методы в `ProfileDataExtractor`:
+  - `ExtractEducationData()` - извлечение данных об образовании
+  - `ParseCoursePeriod()` - парсинг периода курса
+  - `ExtractUniversityIdFromUrl()` - извлечение ID из URL
+- Новые методы в `DatabaseClient`:
+  - `EnqueueUniversity()` / `FlushUniversityQueue()` - очередь университетов
+  - `EnqueueUserUniversity()` / `FlushUserUniversityQueue()` - очередь связей
+- Новые таблицы БД:
+  - `habr_universities` - справочник университетов
+  - `habr_resumes_universities` - связь резюме с университетами (курсы в JSONB)
+- CSS-селекторы для образования в `AppConfig`
+- Property-based тесты (FsCheck) для валидации
+
+#### Документация
+- [UNIVERSITY_EDUCATION_SCRAPER.md](docs/UNIVERSITY_EDUCATION_SCRAPER.md) - полная документация
+- Обновлён [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md)
+
+#### SQL миграции
+- `sql/create_universities_table.sql` - таблица университетов
+- `sql/create_resumes_universities_table.sql` - связь резюме-университеты
+
+### Изменено
+
+#### UserResumeDetailScraper
+- Интеграция извлечения образования в основной процесс обхода
+- Автоматическое сохранение университетов и связей
+- Логирование количества записей образования
+
+---
+
 ## [2.2.0] - 2024-12-03
 
 ### Добавлено

@@ -796,4 +796,56 @@ public static class AppConfig
     public static int ProxyMaxRetries =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:MaxRetries"], out var value) 
             ? value : 3; // По умолчанию 3 попытки с разными прокси
+
+    // Настройки для парсинга блока "Высшее образование"
+    public static string EducationSectionTitleText =>
+        ConfigurationManager.AppSettings["Education:SectionTitleText"] ?? "Высшее образование";
+
+    public static string EducationSectionSelector =>
+        ConfigurationManager.AppSettings["Education:SectionSelector"] ?? ".content-section";
+
+    public static string EducationSectionTitleSelector =>
+        ConfigurationManager.AppSettings["Education:SectionTitleSelector"] ?? ".content-section__title";
+
+    public static string EducationItemSelector =>
+        ConfigurationManager.AppSettings["Education:ItemSelector"] ?? ".resume-education-item";
+
+    public static string EducationUniversityLinkSelector =>
+        ConfigurationManager.AppSettings["Education:UniversityLinkSelector"] ?? "a[href*='/universities/']";
+
+    public static string EducationUniversityNameSelector =>
+        ConfigurationManager.AppSettings["Education:UniversityNameSelector"] ?? ".resume-education-item__title";
+
+    public static string EducationLocationSelector =>
+        ConfigurationManager.AppSettings["Education:LocationSelector"] ?? ".resume-education-item__location";
+
+    public static string EducationGraduatesSelector =>
+        ConfigurationManager.AppSettings["Education:GraduatesSelector"] ?? ".resume-education-item__graduates";
+
+    public static string EducationCoursesContainerSelector =>
+        ConfigurationManager.AppSettings["Education:CoursesContainerSelector"] ?? ".resume-education-item__courses";
+
+    public static string EducationCourseSelector =>
+        ConfigurationManager.AppSettings["Education:CourseSelector"] ?? ".education-course";
+
+    public static string EducationCourseNameSelector =>
+        ConfigurationManager.AppSettings["Education:CourseNameSelector"] ?? ".education-course__title span";
+
+    public static string EducationCoursePeriodSelector =>
+        ConfigurationManager.AppSettings["Education:CoursePeriodSelector"] ?? ".education-course__duration";
+
+    public static string EducationDescriptionSelector =>
+        ConfigurationManager.AppSettings["Education:DescriptionSelector"] ?? ".resume-education-item__description";
+
+    public static string UniversityIdRegex =>
+        ConfigurationManager.AppSettings["Education:UniversityIdRegex"] ?? @"/universities/(\d+)";
+
+    public static string GraduateCountRegex =>
+        ConfigurationManager.AppSettings["Education:GraduateCountRegex"] ?? @"(\d+)\s*выпускник";
+
+    public static string CoursePeriodRegex =>
+        ConfigurationManager.AppSettings["Education:CoursePeriodRegex"] ?? @"^(.+?)\s*—\s*(.+?)(?:\s*\((.+?)\))?$";
+
+    public static string CurrentPeriodText =>
+        ConfigurationManager.AppSettings["Education:CurrentPeriodText"] ?? "По настоящее время";
 }

@@ -690,6 +690,10 @@ public sealed class DatabaseClient
                         }
                     }
 
+                    // Обрабатываем очереди университетов
+                    FlushUniversityQueue(conn);
+                    FlushUserUniversityQueue(conn);
+
                     await Task.Delay(delayMs, linkedToken);
                 }
             }
@@ -2244,5 +2248,158 @@ public sealed class DatabaseClient
             Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
         }
     }
+
+    #region University Education Methods
+
+    private readonly ConcurrentQueue<Models.UniversityData> _universityQueue = new();
+    private readonly ConcurrentQueue<Models.UserUniversityData> _userUniversityQueue = new();
+
+    /// <summary>
+    /// Добавить университет в очередь на сохранение
+    /// </summary>
+    public void EnqueueUniversity(Models.UniversityData data)
+    {
+        _universityQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Добавить связь пользователь-университет в очередь на сохранение
+    /// </summary>
+    public void EnqueueUserUniversity(Models.UserUniversityData data)
+    {
+        _userUniversityQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Сохранить все университеты из очереди в БД
+    /// </summary>
+    public void FlushUniversityQueue(NpgsqlConnection conn)
+    {
+        while (_universityQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                DatabaseInsertUniversity(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении университета {data.Name}: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Сохранить все связи пользователь-университет из очереди в БД
+    /// </summary>
+    public void FlushUserUniversityQueue(NpgsqlConnection conn)
+    {
+        while (_userUniversityQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                DatabaseInsertUserUniversity(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении связи пользователь-университет: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Вставить или обновить университет в БД
+    /// </summary>
+    private void DatabaseInsertUniversity(NpgsqlConnection conn, Models.UniversityData data)
+    {
+        DatabaseEnsureConnectionOpen(conn);
+
+        using var cmd = new NpgsqlCommand(@"
+            INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
+            VALUES (@habr_id, @name, @city, @graduate_count, NOW(), NOW())
+            ON CONFLICT (habr_id) 
+            DO UPDATE SET 
+                name = EXCLUDED.name,
+                city = COALESCE(EXCLUDED.city, habr_universities.city),
+                graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
+                updated_at = NOW()", conn);
+
+        cmd.Parameters.AddWithValue("@habr_id", data.HabrId);
+        cmd.Parameters.AddWithValue("@name", data.Name);
+        cmd.Parameters.AddWithValue("@city", data.City ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@graduate_count", data.GraduateCount ?? (object)DBNull.Value);
+
+        int rowsAffected = cmd.ExecuteNonQuery();
+        Log($"[DB] Университет {data.Name} (ID={data.HabrId}): {(rowsAffected > 0 ? "сохранён" : "не изменён")}");
+    }
+
+    /// <summary>
+    /// Вставить связь пользователь-университет в БД
+    /// </summary>
+    private void DatabaseInsertUserUniversity(NpgsqlConnection conn, Models.UserUniversityData data)
+    {
+        DatabaseEnsureConnectionOpen(conn);
+
+        // Получаем user_id по ссылке
+        int? userId = null;
+        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+        {
+            cmdUser.Parameters.AddWithValue("@link", data.UserLink);
+            var result = cmdUser.ExecuteScalar();
+            if (result != null)
+            {
+                userId = Convert.ToInt32(result);
+            }
+        }
+
+        if (!userId.HasValue)
+        {
+            Log($"[DB] Пользователь не найден: {data.UserLink}");
+            return;
+        }
+
+        // Получаем university_id по habr_id
+        int? universityId = null;
+        using (var cmdUniv = new NpgsqlCommand("SELECT id FROM habr_universities WHERE habr_id = @habr_id LIMIT 1", conn))
+        {
+            cmdUniv.Parameters.AddWithValue("@habr_id", data.UniversityHabrId);
+            var result = cmdUniv.ExecuteScalar();
+            if (result != null)
+            {
+                universityId = Convert.ToInt32(result);
+            }
+        }
+
+        if (!universityId.HasValue)
+        {
+            Log($"[DB] Университет не найден: habr_id={data.UniversityHabrId}");
+            return;
+        }
+
+        // Сериализуем курсы в JSON
+        string? coursesJson = null;
+        if (data.Courses != null && data.Courses.Count > 0)
+        {
+            coursesJson = System.Text.Json.JsonSerializer.Serialize(data.Courses);
+        }
+
+        using var cmd = new NpgsqlCommand(@"
+            INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
+            VALUES (@user_id, @university_id, @courses::jsonb, @description, NOW(), NOW())
+            ON CONFLICT (user_id, university_id) 
+            DO UPDATE SET 
+                courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
+                description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
+                updated_at = NOW()", conn);
+
+        cmd.Parameters.AddWithValue("@user_id", userId.Value);
+        cmd.Parameters.AddWithValue("@university_id", universityId.Value);
+        cmd.Parameters.AddWithValue("@courses", coursesJson ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@description", data.Description ?? (object)DBNull.Value);
+
+        int rowsAffected = cmd.ExecuteNonQuery();
+        Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}");
+    }
+
+    #endregion
 
 }

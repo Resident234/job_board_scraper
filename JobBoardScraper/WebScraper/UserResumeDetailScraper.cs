@@ -637,6 +637,25 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем дополнительные данные профиля (возраст, опыт работы, регистрация, последний визит, гражданство, удаленная работа)
                 var (age, experienceText, registration, lastVisit, citizenship, remoteWork) = Helper.Dom.ProfileDataExtractor.ExtractAdditionalProfileData(doc);
                 
+                // Извлекаем данные об образовании
+                var educationData = Helper.Dom.ProfileDataExtractor.ExtractEducationData(doc);
+                var educationCount = 0;
+                foreach (var education in educationData)
+                {
+                    // Сохраняем университет
+                    _db.EnqueueUniversity(education.University);
+                    
+                    // Сохраняем связь пользователь-университет
+                    _db.EnqueueUserUniversity(new Models.UserUniversityData
+                    {
+                        UserLink = userLink,
+                        UniversityHabrId = education.University.HabrId,
+                        Courses = education.Courses,
+                        Description = education.Description
+                    });
+                    educationCount++;
+                }
+                
                 // Сохраняем информацию для публичного профиля
                 _db.EnqueueUserResumeDetail(
                     userLink, 
@@ -673,6 +692,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
                 _logger.WriteLine($"  Гражданство: {citizenship ?? "(не найдено)"}");
                 _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
+                _logger.WriteLine($"  Образование: {educationCount} записей");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
                 _statistics.IncrementSuccess();
