@@ -813,4 +813,140 @@ public static class ProfileDataExtractor
             Duration = duration
         };
     }
+
+    /// <summary>
+    /// Извлекает данные об участии в профсообществах из профиля пользователя
+    /// Секция "Участие в профсообществах" (Хабр, GitHub и др.)
+    /// </summary>
+    /// <param name="doc">Документ для парсинга</param>
+    /// <returns>Список данных об участии в сообществах или пустой список если секция не найдена</returns>
+    public static List<CommunityParticipationData> ExtractCommunityParticipationData(IDocument doc)
+    {
+        var result = new List<CommunityParticipationData>();
+        
+        try
+        {
+            // Ищем секцию "Участие в профсообществах"
+            var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
+            IElement? communitySection = null;
+            
+            foreach (var section in sections)
+            {
+                var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
+                var titleText = titleElement?.TextContent?.Trim();
+                
+                if (titleText != null && titleText.Contains(AppConfig.CommunityParticipationSectionTitleText, StringComparison.OrdinalIgnoreCase))
+                {
+                    communitySection = section;
+                    break;
+                }
+            }
+            
+            if (communitySection == null)
+            {
+                return result; // Секция не найдена - возвращаем пустой список
+            }
+            
+            // Ищем контейнер с элементами
+            var container = communitySection.QuerySelector(AppConfig.CommunityParticipationContainerSelector);
+            if (container == null)
+            {
+                container = communitySection;
+            }
+            
+            // Ищем элементы участия в сообществах
+            var items = container.QuerySelectorAll(AppConfig.CommunityParticipationItemSelector);
+            
+            foreach (var item in items)
+            {
+                try
+                {
+                    var data = ExtractSingleCommunityParticipationItem(item);
+                    if (data != null)
+                    {
+                        result.Add(data);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем элемент при ошибке парсинга
+                    continue;
+                }
+            }
+        }
+        catch
+        {
+            // При любой ошибке возвращаем пустой список
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Извлекает данные из одного элемента участия в профсообществе
+    /// </summary>
+    private static CommunityParticipationData? ExtractSingleCommunityParticipationItem(IElement item)
+    {
+        // Извлекаем название сообщества (Хабр, GitHub)
+        var nameElement = item.QuerySelector(AppConfig.CommunityParticipationNameSelector);
+        var name = nameElement?.TextContent?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null; // Название обязательно
+        }
+        
+        // Извлекаем дату начала участия
+        string? memberSince = null;
+        var memberSinceElement = item.QuerySelector(AppConfig.CommunityParticipationMemberSinceSelector);
+        if (memberSinceElement != null)
+        {
+            memberSince = memberSinceElement.TextContent?.Trim();
+        }
+        
+        // Извлекаем вклад в сообщество
+        string? contribution = null;
+        var contributionElement = item.QuerySelector(AppConfig.CommunityParticipationContributionSelector);
+        if (contributionElement != null)
+        {
+            contribution = contributionElement.TextContent?.Trim();
+        }
+        
+        // Извлекаем темы/языки
+        string? topics = null;
+        var topicsElement = item.QuerySelector(AppConfig.CommunityParticipationTopicsSelector);
+        if (topicsElement != null)
+        {
+            // Извлекаем текст из всех ссылок и объединяем через разделитель
+            var topicLinks = topicsElement.QuerySelectorAll("a.link-comp");
+            var topicsList = new List<string>();
+            
+            foreach (var link in topicLinks)
+            {
+                var topicText = link.TextContent?.Trim();
+                // Убираем лишние символы (например, "​" - zero-width space)
+                if (!string.IsNullOrWhiteSpace(topicText))
+                {
+                    topicText = topicText.Replace("\u200B", "").Trim();
+                    if (!string.IsNullOrWhiteSpace(topicText))
+                    {
+                        topicsList.Add(topicText);
+                    }
+                }
+            }
+            
+            if (topicsList.Count > 0)
+            {
+                topics = string.Join(" • ", topicsList);
+            }
+        }
+        
+        return new CommunityParticipationData
+        {
+            Name = name,
+            MemberSince = memberSince,
+            Contribution = contribution,
+            Topics = topics
+        };
+    }
 }

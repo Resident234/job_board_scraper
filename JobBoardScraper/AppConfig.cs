@@ -867,4 +867,26 @@ public static class AppConfig
 
     public static string AdditionalEducationDurationSelector =>
         ConfigurationManager.AppSettings["AdditionalEducation:DurationSelector"] ?? ".resume-educations__duration";
+
+    // Настройки для парсинга блока "Участие в профсообществах"
+    public static string CommunityParticipationSectionTitleText =>
+        ConfigurationManager.AppSettings["CommunityParticipation:SectionTitleText"] ?? "Участие в профсообществах";
+
+    public static string CommunityParticipationContainerSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:ContainerSelector"] ?? ".resume-ratings";
+
+    public static string CommunityParticipationItemSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:ItemSelector"] ?? ".resume-rating-item";
+
+    public static string CommunityParticipationNameSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:NameSelector"] ?? ".basic-text--weight-bold a.link-comp";
+
+    public static string CommunityParticipationMemberSinceSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:MemberSinceSelector"] ?? ".resume-rating-item__meta span";
+
+    public static string CommunityParticipationContributionSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:ContributionSelector"] ?? ".resume-rating-item__contribution";
+
+    public static string CommunityParticipationTopicsSelector =>
+        ConfigurationManager.AppSettings["CommunityParticipation:TopicsSelector"] ?? ".resume-rating-item__topics";
 }

@@ -666,6 +666,9 @@ public sealed class UserResumeDetailScraper : IDisposable
                     additionalEducationCount++;
                 }
                 
+                // Извлекаем данные об участии в профсообществах
+                var communityParticipationData = Helper.Dom.ProfileDataExtractor.ExtractCommunityParticipationData(doc);
+                
                 // Сохраняем информацию для публичного профиля
                 _db.EnqueueUserResumeDetail(
                     userLink, 
@@ -681,7 +684,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                     infoTech,
                     levelTitle,
                     salary,
-                    jobSearchStatus);
+                    jobSearchStatus,
+                    communityParticipationData);
                 
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
@@ -704,6 +708,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
                 _logger.WriteLine($"  Высшее образование: {educationCount} записей");
                 _logger.WriteLine($"  Дополнительное образование: {additionalEducationCount} записей");
+                _logger.WriteLine($"  Участие в профсообществах: {communityParticipationData.Count} записей");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
                 _statistics.IncrementSuccess();

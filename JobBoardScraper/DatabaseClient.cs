@@ -22,7 +22,8 @@ public enum DbRecordType
     UserAbout,
     UserSkills,
     UserExperience,
-    UserAdditionalData
+    UserAdditionalData,
+    UserCommunityParticipation
 }
 
 public enum InsertMode
@@ -56,7 +57,8 @@ public readonly record struct DbRecord(
     List<string>? Skills = null,
     UserProfileData? UserProfile = null,
     UserExperienceData? UserExperience = null,
-    Dictionary<string, string?>? AdditionalData = null);
+    Dictionary<string, string?>? AdditionalData = null,
+    List<CommunityParticipationData>? CommunityParticipation = null);
 
 public sealed class DatabaseClient
 {
@@ -672,6 +674,12 @@ public sealed class DatabaseClient
                             if (record.AdditionalData != null)
                             {
                                 DatabaseUpdateUserAdditionalData(conn, userLink: record.PrimaryValue, additionalData: record.AdditionalData);
+                            }
+                            break;
+                        case DbRecordType.UserCommunityParticipation:
+                            if (record.CommunityParticipation != null)
+                            {
+                                DatabaseUpdateUserCommunityParticipation(conn, userLink: record.PrimaryValue, communityParticipation: record.CommunityParticipation);
                             }
                             break;
                         case DbRecordType.CompanyRating:
@@ -1427,7 +1435,7 @@ public sealed class DatabaseClient
     /// </summary>
     public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
     {
-        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null);
+        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null, null, null, null, null, null, null);
     }
     
     /// <summary>
@@ -1447,7 +1455,8 @@ public sealed class DatabaseClient
         string? infoTech = null,
         string? levelTitle = null,
         int? salary = null,
-        string? jobSearchStatus = null)
+        string? jobSearchStatus = null,
+        List<CommunityParticipationData>? communityParticipation = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
@@ -1523,7 +1532,19 @@ public sealed class DatabaseClient
             _saveQueue.Enqueue(additionalDataRecord);
         }
         
-        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}");
+        // Добавляем участие в профсообществах
+        if (communityParticipation != null && communityParticipation.Count > 0)
+        {
+            var communityRecord = new DbRecord(
+                Type: DbRecordType.UserCommunityParticipation,
+                PrimaryValue: userLink,
+                SecondaryValue: "",
+                CommunityParticipation: communityParticipation
+            );
+            _saveQueue.Enqueue(communityRecord);
+        }
+        
+        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
         
         return true;
     }
@@ -1683,6 +1704,68 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при обновлении дополнительных данных для {userLink}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
+    /// Сохраняет данные в поле community_participation как JSON массив
+    /// </summary>
+    public void DatabaseUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+        if (communityParticipation == null || communityParticipation.Count == 0)
+            return;
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Сериализуем данные в JSON
+            var jsonArray = new System.Text.Json.Nodes.JsonArray();
+            foreach (var item in communityParticipation)
+            {
+                var jsonObj = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["name"] = item.Name,
+                    ["member_since"] = item.MemberSince,
+                    ["contribution"] = item.Contribution,
+                    ["topics"] = item.Topics
+                };
+                jsonArray.Add(jsonObj);
+            }
+            var jsonString = jsonArray.ToJsonString();
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes 
+                SET community_participation = @community_participation::jsonb,
+                    updated_at = NOW()
+                WHERE link = @link", conn);
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@community_participation", jsonString);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                var names = string.Join(", ", communityParticipation.Select(c => c.Name));
+                Log($"[DB] Обновлено участие в профсообществах для {userLink}: {names} ({communityParticipation.Count} записей)");
+            }
+            else
+            {
+                Log($"[DB] Пользователь {userLink} не найден в БД.");
+            }
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] Ошибка БД при обновлении участия в профсообществах для {userLink}: {dbEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Неожиданная ошибка при обновлении участия в профсообществах для {userLink}: {ex.Message}");
         }
     }
 

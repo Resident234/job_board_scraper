@@ -2,6 +2,41 @@
 
 Все значимые изменения в проекте JobBoardScraper документируются в этом файле.
 
+## [2.4.0] - 2024-12-11
+
+### Добавлено
+
+#### Парсинг участия в профсообществах (Community Participation)
+- Извлечение блока "Участие в профсообществах" из профилей резюме (Хабр, GitHub и др.)
+- Новая модель данных:
+  - `CommunityParticipationData` - данные об участии (Name, MemberSince, Contribution, Topics)
+- Новые методы в `ProfileDataExtractor`:
+  - `ExtractCommunityParticipationData()` - извлечение данных об участии в сообществах
+  - `ExtractSingleCommunityParticipationItem()` - парсинг одного элемента
+- Новые методы в `DatabaseClient`:
+  - `DatabaseUpdateUserCommunityParticipation()` - сохранение данных в JSONB поле
+- Новое поле в таблице `habr_resumes`:
+  - `community_participation` (JSONB) - массив объектов с данными об участии
+- CSS-селекторы для участия в профсообществах в `AppConfig`
+- Property-based тесты (FsCheck) для валидации JSON сериализации
+
+#### SQL миграции
+- `sql/alter_resumes_add_community_participation.sql` - добавление поля community_participation
+
+### Изменено
+
+#### UserResumeDetailScraper
+- Интеграция извлечения участия в профсообществах в основной процесс обхода
+- Автоматическое сохранение данных в JSONB поле
+- Логирование количества записей участия в сообществах
+
+#### DatabaseClient
+- Добавлен новый тип `DbRecordType.UserCommunityParticipation`
+- Расширена структура `DbRecord` полем `CommunityParticipation`
+- Обновлён метод `EnqueueUserResumeDetail()` с параметром `communityParticipation`
+
+---
+
 ## [2.3.0] - 2024-12-10
 
 ### Добавлено
