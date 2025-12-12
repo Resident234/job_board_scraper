@@ -9,6 +9,15 @@ WITH filled_profiles AS (
         OR
         -- Есть опыт работы в habr_user_experience
         EXISTS (SELECT 1 FROM habr_user_experience ue WHERE ue.user_id = r.id)
+        OR
+        -- Есть высшее образование в habr_resumes_universities
+        EXISTS (SELECT 1 FROM habr_resumes_universities ru WHERE ru.resume_id = r.id)
+        OR
+        -- Есть дополнительное образование в habr_resumes_educations
+        EXISTS (SELECT 1 FROM habr_resumes_educations re WHERE re.resume_id = r.id)
+        OR
+        -- Есть участие в профсообществах (JSONB массив не пустой)
+        (r.community_participation IS NOT NULL AND jsonb_array_length(r.community_participation) > 0)
 ),
 private_profiles AS (
     SELECT id

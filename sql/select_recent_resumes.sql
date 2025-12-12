@@ -4,7 +4,7 @@
 -- Вариант 1: Все поля
 SELECT *
 FROM habr_resumes
-WHERE updated_at >= NOW() - INTERVAL '5 days'
+WHERE updated_at >= NOW() - INTERVAL '2 days'
 ORDER BY updated_at DESC;
 
 SELECT *
