@@ -192,6 +192,17 @@ public static class AppConfig
     public static bool ResumeListEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["ResumeList:Enabled"], out var value) && value;
 
+    public static TimeSpan ResumeListInterval
+    {
+        get
+        {
+            var minutes = int.TryParse(ConfigurationManager.AppSettings["ResumeList:IntervalMinutes"], out var value)
+                ? value
+                : 10;
+            return TimeSpan.FromMinutes(minutes);
+        }
+    }
+
     public static bool ResumeListEnableTrafficMeasuring =>
         bool.TryParse(ConfigurationManager.AppSettings["ResumeList:EnableTrafficMeasuring"], out var value)
             ? value

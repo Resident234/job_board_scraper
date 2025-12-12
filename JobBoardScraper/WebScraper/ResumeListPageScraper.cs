@@ -33,7 +33,7 @@ public sealed class ResumeListPageScraper : IDisposable
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _enqueueToSaveQueue = enqueueToSaveQueue ?? throw new ArgumentNullException(nameof(enqueueToSaveQueue));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
-        _interval = interval ?? TimeSpan.FromMinutes(10);
+        _interval = interval ?? AppConfig.ResumeListInterval;
         _statistics = new Models.ScraperStatistics("ResumeListPageScraper");
         
         _logger = new ConsoleLogger("ResumeListPageScraper");
