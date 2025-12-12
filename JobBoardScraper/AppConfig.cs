@@ -311,6 +311,16 @@ public static class AppConfig
         (ConfigurationManager.AppSettings["ResumeList:CompanyIdsOrders"] ?? "salary_desc,last_visited,relevance,salary_asc")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    public static bool ResumeListUniversityIdsEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ResumeList:UniversityIdsEnabled"], out var value) && value;
+
+    public static string ResumeListUniversityIdsUrlTemplate =>
+        ConfigurationManager.AppSettings["ResumeList:UniversityIdsUrlTemplate"] ?? "/resumes?university_ids[]={0}";
+
+    public static string[] ResumeListUniversityIdsOrders =>
+        (ConfigurationManager.AppSettings["ResumeList:UniversityIdsOrders"] ?? "last_visited,salary_desc,salary_asc,relevance")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public static bool CategoryEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["Category:Enabled"], out var value) && value;
 

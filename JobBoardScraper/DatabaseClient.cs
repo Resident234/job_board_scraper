@@ -883,6 +883,37 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Получить все habr_id из таблицы habr_universities
+    /// </summary>
+    public List<int> GetAllUniversityIds(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var universityIds = new List<int>();
+        
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+            using var cmd = new NpgsqlCommand("SELECT habr_id FROM habr_universities ORDER BY habr_id", conn);
+            using var reader = cmd.ExecuteReader();
+            
+            while (reader.Read())
+            {
+                var universityId = reader.GetInt32(0);
+                universityIds.Add(universityId);
+            }
+            
+            Log($"[DB] Загружено {universityIds.Count} university_id из БД");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при загрузке university_id: {ex.Message}");
+        }
+        
+        return universityIds;
+    }
+
+    /// <summary>
     /// Получить все category_id из таблицы habr_category_root_ids
     /// </summary>
     public List<string> GetAllCategoryIds(NpgsqlConnection conn)

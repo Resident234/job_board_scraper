@@ -110,7 +110,13 @@ public sealed class ResumeListPageScraper : IDisposable
                 tasks.Add(Task.Run(() => ScrapeCompanyIdsAsync(ct), ct));
             }
 
-            // 6. Обход обычной страницы
+            // 6. Перебор по university_ids
+            if (AppConfig.ResumeListUniversityIdsEnabled)
+            {
+                tasks.Add(Task.Run(() => ScrapeUniversityIdsAsync(ct), ct));
+            }
+
+            // 7. Обход обычной страницы
             tasks.Add(Task.Run(() => ScrapeAndEnqueueAsync(ct), ct));
 
             // Ждем завершения всех задач
@@ -383,6 +389,81 @@ public sealed class ResumeListPageScraper : IDisposable
 
         _statistics.EndTime = DateTime.Now;
         _logger.WriteLine($"Обход по company_ids завершён. {_statistics}");
+    }
+
+    private async Task ScrapeUniversityIdsAsync(CancellationToken ct)
+    {
+        _logger.WriteLine("Начало обхода страниц по university_ids...");
+        
+        // Получаем список university_id из БД
+        using var conn = _db.DatabaseConnectionInit();
+        var universityIds = _db.GetAllUniversityIds(conn);
+        _db.DatabaseConnectionClose(conn);
+        
+        var totalUniversityIds = universityIds.Count;
+        var orders = AppConfig.ResumeListUniversityIdsOrders;
+        
+        _logger.WriteLine($"Загружено university_ids: {totalUniversityIds} шт., сортировок: {orders.Length}");
+
+        if (totalUniversityIds == 0)
+        {
+            _logger.WriteLine("Нет university_ids для обработки.");
+            return;
+        }
+
+        var processedCount = 0;
+        foreach (var universityId in universityIds)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            var isFirstOrder = true;
+            foreach (var order in orders)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                try
+                {
+                    var baseUrl = string.Format(AppConfig.ResumeListUniversityIdsUrlTemplate, universityId);
+                    var url = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
+                    
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var response = await _httpClient.GetAsync(url, ct);
+                    sw.Stop();
+                    _controller.ReportLatency(sw.Elapsed);
+
+                    // Считаем прогресс только для первой сортировки
+                    if (isFirstOrder)
+                    {
+                        processedCount++;
+                        isFirstOrder = false;
+                    }
+                    var percent = processedCount * 100.0 / totalUniversityIds;
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.WriteLine($"University ID {universityId}{orderDesc}: HTTP {(int)response.StatusCode}. Прогресс: {processedCount}/{totalUniversityIds} ({percent:F2}%)");
+                        continue;
+                    }
+
+                    var html = await response.Content.ReadAsStringAsync(ct);
+                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+                    // Парсим профили на странице
+                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    _statistics.AddItemsCollected(profilesFound);
+
+                    _logger.WriteLine($"University ID {universityId}{orderDesc}: найдено {profilesFound} профилей. Прогресс: {processedCount}/{totalUniversityIds} ({percent:F2}%)");
+                }
+                catch (Exception ex)
+                {
+                    _logger.WriteLine($"Ошибка при обработке university_id {universityId}: {ex.Message}");
+                }
+            }
+        }
+
+        _statistics.EndTime = DateTime.Now;
+        _logger.WriteLine($"Обход по university_ids завершён. {_statistics}");
     }
 
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
