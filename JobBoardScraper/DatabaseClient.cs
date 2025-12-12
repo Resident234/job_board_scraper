@@ -1460,6 +1460,69 @@ public sealed class DatabaseClient
         return userLinks;
     }
 
+    /// <summary>
+    /// Получить ссылки пользователей без заполненных данных (для UserResumeDetailScraper).
+    /// Выбирает профили, которые:
+    /// 1. НЕ приватные (public != false ИЛИ public IS NULL)
+    /// 2. НЕ имеют заполненных данных:
+    ///    - Нет about (NULL или пустая строка)
+    ///    - Нет опыта работы в habr_user_experience
+    ///    - Нет высшего образования в habr_resumes_universities
+    ///    - Нет дополнительного образования в habr_resumes_educations
+    ///    - Нет участия в профсообществах (community_participation IS NULL или пустой массив)
+    /// </summary>
+    public List<string> GetUserLinksWithoutData(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        var userLinks = new List<string>();
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            // Противоположный фильтр к count_filled_profiles.sql:
+            // Выбираем профили, которые НЕ приватные И НЕ имеют заполненных данных
+            var query = @"
+                SELECT r.link 
+                FROM habr_resumes r
+                WHERE r.link IS NOT NULL
+                  -- НЕ приватный профиль
+                  AND NOT (r.public = false AND r.about = 'Доступ ограничен настройками приватности')
+                  -- НЕТ заполненного about
+                  AND (r.about IS NULL OR TRIM(r.about) = '')
+                  -- НЕТ опыта работы
+                  AND NOT EXISTS (SELECT 1 FROM habr_user_experience ue WHERE ue.user_id = r.id)
+                  -- НЕТ высшего образования
+                  AND NOT EXISTS (SELECT 1 FROM habr_resumes_universities ru WHERE ru.resume_id = r.id)
+                  -- НЕТ дополнительного образования
+                  AND NOT EXISTS (SELECT 1 FROM habr_resumes_educations re WHERE re.resume_id = r.id)
+                  -- НЕТ участия в профсообществах
+                  AND (r.community_participation IS NULL OR jsonb_array_length(r.community_participation) = 0)
+                ORDER BY r.updated_at ASC NULLS FIRST";
+
+            using var cmd = new NpgsqlCommand(query, conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var link = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(link))
+                {
+                    userLinks.Add(link);
+                }
+            }
+
+            Log($"[DB] Загружено {userLinks.Count} ссылок пользователей без данных из БД");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при получении ссылок пользователей без данных: {ex.Message}");
+        }
+
+        return userLinks;
+    }
+
     
     /// <summary>
     /// Добавить детальную информацию о резюме пользователя в очередь

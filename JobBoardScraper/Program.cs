@@ -383,7 +383,7 @@ class Program
             var userResumeDetailScraper = new UserResumeDetailScraper(
                 userResumeDetailHttpClient,
                 db,
-                getUserCodes: () => db.GetAllUserLinks(conn),
+                getUserCodes: () => db.GetUserLinksWithoutData(conn),
                 controller: controller,
                 proxyPool: freeProxyPool,
                 interval: TimeSpan.FromMinutes(20),
