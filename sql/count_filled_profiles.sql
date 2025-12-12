@@ -10,8 +10,8 @@ WITH filled_profiles AS (
         -- Есть опыт работы в habr_user_experience
         EXISTS (SELECT 1 FROM habr_user_experience ue WHERE ue.user_id = r.id)
         OR
-        -- Есть высшее образование в habr_resumes_universities
-        EXISTS (SELECT 1 FROM habr_resumes_universities ru WHERE ru.resume_id = r.id)
+        -- Есть высшее образование в habr_resumes_universities (колонка user_id)
+        EXISTS (SELECT 1 FROM habr_resumes_universities ru WHERE ru.user_id = r.id)
         OR
         -- Есть дополнительное образование в habr_resumes_educations
         EXISTS (SELECT 1 FROM habr_resumes_educations re WHERE re.resume_id = r.id)
