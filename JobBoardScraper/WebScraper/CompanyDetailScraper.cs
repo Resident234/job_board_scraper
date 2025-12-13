@@ -21,6 +21,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly Regex _followersRegex;
     private readonly Models.ScraperStatistics _statistics;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
+    private ProgressTracker? _progress;
 
     public CompanyDetailScraper(
         SmartHttpClient httpClient,
@@ -97,6 +98,10 @@ public sealed class CompanyDetailScraper : IDisposable
         // Получаем список компаний из БД
         var companies = _getCompanies();
         var totalCompanies = companies.Count;
+        
+        // Используем ProgressTracker для отслеживания прогресса
+        _progress = new ProgressTracker(totalCompanies, "CompanyDetails");
+        
         _logger.WriteLine($"Загружено {totalCompanies} компаний из БД.");
 
         if (totalCompanies == 0)
@@ -121,15 +126,19 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     _statistics.IncrementProcessed();
                     _statistics.UpdateActiveRequests(_activeRequests.Count);
+                    _progress?.Increment();
 
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
-                    Helper.Utils.ParallelScraperLogger.LogProgress(
-                        _logger,
-                        _statistics,
-                        url,
-                        elapsedSeconds,
-                        (int)response.StatusCode,
-                        totalCompanies);
+                    if (_progress != null)
+                    {
+                        ParallelScraperLogger.LogProgress(
+                            _logger,
+                            _statistics,
+                            url,
+                            elapsedSeconds,
+                            (int)response.StatusCode,
+                            _progress);
+                    }
 
                     if (!response.IsSuccessStatusCode)
                     {

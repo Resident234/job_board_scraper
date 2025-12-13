@@ -18,6 +18,7 @@ public sealed class CompanyListScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Models.ScraperStatistics _statistics;
+    private Helper.Utils.ScraperProgressLogger? _progressLogger;
 
     public CompanyListScraper(
         SmartHttpClient httpClient,
@@ -86,9 +87,18 @@ public sealed class CompanyListScraper : IDisposable
     {
         _logger.WriteLine("Начало обхода списка компаний...");
         
+        var totalFiltersProcessed = 0;
+        var totalFilters = 1 + 5 + 4; // базовый + sz фильтры + дополнительные (категории добавятся позже)
+        
+        // Инициализируем ScraperProgressLogger (обновим total после получения категорий)
+        _progressLogger = new Helper.Utils.ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
+        
         // Сначала обходим базовый URL без фильтров
         _logger.WriteLine("Обход компаний без фильтров...");
         await ScrapeWithFiltersAsync(null, null, null, ct);
+        totalFiltersProcessed++;
+        _progressLogger.Increment();
+        _progressLogger.LogItemProgress("Базовый URL");
         
         // Затем обходим с параметрами sz от 1 до 5
         var sizeFilters = new[] { 1, 2, 3, 4, 5 };
@@ -99,11 +109,19 @@ public sealed class CompanyListScraper : IDisposable
                 
             _logger.WriteLine($"Обход компаний с фильтром sz={sz}...");
             await ScrapeWithFiltersAsync(sz, null, null, ct);
+            totalFiltersProcessed++;
+            _progressLogger.Increment();
+            _progressLogger.LogItemProgress($"Фильтр sz={sz}");
         }
         
         // Получаем категории из БД и обходим по ним
         var categoryIds = _getCategoryIds();
-        _logger.WriteLine($"Загружено {categoryIds.Count} категорий для обхода");
+        totalFilters += categoryIds.Count;
+        // Пересоздаём progressLogger с обновлённым total
+        _progressLogger = new Helper.Utils.ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
+        // Устанавливаем уже обработанные фильтры
+        for (int i = 0; i < totalFiltersProcessed; i++) _progressLogger.Increment();
+        _logger.WriteLine($"Загружено {categoryIds.Count} категорий для обхода. Всего фильтров: {totalFilters}");
         
         foreach (var categoryId in categoryIds)
         {
@@ -112,6 +130,9 @@ public sealed class CompanyListScraper : IDisposable
                 
             _logger.WriteLine($"Обход компаний с фильтром category_root_id={categoryId}...");
             await ScrapeWithFiltersAsync(null, categoryId, null, ct);
+            totalFiltersProcessed++;
+            _progressLogger.Increment();
+            _progressLogger.LogItemProgress($"Категория {categoryId}");
         }
         
         // Обходим с дополнительными фильтрами
@@ -130,10 +151,13 @@ public sealed class CompanyListScraper : IDisposable
                 
             _logger.WriteLine($"Обход компаний с фильтром {filter.Key}={filter.Value}...");
             await ScrapeWithFiltersAsync(null, null, filter, ct);
+            totalFiltersProcessed++;
+            _progressLogger.Increment();
+            _progressLogger.LogItemProgress($"Фильтр {filter.Key}={filter.Value}");
         }
         
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine($"Обход завершён. {_statistics}");
+        _progressLogger.LogCompletion(_statistics.TotalItemsCollected, _statistics.ToString());
     }
 
     private async Task ScrapeWithFiltersAsync(int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter, CancellationToken ct)
@@ -216,7 +240,7 @@ public sealed class CompanyListScraper : IDisposable
 
                 _statistics.AddItemsCollected(companiesOnPage);
                 _statistics.IncrementSuccess();
-                _logger.WriteLine($"Страница {page}: найдено {companiesOnPage} уникальных компаний.");
+                _logger.WriteLine($"Страница {page}: найдено {companiesOnPage} уникальных компаний. Всего собрано: {_statistics.TotalItemsCollected}");
 
                 // Проверяем наличие следующей страницы
                 var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, page + 1);

@@ -24,6 +24,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     private readonly Models.ScraperStatistics _statistics;
     private readonly FreeProxyPool? _proxyPool;
     private readonly int _proxyWaitTimeout;
+    private ProgressTracker? _progress;
 
     public UserResumeDetailScraper(
         SmartHttpClient httpClient,
@@ -160,6 +161,10 @@ public sealed class UserResumeDetailScraper : IDisposable
         
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
+        
+        // Используем ProgressTracker для отслеживания прогресса
+        _progress = new ProgressTracker(totalLinks, "UserResumeDetail");
+        
         _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
         if (totalLinks == 0)
@@ -357,14 +362,18 @@ public sealed class UserResumeDetailScraper : IDisposable
                 double elapsedSeconds = sw.Elapsed.TotalSeconds;
                 _statistics.IncrementProcessed();
                 _statistics.UpdateActiveRequests(_activeRequests.Count);
+                _progress?.Increment();
                 
-                Helper.Utils.ParallelScraperLogger.LogProgress(
-                    _logger,
-                    _statistics,
-                    userLink,
-                    elapsedSeconds,
-                    (int)response.StatusCode,
-                    totalLinks);
+                if (_progress != null)
+                {
+                    ParallelScraperLogger.LogProgress(
+                        _logger,
+                        _statistics,
+                        userLink,
+                        elapsedSeconds,
+                        (int)response.StatusCode,
+                        _progress);
+                }
                 
                 // Записываем статистику по коду ответа
                 _statistics.RecordStatusCode((int)response.StatusCode);

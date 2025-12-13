@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 using JobBoardScraper.Models;
 using System.Linq;
 using System.Security.Cryptography;
@@ -18,6 +19,7 @@ public sealed class CompanyRatingScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Models.ScraperStatistics _statistics;
+    private ScraperProgressLogger? _progressLogger;
 
     private static readonly int[] CompanySizes = { 2, 3, 4, 5 };
     private static readonly int[] Years = { 2024, 2023, 2022, 2021, 2020, 2019, 2018 };
@@ -90,6 +92,10 @@ public sealed class CompanyRatingScraper : IDisposable
         _statistics.StartTime = DateTime.Now;
 
         var urlCombinations = GenerateUrlCombinations();
+        
+        // Используем ScraperProgressLogger для отслеживания и вывода прогресса
+        _progressLogger = new ScraperProgressLogger(urlCombinations.Count, "CompanyRatingScraper", _logger, "RatingUrls");
+        
         _logger.WriteLine($"Сгенерировано {urlCombinations.Count} комбинаций URL для обхода");
 
         foreach (var url in urlCombinations)
@@ -99,10 +105,13 @@ public sealed class CompanyRatingScraper : IDisposable
             try
             {
                 await ScrapeRatingPagesAsync(url, ct);
+                _progressLogger.Increment();
+                _progressLogger.LogItemProgress($"URL {url}");
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка при обработке URL {url}: {ex.Message}");
+                _progressLogger.Increment();
+                _progressLogger.LogError($"URL {url}: {ex.Message}");
             }
         }
 

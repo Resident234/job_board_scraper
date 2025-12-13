@@ -77,4 +77,70 @@ public static class ParallelScraperLogger
             Console.WriteLine($"[{statistics.ScraperName}] {message}");
         }
     }
+    
+    /// <summary>
+    /// Логирует прогресс HTTP запроса с использованием ProgressTracker
+    /// </summary>
+    /// <param name="logger">Логгер (если null, используется Console.WriteLine)</param>
+    /// <param name="scraperName">Название скрапера</param>
+    /// <param name="url">URL запроса</param>
+    /// <param name="elapsedSeconds">Время выполнения запроса в секундах</param>
+    /// <param name="statusCode">HTTP код ответа</param>
+    /// <param name="progress">Трекер прогресса</param>
+    /// <param name="activeCount">Количество активных параллельных процессов</param>
+    public static void LogProgress(
+        ConsoleLogger? logger,
+        string scraperName,
+        string url,
+        double elapsedSeconds,
+        int statusCode,
+        ProgressTracker progress,
+        int activeCount)
+    {
+        var message = $"[{scraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
+                     $"Код: {statusCode}. " +
+                     $"Прогресс: {progress}. " +
+                     $"Параллельных: {activeCount}.";
+        
+        if (logger != null)
+        {
+            logger.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
+        }
+    }
+    
+    /// <summary>
+    /// Логирует прогресс HTTP запроса с использованием ProgressTracker и ScraperStatistics
+    /// </summary>
+    /// <param name="logger">Логгер (если null, используется Console.WriteLine)</param>
+    /// <param name="statistics">Статистика скрапера</param>
+    /// <param name="url">URL запроса</param>
+    /// <param name="elapsedSeconds">Время выполнения запроса в секундах</param>
+    /// <param name="statusCode">HTTP код ответа</param>
+    /// <param name="progress">Трекер прогресса</param>
+    public static void LogProgress(
+        ConsoleLogger? logger,
+        ScraperStatistics statistics,
+        string url,
+        double elapsedSeconds,
+        int statusCode,
+        ProgressTracker progress)
+    {
+        var message = $"[{statistics.ScraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
+                     $"Код: {statusCode}. " +
+                     $"Прогресс: {progress}. " +
+                     $"Параллельных: {statistics.ActiveRequests}.";
+        
+        if (logger != null)
+        {
+            logger.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
+        }
+    }
 }

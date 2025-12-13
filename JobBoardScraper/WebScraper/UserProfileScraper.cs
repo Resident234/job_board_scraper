@@ -23,6 +23,7 @@ public sealed class UserProfileScraper : IDisposable
     private readonly Regex _lastVisitRegex;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly Models.ScraperStatistics _statistics;
+    private ProgressTracker? _progress;
 
     public UserProfileScraper(
         SmartHttpClient httpClient,
@@ -98,6 +99,10 @@ public sealed class UserProfileScraper : IDisposable
         // Получаем список ссылок пользователей из БД
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
+        
+        // Используем ProgressTracker для отслеживания прогресса
+        _progress = new ProgressTracker(totalLinks, "UserProfiles");
+        
         _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
         if (totalLinks == 0)
@@ -135,14 +140,18 @@ public sealed class UserProfileScraper : IDisposable
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
                     _statistics.IncrementProcessed();
                     _statistics.UpdateActiveRequests(_activeRequests.Count);
+                    _progress?.Increment();
                     
-                    Helper.Utils.ParallelScraperLogger.LogProgress(
-                        _logger,
-                        _statistics,
-                        friendsUrl,
-                        elapsedSeconds,
-                        (int)response.StatusCode,
-                        totalLinks);
+                    if (_progress != null)
+                    {
+                        ParallelScraperLogger.LogProgress(
+                            _logger,
+                            _statistics,
+                            friendsUrl,
+                            elapsedSeconds,
+                            (int)response.StatusCode,
+                            _progress);
+                    }
                     
                     if (!response.IsSuccessStatusCode)
                     {

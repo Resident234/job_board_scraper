@@ -17,6 +17,7 @@ public sealed class ExpertsScraper : IDisposable
     private readonly Regex _userCodeRegex;
     private readonly Regex _companyCodeRegex;
     private readonly Models.ScraperStatistics _statistics;
+    private Helper.Utils.ScraperProgressLogger? _progressLogger;
 
     public ExpertsScraper(
         SmartHttpClient httpClient,
@@ -86,6 +87,8 @@ public sealed class ExpertsScraper : IDisposable
         
         var page = 1;
         var hasMorePages = true;
+        var totalExperts = 0;
+        var totalCompanies = 0;
         const int maxPageRetries = 3; // Максимум попыток для одной страницы
 
         while (hasMorePages && !ct.IsCancellationRequested)
@@ -238,7 +241,15 @@ public sealed class ExpertsScraper : IDisposable
                     }
 
                     _statistics.IncrementProcessed();
-                    _logger.WriteLine($"Страница {page}: найдено {expertsOnPage} экспертов.");
+                    totalExperts += expertsOnPage;
+                    
+                    // Инициализируем progressLogger при первой странице (не знаем заранее сколько страниц)
+                    if (_progressLogger == null)
+                    {
+                        _progressLogger = new Helper.Utils.ScraperProgressLogger(100, "ExpertsScraper", _logger, "Pages");
+                    }
+                    _progressLogger.Increment();
+                    _progressLogger.LogPageProgress(page, expertsOnPage);
 
                     // Пагинация загружается через AJAX, поэтому просто переходим на следующую страницу
                     // Если на странице нет экспертов, значит достигнут конец
@@ -291,7 +302,7 @@ public sealed class ExpertsScraper : IDisposable
         }
         
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine($"Обход завершён. {_statistics}");
+        _progressLogger?.LogCompletion(totalExperts, $"Страниц: {page - 1}. {_statistics}");
     }
 
     private string BuildUrl(int page)

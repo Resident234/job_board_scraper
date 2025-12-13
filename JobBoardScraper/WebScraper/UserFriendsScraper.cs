@@ -1,4 +1,5 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 using System.Collections.Concurrent;
 
 namespace JobBoardScraper.WebScraper;
@@ -16,6 +17,7 @@ public sealed class UserFriendsScraper : IDisposable
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly Models.ScraperStatistics _statistics;
+    private ProgressTracker? _progress;
 
     public UserFriendsScraper(
         SmartHttpClient httpClient,
@@ -87,6 +89,10 @@ public sealed class UserFriendsScraper : IDisposable
         
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
+        
+        // Используем ProgressTracker для отслеживания прогресса
+        _progress = new ProgressTracker(totalLinks, "UserFriends");
+        
         _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
         if (totalLinks == 0)
@@ -124,14 +130,18 @@ public sealed class UserFriendsScraper : IDisposable
                     {
                         _statistics.IncrementProcessed();
                         _statistics.UpdateActiveRequests(_activeRequests.Count);
+                        _progress?.Increment();
                         
-                        Helper.Utils.ParallelScraperLogger.LogProgress(
-                            _logger,
-                            _statistics,
-                            friendsUrl,
-                            elapsedSeconds,
-                            (int)response.StatusCode,
-                            totalLinks);
+                        if (_progress != null)
+                        {
+                            ParallelScraperLogger.LogProgress(
+                                _logger,
+                                _statistics,
+                                friendsUrl,
+                                elapsedSeconds,
+                                (int)response.StatusCode,
+                                _progress);
+                        }
                     }
                     else
                     {
