@@ -39,9 +39,6 @@ public enum InsertMode
     UpdateIfExists
 }
 
-//TODO Вывод в лог: записано/обновлено нужно конкретизировать и детализировать. записано ли было или все раки обновлено
-//TODO Статистка по записанных обновденным записям и полям по каждой таблице в конце выполнения скрипта + раз в 5 минут сброс дампа стаистики в файл
-
 public readonly record struct DbRecord(
     DbRecordType Type, 
     string PrimaryValue, 
@@ -67,11 +64,31 @@ public sealed class DatabaseClient
     private CancellationTokenSource? _writerCts;
     private ConcurrentQueue<DbRecord>? _saveQueue;
     private readonly Helper.ConsoleHelper.ConsoleLogger? _logger;
+    private readonly DatabaseStatistics _statistics = new();
+    private DateTime _lastStatsDump = DateTime.Now;
+    private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Статистика операций с БД
+    /// </summary>
+    public DatabaseStatistics Statistics => _statistics;
 
     public DatabaseClient(string connectionString, Helper.ConsoleHelper.ConsoleLogger? logger = null)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Периодически выводит статистику в лог (раз в 5 минут)
+    /// </summary>
+    private void TryDumpStatistics()
+    {
+        if (DateTime.Now - _lastStatsDump >= _statsDumpInterval)
+        {
+            Log(_statistics.GetSummary());
+            _lastStatsDump = DateTime.Now;
+        }
     }
     
     private void Log(string message)
@@ -165,7 +182,8 @@ public sealed class DatabaseClient
                 // Проверка существования по link
                 if (DatabaseRecordExistsByLink(conn, link))
                 {
-                    Log($"Запись уже есть в БД, вставка пропущена: {link}");
+                    Log($"[DB] Resume {link}: ⏭ SKIP (уже существует)");
+                    _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
 
@@ -185,7 +203,8 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
 
-                int rowsAffected = cmd.ExecuteNonQuery();
+                cmd.ExecuteNonQuery();
+                _statistics.RecordInsert("habr_resumes", link);
                 
                 // Подробное логирование
                 var logParts = new List<string> { $"[DB] Resume {link}:" };
@@ -223,13 +242,14 @@ public sealed class DatabaseClient
                 if (jobSearchStatus != null)
                     logParts.Add($"JobStatus={jobSearchStatus}");
                 
-                logParts.Add($"RowsAffected={rowsAffected}");
-                logParts.Add("✓ Записано");
+                logParts.Add("✓ INSERT");
                 
                 Log(string.Join(" | ", logParts));
+                TryDumpStatistics();
             }
             else // UpdateIfExists
             {
+                // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
                     INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, created_at, updated_at) 
                     VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, NOW(), NOW())
@@ -246,7 +266,8 @@ public sealed class DatabaseClient
                         last_visit = COALESCE(EXCLUDED.last_visit, habr_resumes.last_visit),
                         public = COALESCE(EXCLUDED.public, habr_resumes.public),
                         job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
-                        updated_at = NOW()", conn);
+                        updated_at = NOW()
+                    RETURNING xmax", conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
@@ -260,7 +281,15 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
 
-                int rowsAffected = cmd.ExecuteNonQuery();
+                var xmaxResult = cmd.ExecuteScalar();
+                var xmax = Convert.ToUInt32(xmaxResult);
+                var isInsert = xmax == 0;
+                
+                // Записываем статистику
+                if (isInsert)
+                    _statistics.RecordInsert("habr_resumes", link);
+                else
+                    _statistics.RecordUpdate("habr_resumes", link);
                 
                 // Подробное логирование
                 var logParts = new List<string> { $"[DB] Resume {link}:" };
@@ -295,24 +324,27 @@ public sealed class DatabaseClient
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
                 
-                logParts.Add($"RowsAffected={rowsAffected}");
-                logParts.Add("✓ Записано/Обновлено");
+                logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
                 
                 Log(string.Join(" | ", logParts));
+                TryDumpStatistics();
             }
         }
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
         {
-            Log($"Запись уже есть в БД (уникальное ограничение), вставка пропущена: {link}");
+            Log($"[DB] Resume {link}: ⏭ SKIP (уникальное ограничение)");
+            _statistics.RecordSkipped("habr_resumes", link);
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"Ошибка БД для {link}: {dbEx.Message}");
+            Log($"[DB] Resume {link}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", link);
         }
         catch (Exception ex)
         {
-            Log($"Неожиданная ошибка при записи в БД для {link}: {ex.Message}");
+            Log($"[DB] Resume {link}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", link);
         }
 
     }
@@ -383,14 +415,22 @@ public sealed class DatabaseClient
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
                     company_id = COALESCE(EXCLUDED.company_id, habr_companies.company_id),
-                    updated_at = NOW()", conn);
+                    updated_at = NOW()
+                RETURNING xmax", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
             cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
 
-            int rowsAffected = cmd.ExecuteNonQuery();
+            var xmaxResult = cmd.ExecuteScalar();
+            var xmax = Convert.ToUInt32(xmaxResult);
+            var isInsert = xmax == 0;
+            
+            if (isInsert)
+                _statistics.RecordInsert("habr_companies", companyCode);
+            else
+                _statistics.RecordUpdate("habr_companies", companyCode);
             
             // Подробное логирование
             var logParts = new List<string>
@@ -405,18 +445,20 @@ public sealed class DatabaseClient
             if (companyId.HasValue)
                 logParts.Add($"CompanyID={companyId.Value}");
             
-            logParts.Add($"RowsAffected={rowsAffected}");
-            logParts.Add(rowsAffected > 0 ? "✓ Записано/Обновлено" : "⚠ Не изменено");
+            logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
             
             Log(string.Join(" | ", logParts));
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+            Log($"[DB] Компания {companyCode}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_companies", companyCode);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при записи компании {companyCode}: {ex.Message}");
+            Log($"[DB] Компания {companyCode}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_companies", companyCode);
         }
     }
 
@@ -437,21 +479,32 @@ public sealed class DatabaseClient
                 ON CONFLICT (category_id) 
                 DO UPDATE SET 
                     category_name = EXCLUDED.category_name,
-                    updated_at = NOW()", conn);
+                    updated_at = NOW()
+                RETURNING xmax", conn);
 
             cmd.Parameters.AddWithValue("@id", categoryId);
             cmd.Parameters.AddWithValue("@name", categoryName ?? (object)DBNull.Value);
 
-            int rowsAffected = cmd.ExecuteNonQuery();
-            Log($"[DB] Записано в БД (category_root_ids): {categoryId} -> {categoryName}");
+            var xmaxResult = cmd.ExecuteScalar();
+            var xmax = Convert.ToUInt32(xmaxResult);
+            var isInsert = xmax == 0;
+            
+            if (isInsert)
+                _statistics.RecordInsert("habr_category_root_ids", categoryId);
+            else
+                _statistics.RecordUpdate("habr_category_root_ids", categoryId);
+            
+            Log($"[DB] Category {categoryId} -> {categoryName}: {(isInsert ? "✓ INSERT" : "✓ UPDATE")}");
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для категории {categoryId}: {dbEx.Message}");
+            Log($"[DB] Category {categoryId}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_category_root_ids", categoryId);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при записи категории {categoryId}: {ex.Message}");
+            Log($"[DB] Category {categoryId}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_category_root_ids", categoryId);
         }
     }
 
@@ -1158,7 +1211,8 @@ public sealed class DatabaseClient
                     want_work = COALESCE(EXCLUDED.want_work, habr_companies.want_work),
                     employees_count = COALESCE(EXCLUDED.employees_count, habr_companies.employees_count),
                     habr = COALESCE(EXCLUDED.habr, habr_companies.habr),
-                    updated_at = NOW()", conn);
+                    updated_at = NOW()
+                RETURNING xmax", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
             cmd.Parameters.AddWithValue("@url", companyUrl);
@@ -1178,7 +1232,14 @@ public sealed class DatabaseClient
                 !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
             cmd.Parameters.AddWithValue("@habr", habr.HasValue ? (object)habr.Value : DBNull.Value);
 
-            int rowsAffected = cmd.ExecuteNonQuery();
+            var xmaxResult = cmd.ExecuteScalar();
+            var xmax = Convert.ToUInt32(xmaxResult);
+            var isInsert = xmax == 0;
+            
+            if (isInsert)
+                _statistics.RecordInsert("habr_companies", companyCode);
+            else
+                _statistics.RecordUpdate("habr_companies", companyCode);
 
             // Подробное логирование
             var logParts = new List<string> { $"[DB] CompanyDetails {companyCode}:" };
@@ -1221,18 +1282,20 @@ public sealed class DatabaseClient
             if (habr.HasValue)
                 logParts.Add($"Habr={habr.Value}");
             
-            logParts.Add($"RowsAffected={rowsAffected}");
-            logParts.Add(rowsAffected > 0 ? "✓ Записано/Обновлено" : "⚠ Не найдено");
+            logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
             
             Log(string.Join(" | ", logParts));
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
+            Log($"[DB] CompanyDetails {companyCode}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_companies", companyCode);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при обновлении данных для {companyCode}: {ex.Message}");
+            Log($"[DB] CompanyDetails {companyCode}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_companies", companyCode);
         }
     }
 
@@ -1332,15 +1395,19 @@ public sealed class DatabaseClient
                 addedCount++;
             }
 
-            Log($"[DB] Добавлено {addedCount} навыков для компании {companyCode}");
+            _statistics.RecordUpdate("habr_company_skills", companyCode);
+            Log($"[DB] CompanySkills {companyCode}: ✓ {addedCount} навыков добавлено");
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при добавлении навыков для {companyCode}: {dbEx.Message}");
+            Log($"[DB] CompanySkills {companyCode}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_company_skills", companyCode);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при добавлении навыков для {companyCode}: {ex.Message}");
+            Log($"[DB] CompanySkills {companyCode}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_company_skills", companyCode);
         }
     }
     
@@ -1690,21 +1757,26 @@ public sealed class DatabaseClient
 
             if (rowsAffected > 0)
             {
+                _statistics.RecordUpdate("habr_resumes", userLink);
                 var aboutPreview = about?.Substring(0, Math.Min(50, about.Length)) ?? "";
-                Log($"[DB] Обновлено 'О себе' для {userLink}: {aboutPreview}...");
+                Log($"[DB] UserAbout {userLink}: ✓ UPDATE ({aboutPreview}...)");
             }
             else
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД.");
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] UserAbout {userLink}: ⚠ NOT FOUND");
             }
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+            Log($"[DB] UserAbout {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при обновлении 'О себе' для {userLink}: {ex.Message}");
+            Log($"[DB] UserAbout {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
     }
 
@@ -1784,20 +1856,25 @@ public sealed class DatabaseClient
 
             if (rowsAffected > 0)
             {
-                Log($"[DB] Обновлены дополнительные данные для {userLink}: Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWorkStr}");
+                _statistics.RecordUpdate("habr_resumes", userLink);
+                Log($"[DB] UserAdditionalData {userLink}: ✓ UPDATE (Age={age}, Exp={experienceText}, Reg={registration})");
             }
             else
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД.");
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] UserAdditionalData {userLink}: ⚠ NOT FOUND");
             }
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+            Log($"[DB] UserAdditionalData {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при обновлении дополнительных данных для {userLink}: {ex.Message}");
+            Log($"[DB] UserAdditionalData {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
     }
 
@@ -1845,21 +1922,26 @@ public sealed class DatabaseClient
 
             if (rowsAffected > 0)
             {
+                _statistics.RecordUpdate("habr_resumes", userLink);
                 var names = string.Join(", ", communityParticipation.Select(c => c.Name));
-                Log($"[DB] Обновлено участие в профсообществах для {userLink}: {names} ({communityParticipation.Count} записей)");
+                Log($"[DB] UserCommunity {userLink}: ✓ UPDATE ({communityParticipation.Count} записей: {names})");
             }
             else
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД.");
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] UserCommunity {userLink}: ⚠ NOT FOUND");
             }
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при обновлении участия в профсообществах для {userLink}: {dbEx.Message}");
+            Log($"[DB] UserCommunity {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при обновлении участия в профсообществах для {userLink}: {ex.Message}");
+            Log($"[DB] UserCommunity {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
     }
 
@@ -1889,20 +1971,25 @@ public sealed class DatabaseClient
 
             if (rowsAffected > 0)
             {
-                Log($"[DB] Обновлен статус публичности для {userLink}: public={isPublic}");
+                _statistics.RecordUpdate("habr_resumes", userLink);
+                Log($"[DB] UserPublicStatus {userLink}: ✓ UPDATE (public={isPublic})");
             }
             else
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД.");
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] UserPublicStatus {userLink}: ⚠ NOT FOUND");
             }
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД для пользователя {userLink}: {dbEx.Message}");
+            Log($"[DB] UserPublicStatus {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при обновлении статуса публичности для {userLink}: {ex.Message}");
+            Log($"[DB] UserPublicStatus {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
         }
     }
 
@@ -2509,7 +2596,10 @@ public sealed class DatabaseClient
         cmd.Parameters.AddWithValue("@graduate_count", data.GraduateCount ?? (object)DBNull.Value);
 
         int rowsAffected = cmd.ExecuteNonQuery();
-        Log($"[DB] Университет {data.Name} (ID={data.HabrId}): {(rowsAffected > 0 ? "сохранён" : "не изменён")}");
+        // Для UPSERT без RETURNING xmax считаем как UPDATE если rowsAffected > 0
+        if (rowsAffected > 0)
+            _statistics.RecordUpdate("habr_universities", data.HabrId.ToString());
+        Log($"[DB] Университет {data.Name} (ID={data.HabrId}): {(rowsAffected > 0 ? "✓ UPSERT" : "⚠ NO CHANGE")}");
     }
 
     /// <summary>
@@ -2577,7 +2667,9 @@ public sealed class DatabaseClient
         cmd.Parameters.AddWithValue("@description", data.Description ?? (object)DBNull.Value);
 
         int rowsAffected = cmd.ExecuteNonQuery();
-        Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}");
+        if (rowsAffected > 0)
+            _statistics.RecordUpdate("habr_resumes_universities", $"{userId}-{universityId}");
+        Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}: ✓ UPSERT");
     }
 
     #endregion
@@ -2648,7 +2740,11 @@ public sealed class DatabaseClient
         cmd.Parameters.AddWithValue("@duration", data.Duration ?? (object)DBNull.Value);
 
         int rowsAffected = cmd.ExecuteNonQuery();
-        Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}, course={data.Course ?? "(нет)"}");
+        if (rowsAffected > 0)
+            _statistics.RecordInsert("habr_resumes_educations", $"{resumeId}-{data.Title}");
+        else
+            _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{data.Title}");
+        Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}: {(rowsAffected > 0 ? "✓ INSERT" : "⚠ SKIPPED")}");
     }
 
     /// <summary>
