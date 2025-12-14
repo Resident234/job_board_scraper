@@ -2,11 +2,14 @@
 CREATE TABLE IF NOT EXISTS habr_levels (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Комментарии к столбцам
 COMMENT ON COLUMN habr_levels.title IS 'Название уровня (без ограничения длины, например, "Старший (Senior)", "Средний (Middle)")';
+COMMENT ON COLUMN habr_levels.created_at IS 'Дата и время создания записи';
+COMMENT ON COLUMN habr_levels.updated_at IS 'Дата и время последнего обновления записи';
 
 -- Индекс для быстрого поиска по названию
 CREATE INDEX IF NOT EXISTS idx_habr_levels_title ON habr_levels(title);

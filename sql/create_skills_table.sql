@@ -3,12 +3,15 @@ CREATE TABLE IF NOT EXISTS habr_skills (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL UNIQUE,
     skill_id INTEGER UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Комментарии к столбцам
 COMMENT ON COLUMN habr_skills.title IS 'Название навыка (без ограничения длины)';
 COMMENT ON COLUMN habr_skills.skill_id IS 'ID навыка из URL Habr Career (например, 352 из /resumes?skills[]=352)';
+COMMENT ON COLUMN habr_skills.created_at IS 'Дата и время создания записи';
+COMMENT ON COLUMN habr_skills.updated_at IS 'Дата и время последнего обновления записи';
 
 -- Индексы для быстрого поиска
 CREATE INDEX IF NOT EXISTS idx_habr_skills_title ON habr_skills(title);
@@ -20,6 +23,7 @@ CREATE TABLE IF NOT EXISTS habr_company_skills (
     company_id INTEGER NOT NULL,
     skill_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_company FOREIGN KEY (company_id) REFERENCES habr_companies(id) ON DELETE CASCADE,
     CONSTRAINT fk_skill FOREIGN KEY (skill_id) REFERENCES habr_skills(id) ON DELETE CASCADE,
     CONSTRAINT unique_company_skill UNIQUE (company_id, skill_id)
@@ -28,6 +32,8 @@ CREATE TABLE IF NOT EXISTS habr_company_skills (
 -- Комментарии к столбцам
 COMMENT ON COLUMN habr_company_skills.company_id IS 'ID компании из таблицы habr_companies';
 COMMENT ON COLUMN habr_company_skills.skill_id IS 'ID навыка из таблицы habr_skills';
+COMMENT ON COLUMN habr_company_skills.created_at IS 'Дата и время создания записи';
+COMMENT ON COLUMN habr_company_skills.updated_at IS 'Дата и время последнего обновления записи';
 
 -- Индексы для быстрого поиска
 CREATE INDEX IF NOT EXISTS idx_habr_company_skills_company ON habr_company_skills(company_id);

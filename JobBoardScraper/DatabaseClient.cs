@@ -501,9 +501,9 @@ public sealed class DatabaseClient
                             if (record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.LevelTitle))
                             {
                                 using (var cmdLevel = new NpgsqlCommand(@"
-                                    INSERT INTO habr_levels (title, created_at)
-                                    VALUES (@title, NOW())
-                                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
+                                    INSERT INTO habr_levels (title, created_at, updated_at)
+                                    VALUES (@title, NOW(), NOW())
+                                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                                     RETURNING id", conn))
                                 {
                                     cmdLevel.Parameters.AddWithValue("@title", record.UserProfile.Value.LevelTitle);
@@ -611,9 +611,9 @@ public sealed class DatabaseClient
                                 if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
                                 {
                                     using (var cmdLevel = new NpgsqlCommand(@"
-                                        INSERT INTO habr_levels (title, created_at)
-                                        VALUES (@title, NOW())
-                                        ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title
+                                        INSERT INTO habr_levels (title, created_at, updated_at)
+                                        VALUES (@title, NOW(), NOW())
+                                        ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                                         RETURNING id", conn))
                                     {
                                         cmdLevel.Parameters.AddWithValue("@title", profile.LevelTitle);
@@ -1307,10 +1307,10 @@ public sealed class DatabaseClient
                 // Вставляем навык в таблицу habr_skills (если его нет)
                 int skillId;
                 using (var cmdInsertSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_skills (title, created_at)
-                    VALUES (@title, NOW())
+                    INSERT INTO habr_skills (title, created_at, updated_at)
+                    VALUES (@title, NOW(), NOW())
                     ON CONFLICT (title) 
-                    DO UPDATE SET title = EXCLUDED.title
+                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                     RETURNING id", conn))
                 {
                     cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
@@ -1320,9 +1320,9 @@ public sealed class DatabaseClient
 
                 // Связываем навык с компанией
                 using (var cmdLinkSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_company_skills (company_id, skill_id, created_at)
-                    VALUES (@company_id, @skill_id, NOW())
-                    ON CONFLICT (company_id, skill_id) DO NOTHING", conn))
+                    INSERT INTO habr_company_skills (company_id, skill_id, created_at, updated_at)
+                    VALUES (@company_id, @skill_id, NOW(), NOW())
+                    ON CONFLICT (company_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
                 {
                     cmdLinkSkill.Parameters.AddWithValue("@company_id", companyId.Value);
                     cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
@@ -1956,10 +1956,10 @@ public sealed class DatabaseClient
                 // Вставляем навык в таблицу habr_skills (если его нет)
                 int skillId;
                 using (var cmdInsertSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_skills (title, created_at)
-                    VALUES (@title, NOW())
+                    INSERT INTO habr_skills (title, created_at, updated_at)
+                    VALUES (@title, NOW(), NOW())
                     ON CONFLICT (title) 
-                    DO UPDATE SET title = EXCLUDED.title
+                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                     RETURNING id", conn))
                 {
                     cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
@@ -1969,9 +1969,9 @@ public sealed class DatabaseClient
 
                 // Связываем навык с пользователем
                 using (var cmdLinkSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_user_skills (user_id, skill_id, created_at)
-                    VALUES (@user_id, @skill_id, NOW())
-                    ON CONFLICT (user_id, skill_id) DO NOTHING", conn))
+                    INSERT INTO habr_user_skills (user_id, skill_id, created_at, updated_at)
+                    VALUES (@user_id, @skill_id, NOW(), NOW())
+                    ON CONFLICT (user_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
                 {
                     cmdLinkSkill.Parameters.AddWithValue("@user_id", userId.Value);
                     cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
@@ -2150,8 +2150,8 @@ public sealed class DatabaseClient
                         {
                             // Создаём новый навык
                             using (var cmdInsertSkill = new NpgsqlCommand(@"
-                                INSERT INTO habr_skills (title, created_at)
-                                VALUES (@title, NOW())
+                                INSERT INTO habr_skills (title, created_at, updated_at)
+                                VALUES (@title, NOW(), NOW())
                                 RETURNING id", conn))
                             {
                                 cmdInsertSkill.Parameters.AddWithValue("@title", skillName.Trim());
@@ -2163,9 +2163,9 @@ public sealed class DatabaseClient
 
                     // Связываем навык с опытом работы
                     using (var cmdLinkSkill = new NpgsqlCommand(@"
-                        INSERT INTO habr_user_experience_skills (experience_id, skill_id, created_at)
-                        VALUES (@experience_id, @skill_id, NOW())
-                        ON CONFLICT (experience_id, skill_id) DO NOTHING", conn))
+                        INSERT INTO habr_user_experience_skills (experience_id, skill_id, created_at, updated_at)
+                        VALUES (@experience_id, @skill_id, NOW(), NOW())
+                        ON CONFLICT (experience_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
                     {
                         cmdLinkSkill.Parameters.AddWithValue("@experience_id", experienceId);
                         cmdLinkSkill.Parameters.AddWithValue("@skill_id", actualSkillId);
@@ -2263,8 +2263,8 @@ public sealed class DatabaseClient
 
             // Если не существует, вставляем с skillId в оба поля
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_skills (skill_id, title, created_at)
-                VALUES (@skill_id, @title, NOW())", conn);
+                INSERT INTO habr_skills (skill_id, title, created_at, updated_at)
+                VALUES (@skill_id, @title, NOW(), NOW())", conn);
 
             cmd.Parameters.AddWithValue("@skill_id", skillId);
             // Если title пустой, используем skillId как строку
