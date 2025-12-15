@@ -340,7 +340,7 @@ public static class ProfileDataExtractor
     public static (string? name, string? infoTech, string? levelTitle) ExtractNameInfoTechAndLevel(
         IElement section,
         string profileLinkSelector = "a[href^='/']",
-        string separatorSelector = "span.bullet")
+        string separatorSelector = "span.inline-separator")
     {
         string? name = null;
         string? infoTech = null;
@@ -353,38 +353,59 @@ public static class ProfileDataExtractor
             name = profileLink.TextContent?.Trim();
         }
         
-        // Извлекаем должности и уровень
-        var positionsDiv = section.QuerySelector("div");
-        if (positionsDiv != null)
+        // Извлекаем должности и уровень из элементов с разделителями
+        // Ищем все разделители и берём текст из соседних span элементов
+        var separators = section.QuerySelectorAll(separatorSelector);
+        if (separators.Length > 0)
         {
-            var separators = positionsDiv.QuerySelectorAll(separatorSelector);
-            if (separators.Length > 0)
+            var parts = new List<string>();
+            
+            // Собираем текст из span элементов, которые являются соседями разделителей
+            // Структура: <span>Должность</span><span class="inline-separator"> • </span>
+            foreach (var separator in separators)
             {
-                var allText = positionsDiv.TextContent?.Trim();
-                if (!string.IsNullOrWhiteSpace(allText))
+                // Берём предыдущий элемент (текст перед разделителем)
+                var prevSibling = separator.PreviousElementSibling;
+                if (prevSibling != null)
                 {
-                    // Разбиваем по разделителю •
-                    var parts = allText.Split('•', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length > 0)
+                    var text = prevSibling.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(text) && !parts.Contains(text))
                     {
-                        // Проверяем последний элемент - является ли он допустимым уровнем
-                        var lastPart = parts[^1].Trim();
-                        if (IsValidLevelTitle(lastPart))
-                        {
-                            levelTitle = lastPart;
-                            // Остальные - должности
-                            if (parts.Length > 1)
-                            {
-                                infoTech = string.Join(" • ", parts[..^1]);
-                            }
-                        }
-                        else
-                        {
-                            // Уровень не найден - все элементы это должности
-                            infoTech = string.Join(" • ", parts);
-                            levelTitle = null;
-                        }
+                        parts.Add(text);
                     }
+                }
+            }
+            
+            // Берём последний элемент после последнего разделителя
+            var lastSeparator = separators[separators.Length - 1];
+            var nextSibling = lastSeparator.NextElementSibling;
+            if (nextSibling != null)
+            {
+                var text = nextSibling.TextContent?.Trim();
+                if (!string.IsNullOrWhiteSpace(text) && !parts.Contains(text))
+                {
+                    parts.Add(text);
+                }
+            }
+            
+            if (parts.Count > 0)
+            {
+                // Проверяем последний элемент - является ли он допустимым уровнем
+                var lastPart = parts[^1].Trim();
+                if (IsValidLevelTitle(lastPart))
+                {
+                    levelTitle = lastPart;
+                    // Остальные - должности
+                    if (parts.Count > 1)
+                    {
+                        infoTech = string.Join(" • ", parts[..^1]);
+                    }
+                }
+                else
+                {
+                    // Уровень не найден - все элементы это должности
+                    infoTech = string.Join(" • ", parts);
+                    levelTitle = null;
                 }
             }
         }
