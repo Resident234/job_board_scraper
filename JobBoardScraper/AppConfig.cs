@@ -95,6 +95,13 @@ public static class AppConfig
     public static string CompaniesTotalRegex =>
         ConfigurationManager.AppSettings["Companies:TotalRegex"] ?? @"Найдено\s+([\d\s]+)\s+компаний";
 
+    /// <summary>
+    /// Включить перебор всех комбинаций фильтров (sz + category + additional).
+    /// По умолчанию выключено, т.к. генерирует много запросов.
+    /// </summary>
+    public static bool CompaniesUseFilterCombinations =>
+        bool.TryParse(ConfigurationManager.AppSettings["Companies:UseFilterCombinations"], out var value) && value;
+
     // Настройки для CompanyFollowersScraper
     public static bool CompanyFollowersEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:Enabled"], out var value) ? value : true;
