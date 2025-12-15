@@ -16,7 +16,6 @@ namespace JobBoardScraper;
 /// 9. UserFriendsScraper - периодический обход списков друзей пользователей для сбора ссылок (раз в месяц)
 /// 10. UserResumeDetailScraper - периодический обход резюме пользователей для извлечения "О себе" и навыков (раз в месяц)
 /// TODO через прокси или selenium https://career.habr.com/slo_omy, здесь ограничение на количество просматриваемых профилей в том числе и под инкогнито
-/// TODO в таблицу habr_levels иногда косячно записываются названия
 /// TODO info_tech криво парсится иногда
 /// TODO поработать через api https://career.habr.com/info/api#q1.7
 /// </summary>

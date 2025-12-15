@@ -572,6 +572,29 @@ public static class AppConfig
     public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ??
                                              "Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;";
 
+    // Настройки валидации уровней
+    private static HashSet<string>? _validLevelTitles;
+    
+    /// <summary>
+    /// Допустимые значения уровней на Хабр Карьере.
+    /// Используется для валидации при записи в таблицу habr_levels.
+    /// </summary>
+    public static HashSet<string> ValidLevelTitles
+    {
+        get
+        {
+            if (_validLevelTitles == null)
+            {
+                var titlesStr = ConfigurationManager.AppSettings["Levels:ValidTitles"] 
+                    ?? "Стажёр (Intern),Младший (Junior),Средний (Middle),Старший (Senior),Ведущий (Lead),Стажёр,Младший,Средний,Старший,Ведущий,Intern,Junior,Middle,Senior,Lead";
+                _validLevelTitles = new HashSet<string>(
+                    titlesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+            return _validLevelTitles;
+        }
+    }
+
     // Настройки сохранения HTML для отладки
     public static bool ExpertsSaveHtml =>
         bool.TryParse(ConfigurationManager.AppSettings["Experts:SaveHtml"], out var value) && value;

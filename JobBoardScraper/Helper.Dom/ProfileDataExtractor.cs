@@ -9,6 +9,20 @@ namespace JobBoardScraper.Helper.Dom;
 public static class ProfileDataExtractor
 {
     /// <summary>
+    /// Проверяет, является ли строка допустимым названием уровня.
+    /// Список допустимых уровней читается из конфига (Levels:ValidTitles).
+    /// </summary>
+    /// <param name="levelTitle">Строка для проверки</param>
+    /// <returns>true если это допустимый уровень, иначе false</returns>
+    public static bool IsValidLevelTitle(string? levelTitle)
+    {
+        if (string.IsNullOrWhiteSpace(levelTitle))
+            return false;
+        
+        return AppConfig.ValidLevelTitles.Contains(levelTitle.Trim());
+    }
+
+    /// <summary>
     /// Извлекает опыт работы и последний визит из секций .basic-section
     /// </summary>
     /// <param name="doc">Документ для парсинга</param>
@@ -236,15 +250,25 @@ public static class ProfileDataExtractor
                     }
                 }
                 
-                // Последний элемент - это уровень
+                // Ищем уровень среди элементов (проверяем с конца)
                 if (textParts.Count > 0)
                 {
-                    levelTitle = textParts[textParts.Count - 1];
-                    
-                    // Остальные элементы - техническая информация
-                    if (textParts.Count > 1)
+                    // Проверяем последний элемент - является ли он допустимым уровнем
+                    var lastPart = textParts[textParts.Count - 1];
+                    if (IsValidLevelTitle(lastPart))
                     {
-                        infoTech = string.Join(" • ", textParts.Take(textParts.Count - 1));
+                        levelTitle = lastPart;
+                        // Остальные элементы - техническая информация
+                        if (textParts.Count > 1)
+                        {
+                            infoTech = string.Join(" • ", textParts.Take(textParts.Count - 1));
+                        }
+                    }
+                    else
+                    {
+                        // Уровень не найден - все элементы это техническая информация
+                        infoTech = string.Join(" • ", textParts);
+                        levelTitle = null;
                     }
                 }
             }
@@ -343,13 +367,22 @@ public static class ProfileDataExtractor
                     var parts = allText.Split('•', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length > 0)
                     {
-                        // Последний элемент - уровень
-                        levelTitle = parts[^1].Trim();
-                        
-                        // Остальные - должности
-                        if (parts.Length > 1)
+                        // Проверяем последний элемент - является ли он допустимым уровнем
+                        var lastPart = parts[^1].Trim();
+                        if (IsValidLevelTitle(lastPart))
                         {
-                            infoTech = string.Join(" • ", parts[..^1]);
+                            levelTitle = lastPart;
+                            // Остальные - должности
+                            if (parts.Length > 1)
+                            {
+                                infoTech = string.Join(" • ", parts[..^1]);
+                            }
+                        }
+                        else
+                        {
+                            // Уровень не найден - все элементы это должности
+                            infoTech = string.Join(" • ", parts);
+                            levelTitle = null;
                         }
                     }
                 }
