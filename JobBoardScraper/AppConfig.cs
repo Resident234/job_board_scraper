@@ -89,6 +89,12 @@ public static class AppConfig
             ? value
             : true;
 
+    public static string CompaniesTotalSelector =>
+        ConfigurationManager.AppSettings["Companies:TotalSelector"] ?? ".search-total";
+
+    public static string CompaniesTotalRegex =>
+        ConfigurationManager.AppSettings["Companies:TotalRegex"] ?? @"Найдено\s+([\d\s]+)\s+компаний";
+
     // Настройки для CompanyFollowersScraper
     public static bool CompanyFollowersEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:Enabled"], out var value) ? value : true;

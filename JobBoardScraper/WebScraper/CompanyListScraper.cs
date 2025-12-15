@@ -6,8 +6,8 @@ namespace JobBoardScraper.WebScraper;
 /// <summary>
 /// Периодически (раз в неделю) обходит все страницы списка компаний на career.habr.com/companies
 /// и извлекает коды компаний для сохранения в базу данных.
+/// Показывает прогресс относительно общего количества компаний на сайте.
 /// </summary>
-/// TODO подсчет процента найденных компаний отталкиваясь от значения, записанного на странице https://career.habr.com/companies
 /// TODO использование всех возможных комбинаций фильтров
 public sealed class CompanyListScraper : IDisposable
 {
@@ -87,6 +87,13 @@ public sealed class CompanyListScraper : IDisposable
     {
         _logger.WriteLine("Начало обхода списка компаний...");
         
+        // Сначала получаем общее количество компаний с первой страницы
+        var totalCompaniesOnSite = await GetTotalCompaniesCountAsync(ct);
+        if (totalCompaniesOnSite > 0)
+        {
+            _logger.WriteLine($"На сайте найдено {totalCompaniesOnSite:N0} компаний");
+        }
+        
         var totalFiltersProcessed = 0;
         var totalFilters = 1 + 5 + 4; // базовый + sz фильтры + дополнительные (категории добавятся позже)
         
@@ -98,7 +105,7 @@ public sealed class CompanyListScraper : IDisposable
         await ScrapeWithFiltersAsync(null, null, null, ct);
         totalFiltersProcessed++;
         _progressLogger.Increment();
-        _progressLogger.LogItemProgress("Базовый URL");
+        LogCompanyProgress(totalCompaniesOnSite, "Базовый URL");
         
         // Затем обходим с параметрами sz от 1 до 5
         var sizeFilters = new[] { 1, 2, 3, 4, 5 };
@@ -111,7 +118,7 @@ public sealed class CompanyListScraper : IDisposable
             await ScrapeWithFiltersAsync(sz, null, null, ct);
             totalFiltersProcessed++;
             _progressLogger.Increment();
-            _progressLogger.LogItemProgress($"Фильтр sz={sz}");
+            LogCompanyProgress(totalCompaniesOnSite, $"Фильтр sz={sz}");
         }
         
         // Получаем категории из БД и обходим по ним
@@ -132,7 +139,7 @@ public sealed class CompanyListScraper : IDisposable
             await ScrapeWithFiltersAsync(null, categoryId, null, ct);
             totalFiltersProcessed++;
             _progressLogger.Increment();
-            _progressLogger.LogItemProgress($"Категория {categoryId}");
+            LogCompanyProgress(totalCompaniesOnSite, $"Категория {categoryId}");
         }
         
         // Обходим с дополнительными фильтрами
@@ -153,11 +160,66 @@ public sealed class CompanyListScraper : IDisposable
             await ScrapeWithFiltersAsync(null, null, filter, ct);
             totalFiltersProcessed++;
             _progressLogger.Increment();
-            _progressLogger.LogItemProgress($"Фильтр {filter.Key}={filter.Value}");
+            LogCompanyProgress(totalCompaniesOnSite, $"Фильтр {filter.Key}={filter.Value}");
         }
         
         _statistics.EndTime = DateTime.Now;
-        _progressLogger.LogCompletion(_statistics.TotalItemsCollected, _statistics.ToString());
+        var completionMessage = totalCompaniesOnSite > 0 
+            ? $"Собрано {_statistics.TotalItemsCollected:N0} из {totalCompaniesOnSite:N0} компаний ({(double)_statistics.TotalItemsCollected / totalCompaniesOnSite:P1}). {_statistics}"
+            : _statistics.ToString();
+        _progressLogger.LogCompletion(_statistics.TotalItemsCollected, completionMessage);
+    }
+
+    /// <summary>
+    /// Получить общее количество компаний с первой страницы
+    /// </summary>
+    private async Task<int> GetTotalCompaniesCountAsync(CancellationToken ct)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync(AppConfig.CompaniesListUrl, ct);
+            if (!response.IsSuccessStatusCode)
+                return 0;
+
+            var html = await response.Content.ReadAsStringAsync(ct);
+            var doc = await HtmlParser.ParseDocumentAsync(html, ct);
+
+            var totalElement = doc.QuerySelector(AppConfig.CompaniesTotalSelector);
+            if (totalElement == null)
+                return 0;
+
+            var text = totalElement.TextContent;
+            var match = System.Text.RegularExpressions.Regex.Match(text, AppConfig.CompaniesTotalRegex);
+            if (!match.Success)
+                return 0;
+
+            // Убираем пробелы из числа (37 847 -> 37847)
+            var numberStr = match.Groups[1].Value.Replace(" ", "").Replace("\u00A0", "");
+            if (int.TryParse(numberStr, out var total))
+                return total;
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"Ошибка при получении общего количества компаний: {ex.Message}");
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Логирование прогресса с процентом от общего количества компаний на сайте
+    /// </summary>
+    private void LogCompanyProgress(int totalOnSite, string filterName)
+    {
+        if (totalOnSite > 0)
+        {
+            var percent = (double)_statistics.TotalItemsCollected / totalOnSite * 100;
+            _progressLogger?.LogFilterProgress($"{filterName}: собрано {_statistics.TotalItemsCollected:N0}/{totalOnSite:N0} ({percent:F1}%)");
+        }
+        else
+        {
+            _progressLogger?.LogItemProgress(filterName);
+        }
     }
 
     private async Task ScrapeWithFiltersAsync(int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter, CancellationToken ct)
