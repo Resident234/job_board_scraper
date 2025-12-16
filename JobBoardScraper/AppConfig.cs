@@ -946,4 +946,45 @@ public static class AppConfig
 
     public static string CommunityParticipationTopicsSelector =>
         ConfigurationManager.AppSettings["CommunityParticipation:TopicsSelector"] ?? ".resume-rating-item__topics";
+
+    // Настройки для ProxyWhitelistManager
+    public static bool ProxyWhitelistEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["ProxyWhitelist:Enabled"], out var value) && value;
+
+    public static string ProxyWhitelistStorageType =>
+        ConfigurationManager.AppSettings["ProxyWhitelist:StorageType"] ?? "file";
+
+    public static string ProxyWhitelistFilePath =>
+        ConfigurationManager.AppSettings["ProxyWhitelist:FilePath"] ?? "./data/proxy_whitelist.json";
+
+    public static TimeSpan ProxyWhitelistCooldownPeriod
+    {
+        get
+        {
+            var hours = int.TryParse(ConfigurationManager.AppSettings["ProxyWhitelist:CooldownHours"], out var value)
+                ? value
+                : 24;
+            return TimeSpan.FromHours(hours);
+        }
+    }
+
+    public static TimeSpan ProxyWhitelistRecheckInterval
+    {
+        get
+        {
+            var minutes = int.TryParse(ConfigurationManager.AppSettings["ProxyWhitelist:RecheckIntervalMinutes"], out var value)
+                ? value
+                : 60;
+            return TimeSpan.FromMinutes(minutes);
+        }
+    }
+
+    public static int ProxyWhitelistMaxRetryAttempts =>
+        int.TryParse(ConfigurationManager.AppSettings["ProxyWhitelist:MaxRetryAttempts"], out var value)
+            ? value
+            : 5;
+
+    public static string ProxyWhitelistDailyLimitMessage =>
+        ConfigurationManager.AppSettings["ProxyWhitelist:DailyLimitMessage"]
+            ?? "Вы исчерпали суточный лимит на просмотр профилей специалистов";
 }
