@@ -12,6 +12,7 @@ public class ProxyWhitelistManager : IDisposable
     private readonly FreeProxyPool _generalPool;
     private readonly TimeSpan _cooldownPeriod;
     private readonly TimeSpan _recheckInterval;
+    private readonly TimeSpan _autosaveInterval;
     private readonly int _maxRetryAttempts;
     private readonly ConsoleLogger? _logger;
 
@@ -19,9 +20,11 @@ public class ProxyWhitelistManager : IDisposable
     private int _whitelistIndex;
     private DateTime _lastWhitelistCheck;
     private DateTime _switchedToGeneralPoolAt;
+    private DateTime _lastAutosave;
     private string? _currentProxy;
     private bool _usingGeneralPool;
     private bool _disposed;
+    private Timer? _autosaveTimer;
 
     public ProxyWhitelistManager(
         IWhitelistStorage storage,
@@ -29,6 +32,7 @@ public class ProxyWhitelistManager : IDisposable
         TimeSpan? cooldownPeriod = null,
         TimeSpan? recheckInterval = null,
         int? maxRetryAttempts = null,
+        TimeSpan? autosaveInterval = null,
         ConsoleLogger? logger = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -36,8 +40,41 @@ public class ProxyWhitelistManager : IDisposable
         _cooldownPeriod = cooldownPeriod ?? AppConfig.ProxyWhitelistCooldownPeriod;
         _recheckInterval = recheckInterval ?? AppConfig.ProxyWhitelistRecheckInterval;
         _maxRetryAttempts = maxRetryAttempts ?? AppConfig.ProxyWhitelistMaxRetryAttempts;
+        _autosaveInterval = autosaveInterval ?? AppConfig.ProxyWhitelistAutosaveInterval;
         _logger = logger;
         _lastWhitelistCheck = DateTime.UtcNow;
+        _lastAutosave = DateTime.UtcNow;
+        
+        // Запускаем таймер автосохранения
+        StartAutosaveTimer();
+    }
+    
+    private void StartAutosaveTimer()
+    {
+        _autosaveTimer = new Timer(
+            callback: _ => AutosaveCallback(),
+            state: null,
+            dueTime: _autosaveInterval,
+            period: _autosaveInterval);
+        
+        _logger?.WriteLine($"Autosave timer started with interval: {_autosaveInterval.TotalMinutes} minutes");
+    }
+    
+    private void AutosaveCallback()
+    {
+        if (_disposed)
+            return;
+            
+        try
+        {
+            SaveStateAsync().GetAwaiter().GetResult();
+            _lastAutosave = DateTime.UtcNow;
+            _logger?.WriteLine($"Whitelist autosaved ({_whitelist.Count} proxies)");
+        }
+        catch (Exception ex)
+        {
+            _logger?.WriteLine($"Autosave error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -253,7 +290,13 @@ public class ProxyWhitelistManager : IDisposable
             return;
 
         _disposed = true;
+        
+        // Останавливаем таймер автосохранения
+        _autosaveTimer?.Dispose();
+        _autosaveTimer = null;
+        
         // Сохраняем состояние при завершении
         SaveStateAsync().GetAwaiter().GetResult();
+        _logger?.WriteLine("ProxyWhitelistManager disposed, final state saved");
     }
 }

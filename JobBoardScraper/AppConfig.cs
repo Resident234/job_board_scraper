@@ -987,4 +987,15 @@ public static class AppConfig
     public static string ProxyWhitelistDailyLimitMessage =>
         ConfigurationManager.AppSettings["ProxyWhitelist:DailyLimitMessage"]
             ?? "Вы исчерпали суточный лимит на просмотр профилей специалистов";
+
+    public static TimeSpan ProxyWhitelistAutosaveInterval
+    {
+        get
+        {
+            var minutes = int.TryParse(ConfigurationManager.AppSettings["ProxyWhitelist:AutosaveIntervalMinutes"], out var value)
+                ? value
+                : 20;
+            return TimeSpan.FromMinutes(minutes);
+        }
+    }
 }

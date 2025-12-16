@@ -70,21 +70,21 @@ public sealed class UserResumeDetailScraper : IDisposable
         // Приоритет: ProxyWhitelistManager -> FreeProxyPool
         if (_proxyWhitelistManager != null)
         {
-            var proxy = _proxyWhitelistManager.GetNextProxy();
-            if (proxy != null)
+            var whitelistProxy = _proxyWhitelistManager.GetNextProxy();
+            if (whitelistProxy != null)
             {
-                _logger.WriteLine($"Using proxy from whitelist manager: {proxy}");
-                return proxy;
+                _logger.WriteLine($"Using proxy from whitelist manager: {whitelistProxy}");
+                return whitelistProxy;
             }
         }
         
         if (_proxyPool == null)
             return null;
         
-        var proxy2 = _proxyPool.GetNextProxy();
+        var poolProxy = _proxyPool.GetNextProxy();
         
-        if (proxy2 != null)
-            return proxy2;
+        if (poolProxy != null)
+            return poolProxy;
         
         // Pool is empty, wait for new proxies
         _logger.WriteLine($"Proxy pool empty, waiting up to {_proxyWaitTimeout} seconds...");
@@ -99,19 +99,19 @@ public sealed class UserResumeDetailScraper : IDisposable
             // Проверяем сначала whitelist manager
             if (_proxyWhitelistManager != null)
             {
-                var whitelistProxy = _proxyWhitelistManager.GetNextProxy();
-                if (whitelistProxy != null)
+                var availableWhitelistProxy = _proxyWhitelistManager.GetNextProxy();
+                if (availableWhitelistProxy != null)
                 {
                     _logger.WriteLine($"Proxy became available from whitelist after waiting");
-                    return whitelistProxy;
+                    return availableWhitelistProxy;
                 }
             }
             
-            proxy2 = _proxyPool.GetNextProxy();
-            if (proxy2 != null)
+            poolProxy = _proxyPool.GetNextProxy();
+            if (poolProxy != null)
             {
                 _logger.WriteLine($"Proxy became available after waiting");
-                return proxy2;
+                return poolProxy;
             }
         }
         
