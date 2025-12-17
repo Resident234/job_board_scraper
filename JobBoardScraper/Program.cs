@@ -356,9 +356,20 @@ class Program
             Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
             Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
             
-            if (freeProxyPool != null)
+            // Инициализация ProxyWhitelistManager
+            ProxyWhitelistManager? proxyWhitelistManager = null;
+            if (freeProxyPool != null && AppConfig.ProxyWhitelistEnabled)
+            {
+                var whitelistStorage = new JsonWhitelistStorage(AppConfig.ProxyWhitelistFilePath);
+                proxyWhitelistManager = new ProxyWhitelistManager(whitelistStorage, freeProxyPool);
+                await proxyWhitelistManager.LoadStateAsync();
+                Console.WriteLine($"[Program] UserResumeDetailScraper: Белый список прокси ВКЛЮЧЕН (загружено: {proxyWhitelistManager.WhitelistCount})");
+                Console.WriteLine($"[Program] UserResumeDetailScraper: Прокси ВКЛЮЧЕНЫ (pool size: {freeProxyPool.GetCount()})");
+            }
+            else if (freeProxyPool != null)
             {
                 Console.WriteLine($"[Program] UserResumeDetailScraper: Прокси ВКЛЮЧЕНЫ (pool size: {freeProxyPool.GetCount()})");
+                Console.WriteLine("[Program] UserResumeDetailScraper: Белый список прокси ОТКЛЮЧЕН");
             }
             else
             {
@@ -382,6 +393,7 @@ class Program
                 getUserCodes: () => db.GetUserLinksWithoutData(conn),
                 controller: controller,
                 proxyPool: freeProxyPool,
+                proxyWhitelistManager: proxyWhitelistManager,
                 interval: TimeSpan.FromMinutes(20),
                 outputMode: AppConfig.UserResumeDetailOutputMode);
 
