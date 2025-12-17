@@ -30,18 +30,21 @@ public static class ParallelScraperLogger
         int activeCount)
     {
         double percent = completed * 100.0 / total;
-        var message = $"[{scraperName}] HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
-                     $"Код ответа {statusCode}. " +
-                     $"Обработано: {completed}/{total} ({percent:F2}%). " +
-                     $"Параллельных процессов: {activeCount}.";
+        // Формируем сообщение без префикса - ConsoleLogger добавит его сам
+        var messageBody = $"HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
+                         $"Код ответа {statusCode}. " +
+                         $"Обработано: {completed}/{total} ({percent:F2}%). " +
+                         $"Параллельных процессов: {activeCount}.";
         
         if (logger != null)
         {
-            logger.WriteLine(message);
+            // ConsoleLogger уже добавляет [ProcessName] префикс
+            logger.WriteLine(messageBody);
         }
         else
         {
-            Console.WriteLine(message);
+            // Без логгера добавляем префикс вручную
+            Console.WriteLine($"[{scraperName}] {messageBody}");
         }
     }
     
@@ -63,18 +66,21 @@ public static class ParallelScraperLogger
         int total)
     {
         double percent = statistics.TotalProcessed * 100.0 / total;
-        var message = $"HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
-                     $"Код ответа {statusCode}. " +
-                     $"Обработано: {statistics.TotalProcessed}/{total} ({percent:F2}%). " +
-                     $"Параллельных процессов: {statistics.ActiveRequests}.";
+        // Формируем сообщение без префикса - ConsoleLogger добавит его сам
+        var messageBody = $"HTTP запрос {url}: {elapsedSeconds:F3} сек. " +
+                         $"Код ответа {statusCode}. " +
+                         $"Обработано: {statistics.TotalProcessed}/{total} ({percent:F2}%). " +
+                         $"Параллельных процессов: {statistics.ActiveRequests}.";
         
         if (logger != null)
         {
-            logger.WriteLine(message);
+            // ConsoleLogger уже добавляет [ProcessName] префикс
+            logger.WriteLine(messageBody);
         }
         else
         {
-            Console.WriteLine($"[{statistics.ScraperName}] {message}");
+            // Без логгера добавляем префикс вручную
+            Console.WriteLine($"[{statistics.ScraperName}] {messageBody}");
         }
     }
     
@@ -97,18 +103,21 @@ public static class ParallelScraperLogger
         ProgressTracker progress,
         int activeCount)
     {
-        var message = $"[{scraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
-                     $"Код: {statusCode}. " +
-                     $"Прогресс: {progress}. " +
-                     $"Параллельных: {activeCount}.";
+        // Формируем сообщение без префикса - ConsoleLogger добавит его сам
+        var messageBody = $"HTTP {url}: {elapsedSeconds:F3} сек. " +
+                         $"Код: {statusCode}. " +
+                         $"Прогресс: {progress}. " +
+                         $"Параллельных: {activeCount}.";
         
         if (logger != null)
         {
-            logger.WriteLine(message);
+            // ConsoleLogger уже добавляет [ProcessName] префикс
+            logger.WriteLine(messageBody);
         }
         else
         {
-            Console.WriteLine(message);
+            // Без логгера добавляем префикс вручную
+            Console.WriteLine($"[{scraperName}] {messageBody}");
         }
     }
     
@@ -129,18 +138,21 @@ public static class ParallelScraperLogger
         int statusCode,
         ProgressTracker progress)
     {
-        var message = $"[{statistics.ScraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
-                     $"Код: {statusCode}. " +
-                     $"Прогресс: {progress}. " +
-                     $"Параллельных: {statistics.ActiveRequests}.";
+        // Формируем сообщение без префикса - ConsoleLogger добавит его сам
+        var messageBody = $"{url}: {elapsedSeconds:F3} сек. " +
+                         $"Код: {statusCode}. " +
+                         $"Прогресс: {progress}. " +
+                         $"Параллельных: {statistics.ActiveRequests}.";
         
         if (logger != null)
         {
-            logger.WriteLine(message);
+            // ConsoleLogger уже добавляет [ProcessName] префикс
+            logger.WriteLine(messageBody);
         }
         else
         {
-            Console.WriteLine(message);
+            // Без логгера добавляем префикс вручную
+            Console.WriteLine($"[{statistics.ScraperName}] {messageBody}");
         }
     }
 }
