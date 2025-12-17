@@ -69,11 +69,11 @@ public class ProxyWhitelistManager : IDisposable
         {
             SaveStateAsync().GetAwaiter().GetResult();
             _lastAutosave = DateTime.UtcNow;
-            _logger?.WriteLine($"Whitelist autosaved ({_whitelist.Count} proxies)");
+            LogPoolStats("Автосохранение выполнено");
         }
         catch (Exception ex)
         {
-            _logger?.WriteLine($"Autosave error: {ex.Message}");
+            _logger?.WriteLine($"[WHITELIST] Ошибка автосохранения: {ex.Message}");
         }
     }
 
@@ -100,7 +100,7 @@ public class ProxyWhitelistManager : IDisposable
     {
         _whitelist = await _storage.LoadAsync();
         _whitelistIndex = 0;
-        _logger?.WriteLine($"Loaded whitelist with {_whitelist.Count} proxies");
+        LogPoolStats($"Whitelist загружен из хранилища");
     }
 
     /// <summary>
@@ -109,10 +109,24 @@ public class ProxyWhitelistManager : IDisposable
     public async Task SaveStateAsync()
     {
         await _storage.SaveAsync(_whitelist);
+        _logger?.WriteLine($"[WHITELIST] Дамп в JSON файл выполнен ({_whitelist.Count} прокси)");
+    }
+    
+    /// <summary>
+    /// Вывести статистику по пулам
+    /// </summary>
+    private void LogPoolStats(string context)
+    {
+        var poolCount = _generalPool.GetCount();
+        var whitelistCount = _whitelist.Count;
+        var activePool = _usingGeneralPool ? "общий пул" : "белый список";
+        _logger?.WriteLine($"[WHITELIST] {context} | Активный пул: {activePool} | Белый список: {whitelistCount} | Общий пул: {poolCount}");
     }
 
     /// <summary>
-    /// Сообщить об успешном использовании прокси
+    /// Сообщить об успешном использовании прокси.
+    /// Сбрасывает состояние ошибки для прокси из белого списка.
+    /// НЕ добавляет новые прокси - они добавляются только при достижении суточного лимита.
     /// </summary>
     public void ReportSuccess(string proxyUrl)
     {
@@ -123,26 +137,14 @@ public class ProxyWhitelistManager : IDisposable
         
         if (entry != null)
         {
-            // Сбрасываем состояние ошибки при успехе
+            // Сбрасываем состояние ошибки при успехе (только для существующих в белом списке)
             entry.IsFailed = false;
             entry.RetryCount = 0;
             entry.FailedSince = null;
             entry.LastUsed = DateTime.UtcNow;
-            _logger?.WriteLine($"Proxy success, reset failure state: {proxyUrl}");
+            _logger?.WriteLine($"[WHITELIST] Прокси успешно отработал, сброс состояния ошибки: {proxyUrl}");
         }
-        else
-        {
-            // Добавляем новый прокси в whitelist
-            var newEntry = new WhitelistProxyEntry
-            {
-                ProxyUrl = proxyUrl,
-                LastUsed = DateTime.UtcNow,
-                IsFailed = false,
-                RetryCount = 0
-            };
-            _whitelist.Add(newEntry);
-            _logger?.WriteLine($"Added new proxy to whitelist: {proxyUrl}");
-        }
+        // Новые прокси НЕ добавляем здесь - они добавляются в ReportDailyLimitReached
 
         _currentProxy = proxyUrl;
     }
@@ -166,11 +168,12 @@ public class ProxyWhitelistManager : IDisposable
             if (entry.RetryCount >= _maxRetryAttempts)
             {
                 _whitelist.Remove(entry);
-                _logger?.WriteLine($"Removed proxy after {_maxRetryAttempts} failures: {proxyUrl}");
+                _logger?.WriteLine($"[WHITELIST] ✗ Прокси удалён из белого списка после {_maxRetryAttempts} неудачных попыток: {proxyUrl}");
+                LogPoolStats("После удаления из белого списка");
             }
             else
             {
-                _logger?.WriteLine($"Proxy failure #{entry.RetryCount}: {proxyUrl}");
+                _logger?.WriteLine($"[WHITELIST] ⚠ Прокси из белого списка не отвечает, попытка #{entry.RetryCount}/{_maxRetryAttempts}: {proxyUrl}");
             }
         }
 
@@ -179,7 +182,8 @@ public class ProxyWhitelistManager : IDisposable
     }
 
     /// <summary>
-    /// Сообщить о достижении суточного лимита
+    /// Сообщить о достижении суточного лимита.
+    /// Добавляет прокси в белый список (если его там нет) и переключается на следующий.
     /// </summary>
     public void ReportDailyLimitReached(string proxyUrl)
     {
@@ -190,11 +194,27 @@ public class ProxyWhitelistManager : IDisposable
         
         if (entry != null)
         {
+            // Прокси уже в белом списке - обновляем время использования
             entry.LastUsed = DateTime.UtcNow;
-            _logger?.WriteLine($"Daily limit reached for proxy: {proxyUrl}");
+            _logger?.WriteLine($"[WHITELIST] Суточный лимит исчерпан для прокси из белого списка: {proxyUrl}");
+        }
+        else
+        {
+            // Прокси из общего пула отработал до суточного лимита - добавляем в белый список
+            var newEntry = new WhitelistProxyEntry
+            {
+                ProxyUrl = proxyUrl,
+                LastUsed = DateTime.UtcNow,
+                IsFailed = false,
+                RetryCount = 0
+            };
+            _whitelist.Add(newEntry);
+            _logger?.WriteLine($"[WHITELIST] ★ Прокси отработал до суточного лимита и добавлен в белый список: {proxyUrl}");
+            LogPoolStats("После добавления в белый список");
         }
 
         _currentProxy = null;
+        _logger?.WriteLine($"[WHITELIST] Переключение на следующий прокси...");
     }
 
 
@@ -213,7 +233,8 @@ public class ProxyWhitelistManager : IDisposable
             _usingGeneralPool = false;
             _whitelistIndex = 0;
             _lastWhitelistCheck = DateTime.UtcNow;
-            _logger?.WriteLine("Recheck interval passed, returning to whitelist");
+            _logger?.WriteLine($"[WHITELIST] Интервал перепроверки прошёл, возврат к белому списку");
+            LogPoolStats("Возврат к белому списку");
         }
 
         // Пробуем получить прокси из whitelist
@@ -229,7 +250,8 @@ public class ProxyWhitelistManager : IDisposable
             // Whitelist исчерпан, переключаемся на general pool
             _usingGeneralPool = true;
             _switchedToGeneralPoolAt = DateTime.UtcNow;
-            _logger?.WriteLine("Whitelist exhausted, switching to general pool");
+            _logger?.WriteLine($"[WHITELIST] Белый список исчерпан, переключение на общий пул");
+            LogPoolStats("Переключение на общий пул");
         }
 
         // Получаем прокси из general pool
@@ -237,7 +259,11 @@ public class ProxyWhitelistManager : IDisposable
         if (poolProxy != null)
         {
             _currentProxy = poolProxy;
-            _logger?.WriteLine($"Using proxy from general pool: {poolProxy}");
+            _logger?.WriteLine($"[WHITELIST] Взят прокси из общего пула: {poolProxy}");
+        }
+        else
+        {
+            _logger?.WriteLine($"[WHITELIST] ⚠ Нет доступных прокси ни в белом списке, ни в общем пуле!");
         }
 
         return poolProxy;
@@ -260,7 +286,7 @@ public class ProxyWhitelistManager : IDisposable
             // Проверяем доступность прокси
             if (IsProxyAvailable(entry))
             {
-                _logger?.WriteLine($"Selected whitelist proxy: {entry.ProxyUrl}");
+                _logger?.WriteLine($"[WHITELIST] → Прокси из белого списка взят в использование: {entry.ProxyUrl}");
                 return entry.ProxyUrl;
             }
         }
