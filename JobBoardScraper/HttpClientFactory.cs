@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using JobBoardScraper.Proxy;
 
 namespace JobBoardScraper;
 

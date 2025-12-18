@@ -1,8 +1,7 @@
 using System.Text.Json;
 using JobBoardScraper.Helper.ConsoleHelper;
-using JobBoardScraper.Models;
 
-namespace JobBoardScraper;
+namespace JobBoardScraper.Proxy;
 
 /// <summary>
 /// Реализация хранения whitelist прокси в JSON файле
@@ -12,10 +11,7 @@ public class JsonWhitelistStorage : IWhitelistStorage
     private readonly string _filePath;
     private readonly ConsoleLogger? _logger;
     private readonly object _lock = new();
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public JsonWhitelistStorage(string filePath, ConsoleLogger? logger = null)
     {
@@ -40,19 +36,12 @@ public class JsonWhitelistStorage : IWhitelistStorage
         {
             if (!File.Exists(_filePath))
             {
-                _logger?.WriteLine($"Whitelist file not found, creating empty: {_filePath}");
+                _logger?.WriteLine($"Whitelist file not found: {_filePath}");
                 return new List<WhitelistProxyEntry>();
             }
-
             var json = await File.ReadAllTextAsync(_filePath);
             var data = JsonSerializer.Deserialize<WhitelistData>(json);
-            
-            if (data?.Entries == null)
-            {
-                _logger?.WriteLine("Whitelist file is empty or invalid, returning empty list");
-                return new List<WhitelistProxyEntry>();
-            }
-
+            if (data?.Entries == null) return new List<WhitelistProxyEntry>();
             _logger?.WriteLine($"Loaded {data.Entries.Count} proxies from whitelist");
             return data.Entries;
         }
@@ -62,7 +51,6 @@ public class JsonWhitelistStorage : IWhitelistStorage
             return new List<WhitelistProxyEntry>();
         }
     }
-
 
     public async Task SaveAsync(List<WhitelistProxyEntry> entries)
     {
@@ -74,14 +62,8 @@ public class JsonWhitelistStorage : IWhitelistStorage
                 LastUpdated = DateTime.UtcNow,
                 Entries = entries ?? new List<WhitelistProxyEntry>()
             };
-
             var json = JsonSerializer.Serialize(data, JsonOptions);
-            
-            lock (_lock)
-            {
-                File.WriteAllText(_filePath, json);
-            }
-            
+            lock (_lock) { File.WriteAllText(_filePath, json); }
             _logger?.WriteLine($"Saved {entries?.Count ?? 0} proxies to whitelist");
         }
         catch (Exception ex)
@@ -92,12 +74,9 @@ public class JsonWhitelistStorage : IWhitelistStorage
 
     public async Task AddOrUpdateAsync(WhitelistProxyEntry entry)
     {
-        if (entry == null || string.IsNullOrEmpty(entry.ProxyUrl))
-            return;
-
+        if (entry == null || string.IsNullOrEmpty(entry.ProxyUrl)) return;
         var entries = await LoadAsync();
         var existing = entries.FirstOrDefault(e => e.ProxyUrl == entry.ProxyUrl);
-        
         if (existing != null)
         {
             existing.LastUsed = entry.LastUsed;
@@ -105,22 +84,15 @@ public class JsonWhitelistStorage : IWhitelistStorage
             existing.RetryCount = entry.RetryCount;
             existing.FailedSince = entry.FailedSince;
         }
-        else
-        {
-            entries.Add(entry);
-        }
-
+        else entries.Add(entry);
         await SaveAsync(entries);
     }
 
     public async Task RemoveAsync(string proxyUrl)
     {
-        if (string.IsNullOrEmpty(proxyUrl))
-            return;
-
+        if (string.IsNullOrEmpty(proxyUrl)) return;
         var entries = await LoadAsync();
         var removed = entries.RemoveAll(e => e.ProxyUrl == proxyUrl);
-        
         if (removed > 0)
         {
             await SaveAsync(entries);

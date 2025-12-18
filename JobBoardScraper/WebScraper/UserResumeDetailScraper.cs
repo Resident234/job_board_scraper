@@ -1,6 +1,7 @@
 using JobBoardScraper.Helper.ConsoleHelper;
 using JobBoardScraper.Helper.Utils;
 using JobBoardScraper.Models;
+using JobBoardScraper.Proxy;
 using System.Collections.Concurrent;
 
 namespace JobBoardScraper.WebScraper;

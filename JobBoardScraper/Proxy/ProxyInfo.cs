@@ -1,4 +1,4 @@
-namespace JobBoardScraper;
+namespace JobBoardScraper.Proxy;
 
 /// <summary>
 /// Data structure for proxy information parsed from free-proxy-list.net
@@ -37,7 +37,6 @@ public record ProxyInfo(
     
     /// <summary>
     /// Check if proxy is transparent (lowest anonymity, should be excluded)
-    /// Transparent proxies reveal your real IP via X-Forwarded-For header - useless for scraping!
     /// </summary>
     public bool IsTransparent() => Anonymity.Contains("transparent", StringComparison.OrdinalIgnoreCase);
     
@@ -47,53 +46,31 @@ public record ProxyInfo(
     public bool IsRecentlyChecked()
     {
         var lower = LastChecked.ToLowerInvariant();
-        
-        // Check for seconds
-        if (lower.Contains("sec"))
-            return true;
-        
-        // Check for minutes
+        if (lower.Contains("sec")) return true;
         if (lower.Contains("min"))
         {
-            // Extract number of minutes
             var parts = lower.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
-            {
                 if (int.TryParse(part, out var minutes))
-                {
                     return minutes <= 5;
-                }
-            }
-            // If we can't parse, assume it's recent
             return true;
         }
-        
-        // Hours, days, etc. are not recent
         return false;
     }
     
     /// <summary>
-    /// Check if IP address is valid (not localhost or 0.0.0.0)
+    /// Check if IP address is valid
     /// </summary>
     public bool IsValidIp()
     {
-        if (string.IsNullOrWhiteSpace(IpAddress))
-            return false;
-        
-        // Exclude 0.0.0.0
-        if (IpAddress == "0.0.0.0")
-            return false;
-        
-        // Exclude localhost range 127.0.0.x
-        if (IpAddress.StartsWith("127.0.0."))
-            return false;
-        
+        if (string.IsNullOrWhiteSpace(IpAddress)) return false;
+        if (IpAddress == "0.0.0.0") return false;
+        if (IpAddress.StartsWith("127.0.0.")) return false;
         return true;
     }
     
     /// <summary>
     /// Get quality score for sorting (higher is better)
-    /// Elite = 3, Anonymous = 2, Transparent = 1
     /// </summary>
     public int GetQualityScore()
     {

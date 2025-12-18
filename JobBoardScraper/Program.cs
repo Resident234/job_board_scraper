@@ -1,4 +1,5 @@
-﻿using JobBoardScraper.WebScraper;
+﻿using JobBoardScraper.Proxy;
+using JobBoardScraper.WebScraper;
 
 namespace JobBoardScraper;
 

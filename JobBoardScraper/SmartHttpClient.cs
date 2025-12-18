@@ -1,5 +1,6 @@
 using System.Net;
 using JobBoardScraper.Models;
+using JobBoardScraper.Proxy;
 
 namespace JobBoardScraper;
 
