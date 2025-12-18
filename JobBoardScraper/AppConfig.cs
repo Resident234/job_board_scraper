@@ -829,7 +829,7 @@ public static class AppConfig
 
     public static int ProxyPoolMaxSize =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:PoolMaxSize"], out var value) 
-            ? value : 1000;
+            ? value : 10000;
 
     public static string FreeProxyListUrl =>
         ConfigurationManager.AppSettings["FreeProxy:ListUrl"] 
