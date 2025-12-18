@@ -74,7 +74,8 @@ public sealed class UserResumeDetailScraper : IDisposable
             var whitelistProxy = _proxyWhitelistManager.GetNextProxy();
             if (whitelistProxy != null)
             {
-                _logger.WriteLine($"Using proxy from whitelist manager: {whitelistProxy}");
+                var source = _proxyWhitelistManager.IsUsingGeneralPool ? "general pool (via manager)" : "whitelist";
+                _logger.WriteLine($"Using proxy from {source}: {whitelistProxy}");
                 return whitelistProxy;
             }
         }
