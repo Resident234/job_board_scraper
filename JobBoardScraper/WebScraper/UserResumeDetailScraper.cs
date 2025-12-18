@@ -192,206 +192,196 @@ public sealed class UserResumeDetailScraper : IDisposable
             {
                 HttpResponseMessage? response = null;
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                int attempt = 0;
-                int maxRetries = _proxyCoordinator != null ? AppConfig.ProxyMaxRetries : 1;
                 
-                // Retry loop with different proxies
-                while (attempt < maxRetries)
+                // Настройки retry
+                int maxRetriesPerProxy = _proxyCoordinator != null ? AppConfig.ProxyMaxRetries : 1; // 30 попыток с одним прокси
+                int maxProxySwitches = _proxyCoordinator != null ? AppConfig.ProxyMaxSwitches : 0; // Сколько раз менять прокси
+                int proxySwitch = 0;
+                bool success = false;
+                
+                // Внешний цикл: смена прокси
+                while (proxySwitch <= maxProxySwitches && !success)
                 {
-                    attempt++;
                     proxyUrl = null;
                     HttpClient? proxyHttpClient = null;
                     
-                    try
+                    // Получаем прокси для этой серии попыток
+                    if (_proxyCoordinator != null)
                     {
-                        // Get proxy from coordinator if available
-                        if (_proxyCoordinator != null)
+                        proxyUrl = await GetProxyWithTimeoutAsync(ct);
+                        if (proxyUrl != null)
                         {
-                            proxyUrl = await GetProxyWithTimeoutAsync(ct);
-                            
-                            if (proxyUrl != null)
-                            {
-                                // Логируем прокси только при первой попытке или при смене
-                                if (attempt == 1)
-                                {
-                                    _logger.WriteLine($"Обработка: {userLink} | Прокси: {proxyUrl}");
-                                }
-                                else
-                                {
-                                    _logger.WriteLine($"Retry {attempt}/{maxRetries} | Прокси: {proxyUrl}");
-                                }
-                                proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
-                            }
-                            else if (attempt == 1)
-                            {
-                                _logger.WriteLine($"Обработка: {userLink} | Без прокси");
-                            }
-                        }
-                        else if (attempt == 1)
-                        {
-                            _logger.WriteLine($"Обработка: {userLink}");
-                        }
-                        
-                        // Make request
-                        if (proxyHttpClient != null)
-                        {
-                            try
-                            {
-                                response = await proxyHttpClient.GetAsync(userLink, ct);
-                            }
-                            finally
-                            {
-                                proxyHttpClient.Dispose();
-                            }
+                            _logger.WriteLine($"Обработка: {userLink} | Прокси #{proxySwitch + 1}: {proxyUrl}");
+                            proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
                         }
                         else
                         {
-                            response = await _httpClient.GetAsync(userLink, ct);
+                            _logger.WriteLine($"Обработка: {userLink} | Нет доступных прокси");
                         }
+                    }
+                    else
+                    {
+                        _logger.WriteLine($"Обработка: {userLink}");
+                    }
+                    
+                    // Внутренний цикл: retry с тем же прокси
+                    int attempt = 0;
+                    while (attempt < maxRetriesPerProxy && !success)
+                    {
+                        attempt++;
                         
-                        // Check for retryable HTTP errors
-                        if (response != null)
+                        try
                         {
-                            var statusCode = (int)response.StatusCode;
-                            bool shouldRetry = false;
-                            int delayMs = 0;
-                            string errorType = "";
+                            // Make request
+                            if (proxyHttpClient != null)
+                            {
+                                response = await proxyHttpClient.GetAsync(userLink, ct);
+                            }
+                            else
+                            {
+                                response = await _httpClient.GetAsync(userLink, ct);
+                            }
                             
-                            // Server errors (5xx) - retry with exponential backoff
-                            if (statusCode >= 500 && statusCode < 600)
+                            // Check for retryable HTTP errors
+                            if (response != null)
                             {
-                                shouldRetry = true;
-                                delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt);
-                                errorType = "Server error";
-                            }
-                            // 403 Forbidden - likely IP blocked, change proxy immediately
-                            else if (statusCode == 403)
-                            {
-                                shouldRetry = true;
-                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                                errorType = "Forbidden (IP blocked)";
-                            }
-                            // 429 Too Many Requests - rate limited, need longer delay
-                            else if (statusCode == 429)
-                            {
-                                shouldRetry = true;
-                                // Check for Retry-After header
-                                if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
+                                var statusCode = (int)response.StatusCode;
+                                bool shouldRetry = false;
+                                int delayMs = 0;
+                                string errorType = "";
+                                
+                                // Server errors (5xx) - retry with exponential backoff
+                                if (statusCode >= 500 && statusCode < 600)
                                 {
-                                    var retryAfter = retryAfterValues.FirstOrDefault();
-                                    if (int.TryParse(retryAfter, out var seconds))
+                                    shouldRetry = true;
+                                    delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt);
+                                    errorType = "Server error";
+                                }
+                                // 403 Forbidden - likely IP blocked, switch proxy immediately
+                                else if (statusCode == 403)
+                                {
+                                    // 403 = IP заблокирован, сразу меняем прокси
+                                    _logger.WriteLine($"Forbidden 403 - IP заблокирован, переключаем прокси");
+                                    response.Dispose();
+                                    response = null;
+                                    break; // Выходим из внутреннего цикла, чтобы сменить прокси
+                                }
+                                // 429 Too Many Requests - rate limited, need longer delay
+                                else if (statusCode == 429)
+                                {
+                                    shouldRetry = true;
+                                    // Check for Retry-After header
+                                    if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
                                     {
-                                        delayMs = seconds * 1000;
+                                        var retryAfter = retryAfterValues.FirstOrDefault();
+                                        if (int.TryParse(retryAfter, out var seconds))
+                                        {
+                                            delayMs = seconds * 1000;
+                                        }
+                                        else
+                                        {
+                                            delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
+                                        }
                                     }
                                     else
                                     {
-                                        delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2; // Double delay for rate limiting
+                                        delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
                                     }
+                                    errorType = "Rate limited";
                                 }
-                                else
+                                // 408 Request Timeout - retry with same proxy
+                                else if (statusCode == 408)
                                 {
-                                    delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
+                                    shouldRetry = true;
+                                    delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                    errorType = "Request timeout";
                                 }
-                                errorType = "Rate limited";
-                            }
-                            // 408 Request Timeout - retry with same or different proxy
-                            else if (statusCode == 408)
-                            {
-                                shouldRetry = true;
-                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                                errorType = "Request timeout";
-                            }
-                            // 404 Not Found - don't retry, will be handled separately
-                            else if (statusCode == 404)
-                            {
-                                shouldRetry = false;
-                            }
-                            
-                            if (shouldRetry && attempt < maxRetries && _proxyCoordinator != null)
-                            {
-                                // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
-                                if (proxyUrl != null)
+                                // 404 Not Found - don't retry
+                                else if (statusCode == 404)
                                 {
-                                    _proxyCoordinator.ReportFailure(proxyUrl);
+                                    shouldRetry = false;
                                 }
                                 
-                                _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
-                                    $"Backoff delay: {ExponentialBackoff.GetDelayDescription(delayMs)}");
-                                _logger.WriteLine($"Retrying with next proxy after delay...");
+                                if (shouldRetry && attempt < maxRetriesPerProxy)
+                                {
+                                    _logger.WriteLine($"{errorType} {statusCode} (попытка {attempt}/{maxRetriesPerProxy}, прокси #{proxySwitch + 1}). " +
+                                        $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
+                                    response.Dispose();
+                                    response = null;
+                                    await Task.Delay(delayMs, ct);
+                                    continue;
+                                }
+                                else if (shouldRetry && attempt >= maxRetriesPerProxy)
+                                {
+                                    _logger.WriteLine($"{errorType} {statusCode} - исчерпаны попытки с текущим прокси");
+                                    response.Dispose();
+                                    response = null;
+                                    break; // Выходим из внутреннего цикла, чтобы сменить прокси
+                                }
+                            }
+                            
+                            // Success (200) or non-retryable response
+                            if (response != null && (response.IsSuccessStatusCode || (int)response.StatusCode == 404))
+                            {
+                                success = true;
+                                break;
+                            }
+                            
+                            // Other non-success status - retry
+                            if (response != null && !response.IsSuccessStatusCode)
+                            {
+                                var statusCode = (int)response.StatusCode;
+                                var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                _logger.WriteLine($"HTTP error {statusCode} (попытка {attempt}/{maxRetriesPerProxy}). " +
+                                    $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
                                 response.Dispose();
                                 response = null;
                                 await Task.Delay(delayMs, ct);
                                 continue;
                             }
-                            else if (shouldRetry)
-                            {
-                                _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
-                                    $"No more retries available.");
-                            }
                         }
-                        
-                        // Success (200) - break retry loop
-                        if (response != null && response.IsSuccessStatusCode)
+                        catch (Exception ex) when (attempt < maxRetriesPerProxy)
                         {
-                            break;
-                        }
-                        
-                        // Non-retryable error or no proxy coordinator - break retry loop
-                        if (_proxyCoordinator == null || attempt >= maxRetries)
-                        {
-                            break;
-                        }
-                        
-                        // Any other non-success status - retry with next proxy (except 404)
-                        if (response != null && !response.IsSuccessStatusCode && (int)response.StatusCode != 404)
-                        {
-                            // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
-                            if (_proxyCoordinator != null && proxyUrl != null)
-                            {
-                                _proxyCoordinator.ReportFailure(proxyUrl);
-                            }
-                            
-                            var statusCode = (int)response.StatusCode;
-                            var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                            _logger.WriteLine($"HTTP error {statusCode} (attempt {attempt}/{maxRetries}). " +
-                                $"Backoff delay: {ExponentialBackoff.GetDelayDescription(delayMs)}");
-                            _logger.WriteLine($"Retrying with next proxy after delay...");
-                            response.Dispose();
-                            response = null;
-                            await Task.Delay(delayMs, ct);
-                            continue;
-                        }
-                    }
-                    catch (Exception ex) when (attempt < maxRetries && _proxyCoordinator != null)
-                    {
-                        // Сообщаем об ошибке прокси для coordinator
-                        if (proxyUrl != null)
-                        {
-                            _proxyCoordinator.ReportFailure(proxyUrl);
-                        }
-                        
-                        // Calculate delay using exponential backoff with jitter
-                        var proxyErrorDelay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                        
-                        _logger.WriteLine($"Proxy error (attempt {attempt}/{maxRetries}): {ex.Message}. " +
-                            $"Backoff delay: {ExponentialBackoff.GetDelayDescription(proxyErrorDelay)}");
-                        
-                        if (attempt < maxRetries)
-                        {
-                            _logger.WriteLine($"Trying next proxy after delay...");
+                            var proxyErrorDelay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                            _logger.WriteLine($"Ошибка (попытка {attempt}/{maxRetriesPerProxy}): {ex.Message}. " +
+                                $"Backoff: {ExponentialBackoff.GetDelayDescription(proxyErrorDelay)}");
                             await Task.Delay(proxyErrorDelay, ct);
                         }
-                        else
+                        catch (Exception ex) when (attempt >= maxRetriesPerProxy)
                         {
-                            // Last attempt failed, rethrow
-                            throw;
+                            _logger.WriteLine($"Ошибка (попытка {attempt}/{maxRetriesPerProxy}): {ex.Message}. " +
+                                $"Исчерпаны попытки с текущим прокси");
+                            break; // Выходим из внутреннего цикла, чтобы сменить прокси
                         }
+                    }
+                    
+                    // Освобождаем HttpClient для текущего прокси
+                    proxyHttpClient?.Dispose();
+                    
+                    // Если не успех и есть ещё прокси - сообщаем об ошибке и переключаемся
+                    if (!success && _proxyCoordinator != null && proxyUrl != null)
+                    {
+                        _proxyCoordinator.ReportFailure(proxyUrl);
+                        proxySwitch++;
+                        
+                        if (proxySwitch <= maxProxySwitches)
+                        {
+                            _logger.WriteLine($"Переключение на следующий прокси (смена #{proxySwitch}/{maxProxySwitches})...");
+                        }
+                    }
+                    else if (!success && _proxyCoordinator == null)
+                    {
+                        break; // Нет прокси - выходим
+                    }
+                    else
+                    {
+                        break; // Успех - выходим
                     }
                 }
                 
                 if (response == null)
                 {
-                    _logger.WriteLine($"Failed to get response after {maxRetries} attempts");
+                    _logger.WriteLine($"Не удалось получить ответ после {maxProxySwitches + 1} прокси × {maxRetriesPerProxy} попыток");
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }

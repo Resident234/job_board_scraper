@@ -857,9 +857,20 @@ public static class AppConfig
         }
     }
 
+    /// <summary>
+    /// Максимальное количество retry с одним прокси (по умолчанию 2)
+    /// </summary>
     public static int ProxyMaxRetries =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:MaxRetries"], out var value) 
-            ? value : 3; // По умолчанию 3 попытки с разными прокси
+            ? value : 2;
+    
+    /// <summary>
+    /// Максимальное количество смен прокси (по умолчанию 10)
+    /// После исчерпания retry с одним прокси - переключаемся на следующий
+    /// </summary>
+    public static int ProxyMaxSwitches =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:MaxSwitches"], out var value) 
+            ? value : 10;
 
     // Настройки для парсинга блока "Высшее образование"
     public static string EducationSectionTitleText =>
