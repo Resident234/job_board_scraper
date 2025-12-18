@@ -374,20 +374,20 @@ class Program
             Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
             Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
             
-            // Инициализация ProxyWhitelistManager
-            ProxyWhitelistManager? proxyWhitelistManager = null;
-            if (freeProxyPool != null && AppConfig.ProxyWhitelistEnabled)
+            // Инициализация ProxyCoordinator (координатор whitelist + general pool)
+            ProxyCoordinator? proxyCoordinator = null;
+            if (freeProxyPool != null)
             {
                 var whitelistStorage = new JsonWhitelistStorage(AppConfig.ProxyWhitelistFilePath);
-                proxyWhitelistManager = new ProxyWhitelistManager(whitelistStorage, freeProxyPool);
-                await proxyWhitelistManager.LoadStateAsync();
-                Console.WriteLine($"[Program] UserResumeDetailScraper: Белый список прокси ВКЛЮЧЕН (загружено: {proxyWhitelistManager.WhitelistCount})");
-                Console.WriteLine($"[Program] UserResumeDetailScraper: Прокси ВКЛЮЧЕНЫ (pool size: {freeProxyPool.GetCount()})");
-            }
-            else if (freeProxyPool != null)
-            {
-                Console.WriteLine($"[Program] UserResumeDetailScraper: Прокси ВКЛЮЧЕНЫ (pool size: {freeProxyPool.GetCount()})");
-                Console.WriteLine("[Program] UserResumeDetailScraper: Белый список прокси ОТКЛЮЧЕН");
+                var whitelistManager = new ProxyWhitelistManager(whitelistStorage);
+                await whitelistManager.LoadStateAsync();
+                
+                var generalPoolManager = new GeneralPoolManager(freeProxyPool);
+                proxyCoordinator = new ProxyCoordinator(whitelistManager, generalPoolManager);
+                
+                Console.WriteLine($"[Program] UserResumeDetailScraper: ProxyCoordinator ВКЛЮЧЕН");
+                Console.WriteLine($"[Program]   - Whitelist: {whitelistManager.WhitelistCount} прокси");
+                Console.WriteLine($"[Program]   - General Pool: {freeProxyPool.GetCount()} прокси");
             }
             else
             {
@@ -410,8 +410,7 @@ class Program
                 db,
                 getUserCodes: () => db.GetUserLinksWithoutData(conn),
                 controller: controller,
-                proxyPool: freeProxyPool,
-                proxyWhitelistManager: proxyWhitelistManager,
+                proxyCoordinator: proxyCoordinator,
                 interval: TimeSpan.FromMinutes(20),
                 outputMode: AppConfig.UserResumeDetailOutputMode);
 

@@ -23,8 +23,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly Models.ScraperStatistics _statistics;
-    private readonly FreeProxyPool? _proxyPool;
-    private readonly ProxyWhitelistManager? _proxyWhitelistManager;
+    private readonly ProxyCoordinator? _proxyCoordinator;
     private readonly int _proxyWaitTimeout;
     private ProgressTracker? _progress;
 
@@ -33,8 +32,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         DatabaseClient db,
         Func<List<string>> getUserCodes,
         AdaptiveConcurrencyController controller,
-        FreeProxyPool? proxyPool = null,
-        ProxyWhitelistManager? proxyWhitelistManager = null,
+        ProxyCoordinator? proxyCoordinator = null,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
     {
@@ -42,8 +40,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
-        _proxyPool = proxyPool;
-        _proxyWhitelistManager = proxyWhitelistManager;
+        _proxyCoordinator = proxyCoordinator;
         _interval = interval ?? TimeSpan.FromDays(30);
         _proxyWaitTimeout = AppConfig.ProxyWaitTimeoutSeconds;
         _statistics = new Models.ScraperStatistics("UserResumeDetailScraper");
@@ -52,44 +49,26 @@ public sealed class UserResumeDetailScraper : IDisposable
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
         
-        if (_proxyWhitelistManager != null)
+        if (_proxyCoordinator != null)
         {
-            _logger.WriteLine($"Proxy whitelist manager enabled (whitelist size: {_proxyWhitelistManager.WhitelistCount})");
-        }
-        else if (_proxyPool != null)
-        {
-            _logger.WriteLine($"Proxy rotation enabled (pool size: {_proxyPool.GetCount()})");
+            _logger.WriteLine($"Proxy coordinator enabled: {_proxyCoordinator.GetStatus()}");
         }
     }
 
     /// <summary>
-    /// Get proxy from pool with timeout
-    /// Uses ProxyWhitelistManager if available, otherwise falls back to FreeProxyPool
+    /// Get proxy from coordinator with timeout
     /// </summary>
     private async Task<string?> GetProxyWithTimeoutAsync(CancellationToken ct)
     {
-        // Приоритет: ProxyWhitelistManager -> FreeProxyPool
-        if (_proxyWhitelistManager != null)
-        {
-            var whitelistProxy = _proxyWhitelistManager.GetNextProxy();
-            if (whitelistProxy != null)
-            {
-                var source = _proxyWhitelistManager.IsUsingGeneralPool ? "general pool (via manager)" : "whitelist";
-                _logger.WriteLine($"Using proxy from {source}: {whitelistProxy}");
-                return whitelistProxy;
-            }
-        }
-        
-        if (_proxyPool == null)
+        if (_proxyCoordinator == null)
             return null;
         
-        var poolProxy = _proxyPool.GetNextProxy();
+        var proxy = _proxyCoordinator.GetNextProxy();
+        if (proxy != null)
+            return proxy;
         
-        if (poolProxy != null)
-            return poolProxy;
-        
-        // Pool is empty, wait for new proxies
-        _logger.WriteLine($"Proxy pool empty, waiting up to {_proxyWaitTimeout} seconds...");
+        // No proxy available, wait
+        _logger.WriteLine($"No proxy available, waiting up to {_proxyWaitTimeout} seconds...");
         
         var startTime = DateTime.UtcNow;
         var timeout = TimeSpan.FromSeconds(_proxyWaitTimeout);
@@ -98,22 +77,11 @@ public sealed class UserResumeDetailScraper : IDisposable
         {
             await Task.Delay(1000, ct);
             
-            // Проверяем сначала whitelist manager
-            if (_proxyWhitelistManager != null)
-            {
-                var availableWhitelistProxy = _proxyWhitelistManager.GetNextProxy();
-                if (availableWhitelistProxy != null)
-                {
-                    _logger.WriteLine($"Proxy became available from whitelist after waiting");
-                    return availableWhitelistProxy;
-                }
-            }
-            
-            poolProxy = _proxyPool.GetNextProxy();
-            if (poolProxy != null)
+            proxy = _proxyCoordinator.GetNextProxy();
+            if (proxy != null)
             {
                 _logger.WriteLine($"Proxy became available after waiting");
-                return poolProxy;
+                return proxy;
             }
         }
         
@@ -225,7 +193,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 HttpResponseMessage? response = null;
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 int attempt = 0;
-                int maxRetries = (_proxyPool != null || _proxyWhitelistManager != null) ? AppConfig.ProxyMaxRetries : 1;
+                int maxRetries = _proxyCoordinator != null ? AppConfig.ProxyMaxRetries : 1;
                 
                 // Retry loop with different proxies
                 while (attempt < maxRetries)
@@ -236,8 +204,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                     
                     try
                     {
-                        // Get proxy from whitelist manager or pool if available
-                        if (_proxyWhitelistManager != null || _proxyPool != null)
+                        // Get proxy from coordinator if available
+                        if (_proxyCoordinator != null)
                         {
                             proxyUrl = await GetProxyWithTimeoutAsync(ct);
                             
@@ -327,12 +295,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                                 shouldRetry = false;
                             }
                             
-                            if (shouldRetry && attempt < maxRetries && (_proxyPool != null || _proxyWhitelistManager != null))
+                            if (shouldRetry && attempt < maxRetries && _proxyCoordinator != null)
                             {
                                 // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
-                                if (_proxyWhitelistManager != null && proxyUrl != null)
+                                if (proxyUrl != null)
                                 {
-                                    _proxyWhitelistManager.ReportFailure(proxyUrl);
+                                    _proxyCoordinator.ReportFailure(proxyUrl);
                                 }
                                 
                                 _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
@@ -356,8 +324,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                             break;
                         }
                         
-                        // Non-retryable error or no proxy pool - break retry loop
-                        if (_proxyPool == null || attempt >= maxRetries)
+                        // Non-retryable error or no proxy coordinator - break retry loop
+                        if (_proxyCoordinator == null || attempt >= maxRetries)
                         {
                             break;
                         }
@@ -366,9 +334,9 @@ public sealed class UserResumeDetailScraper : IDisposable
                         if (response != null && !response.IsSuccessStatusCode && (int)response.StatusCode != 404)
                         {
                             // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
-                            if (_proxyWhitelistManager != null && proxyUrl != null)
+                            if (_proxyCoordinator != null && proxyUrl != null)
                             {
-                                _proxyWhitelistManager.ReportFailure(proxyUrl);
+                                _proxyCoordinator.ReportFailure(proxyUrl);
                             }
                             
                             var statusCode = (int)response.StatusCode;
@@ -382,12 +350,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                             continue;
                         }
                     }
-                    catch (Exception ex) when (attempt < maxRetries && (_proxyPool != null || _proxyWhitelistManager != null))
+                    catch (Exception ex) when (attempt < maxRetries && _proxyCoordinator != null)
                     {
-                        // Сообщаем об ошибке прокси для whitelist manager
-                        if (_proxyWhitelistManager != null && proxyUrl != null)
+                        // Сообщаем об ошибке прокси для coordinator
+                        if (proxyUrl != null)
                         {
-                            _proxyWhitelistManager.ReportFailure(proxyUrl);
+                            _proxyCoordinator.ReportFailure(proxyUrl);
                         }
                         
                         // Calculate delay using exponential backoff with jitter
@@ -500,10 +468,10 @@ public sealed class UserResumeDetailScraper : IDisposable
                     _logger.WriteLine($"  Статус: приватный профиль");
                     _logger.WriteLine($"  Сообщение: {privateMessage}");
                     
-                    // Сообщаем об успехе для whitelist manager
-                    if (_proxyWhitelistManager != null && proxyUrl != null)
+                    // Сообщаем об успехе для coordinator
+                    if (_proxyCoordinator != null && proxyUrl != null)
                     {
-                        _proxyWhitelistManager.ReportSuccess(proxyUrl);
+                        _proxyCoordinator.ReportSuccess(proxyUrl);
                     }
                     
                     _statistics.IncrementSuccess();
@@ -516,12 +484,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                 {
                     _logger.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
                     
-                    if (_proxyWhitelistManager != null && proxyUrl != null)
+                    if (_proxyCoordinator != null && proxyUrl != null)
                     {
-                        _proxyWhitelistManager.ReportDailyLimitReached(proxyUrl);
+                        _proxyCoordinator.ReportDailyLimitReached(proxyUrl);
                         
                         // Получаем новый прокси и повторяем запрос
-                        var newProxy = _proxyWhitelistManager.GetNextProxy();
+                        var newProxy = _proxyCoordinator.GetNextProxy();
                         if (newProxy != null)
                         {
                             _logger.WriteLine($"Переключение на новый прокси: {newProxy}");
@@ -812,10 +780,10 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Участие в профсообществах: {communityParticipationData.Count} записей");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
-                // Сообщаем об успехе для whitelist manager
-                if (_proxyWhitelistManager != null && proxyUrl != null)
+                // Сообщаем об успехе для coordinator
+                if (_proxyCoordinator != null && proxyUrl != null)
                 {
-                    _proxyWhitelistManager.ReportSuccess(proxyUrl);
+                    _proxyCoordinator.ReportSuccess(proxyUrl);
                 }
                 
                 _statistics.IncrementSuccess();
@@ -824,10 +792,10 @@ public sealed class UserResumeDetailScraper : IDisposable
             {
                 _logger.WriteLine($"Ошибка при обработке {userLink}: {ex.Message}");
                 
-                // Сообщаем об ошибке для whitelist manager
-                if (_proxyWhitelistManager != null && proxyUrl != null)
+                // Сообщаем об ошибке для coordinator
+                if (_proxyCoordinator != null && proxyUrl != null)
                 {
-                    _proxyWhitelistManager.ReportFailure(proxyUrl);
+                    _proxyCoordinator.ReportFailure(proxyUrl);
                 }
                 
                 _statistics.IncrementFailed();
