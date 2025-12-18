@@ -325,6 +325,7 @@ class Program
         // Инициализация FreeProxyListScraper если включен
         FreeProxyPool? freeProxyPool = null;
         FreeProxyListScraper? freeProxyListScraper = null;
+        ProxyScrapeScraper? proxyScrapeScraper = null;
         
         if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
         {
@@ -344,6 +345,22 @@ class Program
                 proxyListUrl: AppConfig.FreeProxyListUrl);
             
             freeProxyListScraper.Start();
+            
+            // Инициализация ProxyScrapeScraper (второй источник прокси)
+            if (AppConfig.ProxyScrapeEnabled)
+            {
+                Console.WriteLine("[Program] ProxyScrapeScraper: ВКЛЮЧЕН");
+                proxyScrapeScraper = new ProxyScrapeScraper(
+                    freeProxyPool,
+                    refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
+                    outputMode: AppConfig.UserResumeDetailOutputMode);
+                
+                proxyScrapeScraper.Start();
+            }
+            else
+            {
+                Console.WriteLine("[Program] ProxyScrapeScraper: ОТКЛЮЧЕН");
+            }
         }
         else if (AppConfig.UserResumeDetailEnabled)
         {

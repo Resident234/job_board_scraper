@@ -835,6 +835,13 @@ public static class AppConfig
         ConfigurationManager.AppSettings["FreeProxy:ListUrl"] 
             ?? "https://free-proxy-list.net/ru/";
 
+    public static string ProxyScrapeApiUrl =>
+        ConfigurationManager.AppSettings["FreeProxy:ProxyScrapeApiUrl"] 
+            ?? "https://api.proxyscrape.com/v4/free-proxy-list/get?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all&skip=0&limit=2000";
+
+    public static bool ProxyScrapeEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["FreeProxy:ProxyScrapeEnabled"], out var value) && value;
+
     public static int ProxyWaitTimeoutSeconds =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:WaitTimeoutSeconds"], out var value) 
             ? value : 30;
