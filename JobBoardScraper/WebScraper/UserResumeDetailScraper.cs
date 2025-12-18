@@ -327,8 +327,14 @@ public sealed class UserResumeDetailScraper : IDisposable
                                 shouldRetry = false;
                             }
                             
-                            if (shouldRetry && attempt < maxRetries && _proxyPool != null)
+                            if (shouldRetry && attempt < maxRetries && (_proxyPool != null || _proxyWhitelistManager != null))
                             {
+                                // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
+                                if (_proxyWhitelistManager != null && proxyUrl != null)
+                                {
+                                    _proxyWhitelistManager.ReportFailure(proxyUrl);
+                                }
+                                
                                 _logger.WriteLine($"{errorType} {statusCode} (attempt {attempt}/{maxRetries}). " +
                                     $"Backoff delay: {ExponentialBackoff.GetDelayDescription(delayMs)}");
                                 _logger.WriteLine($"Retrying with next proxy after delay...");
@@ -359,6 +365,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                         // Any other non-success status - retry with next proxy (except 404)
                         if (response != null && !response.IsSuccessStatusCode && (int)response.StatusCode != 404)
                         {
+                            // Сообщаем об ошибке прокси, чтобы GetNextProxy вернул другой прокси
+                            if (_proxyWhitelistManager != null && proxyUrl != null)
+                            {
+                                _proxyWhitelistManager.ReportFailure(proxyUrl);
+                            }
+                            
                             var statusCode = (int)response.StatusCode;
                             var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
                             _logger.WriteLine($"HTTP error {statusCode} (attempt {attempt}/{maxRetries}). " +
