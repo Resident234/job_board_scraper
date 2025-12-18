@@ -1,3 +1,5 @@
+using JobBoardScraper.Models;
+
 namespace JobBoardScraper.Proxy;
 
 /// <summary>

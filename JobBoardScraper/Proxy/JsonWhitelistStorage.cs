@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Models;
 
 namespace JobBoardScraper.Proxy;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace JobBoardScraper.Proxy;
+namespace JobBoardScraper.Models;
 
 /// <summary>
 /// Запись прокси в whitelist с отслеживанием состояния
@@ -27,19 +27,4 @@ public class WhitelistProxyEntry
 
     public bool IsAvailable(TimeSpan cooldownPeriod) =>
         IsCooldownPassed(cooldownPeriod) && (!IsFailed || IsCooldownPassed(cooldownPeriod));
-}
-
-/// <summary>
-/// Контейнер для сериализации whitelist в JSON
-/// </summary>
-public class WhitelistData
-{
-    [JsonPropertyName("version")]
-    public int Version { get; set; } = 1;
-
-    [JsonPropertyName("lastUpdated")]
-    public DateTime LastUpdated { get; set; }
-
-    [JsonPropertyName("entries")]
-    public List<WhitelistProxyEntry> Entries { get; set; } = new();
 }
