@@ -211,13 +211,25 @@ public sealed class UserResumeDetailScraper : IDisposable
                             
                             if (proxyUrl != null)
                             {
-                                _logger.WriteLine($"Using proxy: {proxyUrl} (attempt {attempt}/{maxRetries})");
+                                // Логируем прокси только при первой попытке или при смене
+                                if (attempt == 1)
+                                {
+                                    _logger.WriteLine($"Обработка: {userLink} | Прокси: {proxyUrl}");
+                                }
+                                else
+                                {
+                                    _logger.WriteLine($"Retry {attempt}/{maxRetries} | Прокси: {proxyUrl}");
+                                }
                                 proxyHttpClient = CreateHttpClientWithProxy(proxyUrl);
                             }
-                            else
+                            else if (attempt == 1)
                             {
-                                _logger.WriteLine($"No proxy available, proceeding without proxy");
+                                _logger.WriteLine($"Обработка: {userLink} | Без прокси");
                             }
+                        }
+                        else if (attempt == 1)
+                        {
+                            _logger.WriteLine($"Обработка: {userLink}");
                         }
                         
                         // Make request

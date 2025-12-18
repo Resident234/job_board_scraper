@@ -64,7 +64,8 @@ public class GeneralPoolManager : IProxyManager
                 return proxy;
             }
 
-            _logger?.WriteLine("[GENERAL] ⚠ Нет доступных прокси");
+            // Логируем только когда прокси закончились
+            _logger?.WriteLine("[GENERAL] ⚠ Нет доступных прокси в пуле");
             return null;
         }
     }

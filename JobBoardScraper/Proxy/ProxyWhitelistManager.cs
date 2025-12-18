@@ -197,7 +197,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
             checkedCount++;
             if (IsProxyAvailable(entry))
             {
-                _logger?.WriteLine($"[WHITELIST] → WL прокси: {entry.ProxyUrl}");
+                _logger?.WriteLine($"[WHITELIST] → Прокси: {entry.ProxyUrl}");
                 return entry.ProxyUrl;
             }
         }
