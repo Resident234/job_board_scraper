@@ -1,4 +1,4 @@
-namespace JobBoardScraper.Helper.Utils;
+namespace JobBoardScraper.Helper.Throttling;
 
 /// <summary>
 /// Реализация алгоритма Exponential Backoff with Jitter для расчета задержки между повторами
