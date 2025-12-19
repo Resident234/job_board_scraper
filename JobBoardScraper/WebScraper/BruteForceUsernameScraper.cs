@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using JobBoardScraper.Helper.Http;
+using JobBoardScraper.Helper.Logger;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -104,7 +105,7 @@ public sealed class BruteForceUsernameScraper
                             _statistics.IncrementFailed();
                         }
                         
-                        Helper.Utils.ParallelScraperLogger.LogProgress(
+                        Helper.Logger.ParallelScraperLogger.LogProgress(
                             _logger,
                             _statistics,
                             link,

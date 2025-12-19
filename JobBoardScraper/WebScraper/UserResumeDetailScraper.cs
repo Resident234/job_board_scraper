@@ -1,5 +1,6 @@
 using JobBoardScraper.Helper.ConsoleHelper;
 using JobBoardScraper.Helper.Http;
+using JobBoardScraper.Helper.Logger;
 using JobBoardScraper.Helper.Throttling;
 using JobBoardScraper.Helper.Utils;
 using JobBoardScraper.Models;

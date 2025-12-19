@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using JobBoardScraper.Helper.ConsoleHelper;
 using JobBoardScraper.Helper.Http;
+using JobBoardScraper.Helper.Logger;
 
 namespace JobBoardScraper.WebScraper;
 
@@ -21,7 +22,7 @@ public sealed class CompanyListScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Models.ScraperStatistics _statistics;
-    private Helper.Utils.ScraperProgressLogger? _progressLogger;
+    private Helper.Logger.ScraperProgressLogger? _progressLogger;
 
     public CompanyListScraper(
         SmartHttpClient httpClient,
@@ -137,7 +138,7 @@ public sealed class CompanyListScraper : IDisposable
         CancellationToken ct)
     {
         var totalFilters = sizeFilters.Length + categoryIds.Count + additionalFilters.Count;
-        _progressLogger = new Helper.Utils.ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
+        _progressLogger = new Helper.Logger.ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
         _logger.WriteLine($"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
         
         // Обходим с параметрами sz (включая null = без фильтра)
@@ -195,7 +196,7 @@ public sealed class CompanyListScraper : IDisposable
         
         // Общее количество комбинаций
         var totalCombinations = sizeFilters.Length * categoryOptions.Count * additionalOptions.Count;
-        _progressLogger = new Helper.Utils.ScraperProgressLogger(totalCombinations, "CompanyListScraper", _logger, "Combinations");
+        _progressLogger = new Helper.Logger.ScraperProgressLogger(totalCombinations, "CompanyListScraper", _logger, "Combinations");
         _logger.WriteLine($"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
         _logger.WriteLine($"  - Размеры (sz): {sizeFilters.Length} вариантов");
         _logger.WriteLine($"  - Категории: {categoryOptions.Count} вариантов");

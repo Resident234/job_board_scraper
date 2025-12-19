@@ -1,5 +1,6 @@
 using JobBoardScraper.Helper.ConsoleHelper;
 using JobBoardScraper.Helper.Http;
+using JobBoardScraper.Helper.Logger;
 using JobBoardScraper.Helper.Utils;
 using System.Text.RegularExpressions;
 
@@ -18,7 +19,7 @@ public sealed class ExpertsScraper : IDisposable
     private readonly Regex _userCodeRegex;
     private readonly Regex _companyCodeRegex;
     private readonly Models.ScraperStatistics _statistics;
-    private Helper.Utils.ScraperProgressLogger? _progressLogger;
+    private Helper.Logger.ScraperProgressLogger? _progressLogger;
 
     public ExpertsScraper(
         SmartHttpClient httpClient,
@@ -247,7 +248,7 @@ public sealed class ExpertsScraper : IDisposable
                     // Инициализируем progressLogger при первой странице (не знаем заранее сколько страниц)
                     if (_progressLogger == null)
                     {
-                        _progressLogger = new Helper.Utils.ScraperProgressLogger(100, "ExpertsScraper", _logger, "Pages");
+                        _progressLogger = new Helper.Logger.ScraperProgressLogger(100, "ExpertsScraper", _logger, "Pages");
                     }
                     _progressLogger.Increment();
                     _progressLogger.LogPageProgress(page, expertsOnPage);

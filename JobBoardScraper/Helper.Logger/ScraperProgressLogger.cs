@@ -1,7 +1,8 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 using JobBoardScraper.Models;
 
-namespace JobBoardScraper.Helper.Utils;
+namespace JobBoardScraper.Helper.Logger;
 
 /// <summary>
 /// Объединяет счётчик прогресса и логирование для скраперов.

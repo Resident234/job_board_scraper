@@ -1,7 +1,8 @@
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Utils;
 using JobBoardScraper.Models;
 
-namespace JobBoardScraper.Helper.Utils;
+namespace JobBoardScraper.Helper.Logger;
 
 /// <summary>
 /// Вспомогательный класс для логирования прогресса параллельных скраперов
