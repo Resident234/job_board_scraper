@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Helper.Http;
 
 namespace JobBoardScraper.WebScraper;
 

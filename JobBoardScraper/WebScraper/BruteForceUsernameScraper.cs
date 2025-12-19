@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using JobBoardScraper.Helper.Http;
 
 namespace JobBoardScraper.WebScraper;
 

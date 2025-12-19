@@ -1,4 +1,5 @@
 using JobBoardScraper;
+using JobBoardScraper.Helper.Http;
 using JobBoardScraper.Models;
 using JobBoardScraper.Proxy;
 

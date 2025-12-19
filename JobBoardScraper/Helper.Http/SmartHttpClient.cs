@@ -2,7 +2,7 @@ using System.Net;
 using JobBoardScraper.Models;
 using JobBoardScraper.Proxy;
 
-namespace JobBoardScraper;
+namespace JobBoardScraper.Helper.Http;
 
 /// <summary>
 /// Умная обёртка над HttpClient с поддержкой:

@@ -1,3 +1,4 @@
+using JobBoardScraper.Helper.Http;
 using JobBoardScraper.Proxy;
 
 namespace JobBoardScraper.Examples;

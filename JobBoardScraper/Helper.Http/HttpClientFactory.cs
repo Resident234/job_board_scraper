@@ -1,7 +1,7 @@
-﻿using System.Net;
+using System.Net;
 using JobBoardScraper.Proxy;
 
-namespace JobBoardScraper;
+namespace JobBoardScraper.Helper.Http;
 
 /// <summary>
 /// Фабрика для создания HttpClient с поддержкой прокси
