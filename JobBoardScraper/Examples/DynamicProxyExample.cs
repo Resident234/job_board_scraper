@@ -1,5 +1,5 @@
-using JobBoardScraper.Helper.Http;
-using JobBoardScraper.Proxy;
+using JobBoardScraper.Infrastructure.Http;
+using JobBoardScraper.Infrastructure.Proxy;
 
 namespace JobBoardScraper.Examples;
 

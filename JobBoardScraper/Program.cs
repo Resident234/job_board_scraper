@@ -1,6 +1,10 @@
-﻿using JobBoardScraper.Helper.Http;
-using JobBoardScraper.Proxy;
-using JobBoardScraper.WebScraper;
+﻿using JobBoardScraper.Infrastructure.Http;
+using JobBoardScraper.Infrastructure.Proxy;
+using JobBoardScraper.Infrastructure.Logging;
+using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Scrapers;
+using JobBoardScraper.Core;
+using JobBoardScraper.Data;
 
 namespace JobBoardScraper;
 
@@ -42,7 +46,7 @@ class Program
         Console.WriteLine($"[Program] Интервал сохранения статистики: {AppConfig.TrafficStatsSaveInterval.TotalMinutes} минут");
 
         // Создаем логгер для DatabaseClient
-        var dbLogger = new Helper.ConsoleHelper.ConsoleLogger("DatabaseClient");
+        var dbLogger = new ConsoleLogger("DatabaseClient");
         dbLogger.SetOutputMode(AppConfig.DatabaseClientOutputMode);
         Console.WriteLine($"[Program] DatabaseClient: Режим вывода логов - {AppConfig.DatabaseClientOutputMode}");
         
@@ -337,7 +341,7 @@ class Program
             
             freeProxyPool = new FreeProxyPool(
                 maxSize: AppConfig.ProxyPoolMaxSize,
-                logger: new Helper.ConsoleHelper.ConsoleLogger("FreeProxyPool"));
+                logger: new ConsoleLogger("FreeProxyPool"));
             
             freeProxyListScraper = new FreeProxyListScraper(
                 freeProxyPool,
@@ -470,7 +474,7 @@ class Program
                 maxDelay: TimeSpan.FromSeconds(30));
             bruteForceScraperTask = Task.Run(async () =>
             {
-                var bruteForceLogger = new Helper.ConsoleHelper.ConsoleLogger("BruteForceScraper");
+                var bruteForceLogger = new ConsoleLogger("BruteForceScraper");
                 var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller, bruteForceLogger);
                 await bruteForceScraper.RunAsync(cts.Token);
             }, cts.Token);

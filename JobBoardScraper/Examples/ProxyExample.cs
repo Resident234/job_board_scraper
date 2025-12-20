@@ -1,7 +1,8 @@
 using JobBoardScraper;
-using JobBoardScraper.Helper.Http;
-using JobBoardScraper.Models;
-using JobBoardScraper.Proxy;
+using JobBoardScraper.Infrastructure.Http;
+using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Proxy;
+using JobBoardScraper.Infrastructure.Statistics;
 
 namespace JobBoardScraper.Examples;
 

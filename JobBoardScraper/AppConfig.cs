@@ -1,5 +1,5 @@
 ﻿using System.Configuration;
-using JobBoardScraper.Helper.ConsoleHelper;
+using JobBoardScraper.Infrastructure.Logging;
 
 namespace JobBoardScraper;
 
