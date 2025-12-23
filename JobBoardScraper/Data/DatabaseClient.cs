@@ -1549,14 +1549,11 @@ public sealed class DatabaseClient
         {
             DatabaseEnsureConnectionOpen(conn);
 
-            // Противоположный фильтр к count_filled_profiles.sql:
-            // Выбираем профили, которые НЕ приватные И НЕ имеют заполненных данных
+            // Выбираем профили без заполненных данных (включая приватные - они будут обработаны и помечены)
             var query = @"
                 SELECT r.link 
                 FROM habr_resumes r
                 WHERE r.link IS NOT NULL
-                  -- НЕ приватный профиль
-                  AND NOT (r.public = false AND r.about = 'Доступ ограничен настройками приватности')
                   -- НЕТ заполненного about
                   AND (r.about IS NULL OR TRIM(r.about) = '')
                   -- НЕТ опыта работы
