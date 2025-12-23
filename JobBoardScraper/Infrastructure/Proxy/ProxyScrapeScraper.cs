@@ -30,20 +30,20 @@ public sealed class ProxyScrapeScraper : IDisposable
         _logger = new ConsoleLogger("ProxyScrapeScraper");
         _logger.SetOutputMode(outputMode);
         _cts = new CancellationTokenSource();
-        _logger.WriteLine($"[ProxyScrapeScraper] Initialized with refresh interval: {_refreshInterval}");
+        _logger.WriteLine($"Initialized with refresh interval: {_refreshInterval}");
     }
 
     public void Start()
     {
         if (_scraperTask != null) return;
-        _logger.WriteLine("[ProxyScrapeScraper] Starting background scraper");
+        _logger.WriteLine("Starting background scraper");
         _scraperTask = Task.Run(() => RunAsync(_cts.Token), _cts.Token);
     }
 
     public void Stop()
     {
         if (_scraperTask == null) return;
-        _logger.WriteLine("[ProxyScrapeScraper] Stopping background scraper");
+        _logger.WriteLine("Stopping background scraper");
         _cts.Cancel();
         try { _scraperTask.Wait(TimeSpan.FromSeconds(5)); }
         catch (AggregateException ex) when (ex.InnerException is OperationCanceledException) { }
@@ -68,22 +68,22 @@ public sealed class ProxyScrapeScraper : IDisposable
     {
         try
         {
-            _logger.WriteLine($"[ProxyScrapeScraper] Fetching from API...");
+            _logger.WriteLine($"Fetching from API...");
             var response = await _httpClient.GetStringAsync(_apiUrl, ct);
             var proxies = ParseProxyList(response);
-            _logger.WriteLine($"[ProxyScrapeScraper] Parsed {proxies.Count} proxies");
-            
+            _logger.WriteLine($"Parsed {proxies.Count} proxies");
+
             var added = 0;
             foreach (var proxyUrl in proxies)
             {
                 if (_proxyPool.AddProxy(proxyUrl))
                     added++;
             }
-            _logger.WriteLine($"[ProxyScrapeScraper] Added {added} proxies (total: {_proxyPool.GetCount()})");
+            _logger.WriteLine($"Added {added} proxies (total: {_proxyPool.GetCount()})");
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"[ProxyScrapeScraper] Error: {ex.Message}");
+            _logger.WriteLine($"Error: {ex.Message}");
         }
     }
 
@@ -93,18 +93,18 @@ public sealed class ProxyScrapeScraper : IDisposable
     public List<string> ParseProxyList(string response)
     {
         var proxies = new List<string>();
-        
+
         if (string.IsNullOrWhiteSpace(response))
             return proxies;
 
         var lines = response.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
             if (string.IsNullOrEmpty(trimmed))
                 continue;
-                
+
             // Формат: ip:port
             if (IsValidProxyFormat(trimmed))
             {
@@ -112,7 +112,7 @@ public sealed class ProxyScrapeScraper : IDisposable
                 proxies.Add($"http://{trimmed}");
             }
         }
-        
+
         return proxies;
     }
 
@@ -124,18 +124,18 @@ public sealed class ProxyScrapeScraper : IDisposable
         var parts = proxy.Split(':');
         if (parts.Length != 2)
             return false;
-            
+
         var ip = parts[0];
         var portStr = parts[1];
-        
+
         // Проверка IP
         if (string.IsNullOrWhiteSpace(ip) || ip == "0.0.0.0" || ip.StartsWith("127."))
             return false;
-            
+
         // Проверка порта
         if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
             return false;
-            
+
         return true;
     }
 
