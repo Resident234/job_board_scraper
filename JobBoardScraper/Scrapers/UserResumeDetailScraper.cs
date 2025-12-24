@@ -15,7 +15,7 @@ namespace JobBoardScraper.Scrapers;
 /// Обходит страницы профилей пользователей и извлекает детальную информацию о резюме
 /// Извлекает: about, навыки, опыт работы
 /// TODO начинет сыпать ошибкой "Вы исчерпали суточный лимит на просмотр профилей специалистов. Зарегистрируйтесь или войдите в свой аккаунт, чтобы увидеть больше профилей."
-/// или смотреть через selenium или организовывать прокси 
+/// смотреть через selenium
 /// TODO версионность сделать
 /// </summary>
 public sealed class UserResumeDetailScraper : IDisposable
@@ -49,11 +49,11 @@ public sealed class UserResumeDetailScraper : IDisposable
         _interval = interval ?? TimeSpan.FromDays(30);
         _proxyWaitTimeout = AppConfig.ProxyWaitTimeoutSeconds;
         _statistics = new ScraperStatistics("UserResumeDetailScraper");
-        
+
         _logger = new ConsoleLogger("UserResumeDetailScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
-        
+
         if (_proxyCoordinator != null)
         {
             _logger.WriteLine($"Proxy coordinator enabled: {_proxyCoordinator.GetStatus()}");
@@ -67,21 +67,21 @@ public sealed class UserResumeDetailScraper : IDisposable
     {
         if (_proxyCoordinator == null)
             return null;
-        
+
         var proxy = _proxyCoordinator.GetNextProxy();
         if (proxy != null)
             return proxy;
         
         // No proxy available, wait
         _logger.WriteLine($"No proxy available, waiting up to {_proxyWaitTimeout} seconds...");
-        
+
         var startTime = DateTime.UtcNow;
         var timeout = TimeSpan.FromSeconds(_proxyWaitTimeout);
-        
+
         while ((DateTime.UtcNow - startTime) < timeout && !ct.IsCancellationRequested)
         {
             await Task.Delay(1000, ct);
-            
+
             proxy = _proxyCoordinator.GetNextProxy();
             if (proxy != null)
             {
@@ -89,7 +89,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 return proxy;
             }
         }
-        
+
         _logger.WriteLine($"Timeout waiting for proxy");
         return null;
     }
@@ -115,12 +115,12 @@ public sealed class UserResumeDetailScraper : IDisposable
             UseProxy = true,
             AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
         };
-        
+
         var client = new HttpClient(handler)
         {
             Timeout = AppConfig.ProxyRequestTimeout // Используем увеличенный таймаут для прокси
         };
-        
+
         return client;
     }
 
@@ -148,7 +148,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Остановка — ок
+            // Stop is OK
         }
     }
 
@@ -160,7 +160,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Остановка — ок
+            // Stop is OK
         }
         catch (Exception ex)
         {
@@ -171,14 +171,14 @@ public sealed class UserResumeDetailScraper : IDisposable
     private async Task ScrapeAllUserResumesAsync(CancellationToken ct)
     {
         _logger.WriteLine("Начало обхода резюме пользователей...");
-        //TOOD поменять стратегию: использовать один прокси, если он работает, до тех пор, пока хабр не начлет отдавать сообщение "Вы исчерпали..."
-        
+
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
-        
+        _statistics.SetInitialRecordCount(totalLinks);
+
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalLinks, "UserResumeDetail");
-        
+
         _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
 
         if (totalLinks == 0)
@@ -193,14 +193,14 @@ public sealed class UserResumeDetailScraper : IDisposable
         {
             _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
             string? proxyUrl = null; // Выносим за пределы try для использования в catch
+            HttpResponseMessage? response = null;
             try
             {
-                HttpResponseMessage? response = null;
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                
+
                 // Настройки retry
-                int maxRetriesPerProxy = _proxyCoordinator != null ? AppConfig.ProxyMaxRetries : 1; // 30 попыток с одним прокси
-                int maxProxySwitches = _proxyCoordinator != null ? AppConfig.ProxyMaxSwitches : 0; // Сколько раз менять прокси
+                int maxRetriesPerProxy = _proxyCoordinator != null ? AppConfig.ProxyMaxRetries : 1;
+                int maxProxySwitches = _proxyCoordinator != null ? AppConfig.ProxyMaxSwitches : 0;
                 int proxySwitch = 0;
                 bool success = false;
                 
@@ -234,7 +234,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     while (attempt < maxRetriesPerProxy && !success)
                     {
                         attempt++;
-                        
+
                         try
                         {
                             // Make request
@@ -246,85 +246,83 @@ public sealed class UserResumeDetailScraper : IDisposable
                             {
                                 response = await _httpClient.GetAsync(userLink, ct);
                             }
-                            
-                            // Check for retryable HTTP errors
-                            if (response != null)
+
+                            _statistics.RecordAllStatusCodes((int)response.StatusCode);
+
+                            var statusCode = (int)response.StatusCode;
+                            bool shouldRetry = false;
+                            int delayMs = 0;
+                            string errorType = "";
+
+                            // Server errors (5xx) - retry with exponential backoff
+                            if (statusCode >= 500 && statusCode < 600)
                             {
-                                var statusCode = (int)response.StatusCode;
-                                bool shouldRetry = false;
-                                int delayMs = 0;
-                                string errorType = "";
-                                
-                                // Server errors (5xx) - retry with exponential backoff
-                                if (statusCode >= 500 && statusCode < 600)
+                                shouldRetry = true;
+                                delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt);
+                                errorType = "Server error";
+                            }
+                            // 403 Forbidden - likely IP blocked, switch proxy immediately
+                            else if (statusCode == 403)
+                            {
+                                // 403 = IP заблокирован, сразу меняем прокси
+                                _logger.WriteLine($"Forbidden 403 - IP заблокирован, переключаем прокси");
+                                response.Dispose();
+                                response = null;
+                                break; // Выходим из внутреннего цикла, чтобы сменить прокси
+                            }
+                            // 429 Too Many Requests - rate limited, need longer delay
+                            else if (statusCode == 429)
+                            {
+                                shouldRetry = true;
+                                // Check for Retry-After header
+                                if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
                                 {
-                                    shouldRetry = true;
-                                    delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt);
-                                    errorType = "Server error";
-                                }
-                                // 403 Forbidden - likely IP blocked, switch proxy immediately
-                                else if (statusCode == 403)
-                                {
-                                    // 403 = IP заблокирован, сразу меняем прокси
-                                    _logger.WriteLine($"Forbidden 403 - IP заблокирован, переключаем прокси");
-                                    response.Dispose();
-                                    response = null;
-                                    break; // Выходим из внутреннего цикла, чтобы сменить прокси
-                                }
-                                // 429 Too Many Requests - rate limited, need longer delay
-                                else if (statusCode == 429)
-                                {
-                                    shouldRetry = true;
-                                    // Check for Retry-After header
-                                    if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
+                                    var retryAfter = retryAfterValues.FirstOrDefault();
+                                    if (int.TryParse(retryAfter, out var seconds))
                                     {
-                                        var retryAfter = retryAfterValues.FirstOrDefault();
-                                        if (int.TryParse(retryAfter, out var seconds))
-                                        {
-                                            delayMs = seconds * 1000;
-                                        }
-                                        else
-                                        {
-                                            delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
-                                        }
+                                        delayMs = seconds * 1000;
                                     }
                                     else
                                     {
                                         delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
                                     }
-                                    errorType = "Rate limited";
                                 }
-                                // 408 Request Timeout - retry with same proxy
-                                else if (statusCode == 408)
+                                else
                                 {
-                                    shouldRetry = true;
-                                    delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                                    errorType = "Request timeout";
+                                    delayMs = ExponentialBackoff.CalculateServerErrorDelay(attempt) * 2;
                                 }
-                                // 404 Not Found - don't retry
-                                else if (statusCode == 404)
-                                {
-                                    shouldRetry = false;
-                                }
-                                
-                                if (shouldRetry && attempt < maxRetriesPerProxy)
-                                {
-                                    _logger.WriteLine($"{errorType} {statusCode} (попытка {attempt}/{maxRetriesPerProxy}, прокси #{proxySwitch + 1}). " +
-                                        $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
-                                    response.Dispose();
-                                    response = null;
-                                    await Task.Delay(delayMs, ct);
-                                    continue;
-                                }
-                                else if (shouldRetry && attempt >= maxRetriesPerProxy)
-                                {
-                                    _logger.WriteLine($"{errorType} {statusCode} - исчерпаны попытки с текущим прокси");
-                                    response.Dispose();
-                                    response = null;
-                                    break; // Выходим из внутреннего цикла, чтобы сменить прокси
-                                }
+                                errorType = "Rate limited";
                             }
-                            
+                            // 408 Request Timeout - retry with same proxy
+                            else if (statusCode == 408)
+                            {
+                                shouldRetry = true;
+                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                errorType = "Request timeout";
+                            }
+                            // 404 Not Found - don't retry
+                            else if (statusCode == 404)
+                            {
+                                shouldRetry = false;
+                            }
+
+                            if (shouldRetry && attempt < maxRetriesPerProxy)
+                            {
+                                _logger.WriteLine($"{errorType} {statusCode} (попытка {attempt}/{maxRetriesPerProxy}, прокси #{proxySwitch + 1}). " +
+                                    $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
+                                response.Dispose();
+                                response = null;
+                                await Task.Delay(delayMs, ct);
+                                continue;
+                            }
+                            else if (shouldRetry && attempt >= maxRetriesPerProxy)
+                            {
+                                _logger.WriteLine($"{errorType} {statusCode} - исчерпаны попытки с текущим прокси");
+                                response.Dispose();
+                                response = null;
+                                break; // Выходим из внутреннего цикла, чтобы сменить прокси
+                            }
+
                             // Success (200) or non-retryable response
                             if (response != null && (response.IsSuccessStatusCode || (int)response.StatusCode == 404))
                             {
@@ -335,8 +333,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                             // Other non-success status - retry
                             if (response != null && !response.IsSuccessStatusCode)
                             {
-                                var statusCode = (int)response.StatusCode;
-                                var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
+                                statusCode = (int)response.StatusCode;
+                                delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
                                 _logger.WriteLine($"HTTP error {statusCode} (попытка {attempt}/{maxRetriesPerProxy}). " +
                                     $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
                                 response.Dispose();
@@ -368,7 +366,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     {
                         _proxyCoordinator.ReportFailure(proxyUrl);
                         proxySwitch++;
-                        
+
                         if (proxySwitch <= maxProxySwitches)
                         {
                             _logger.WriteLine($"Переключение на следующий прокси (смена #{proxySwitch}/{maxProxySwitches})...");
@@ -383,22 +381,25 @@ public sealed class UserResumeDetailScraper : IDisposable
                         break; // Успех - выходим
                     }
                 }
-                
+
                 if (response == null)
                 {
                     _logger.WriteLine($"Не удалось получить ответ после {maxProxySwitches + 1} прокси × {maxRetriesPerProxy} попыток");
+                    _statistics.IncrementFailed();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
-                
+
+                _statistics.RecordFinalStatusCode((int)response.StatusCode);
+
                 sw.Stop();
                 _controller.ReportLatency(sw.Elapsed);
-                
+
                 double elapsedSeconds = sw.Elapsed.TotalSeconds;
                 _statistics.IncrementProcessed();
                 _statistics.UpdateActiveRequests(_activeRequests.Count);
                 _progress?.Increment();
-                
+
                 if (_progress != null)
                 {
                     ParallelScraperLogger.LogProgress(
@@ -409,18 +410,14 @@ public sealed class UserResumeDetailScraper : IDisposable
                         (int)response.StatusCode,
                         _progress);
                 }
-                
-                // Записываем статистику по коду ответа
-                _statistics.RecordStatusCode((int)response.StatusCode);
-                
-                // Handle 404 Not Found - save as "Ошибка 404" and mark as processed
+
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     const string notFoundMessage = "Ошибка 404";
                     // Используем полную перегрузку с userName для записи в title
                     _db.EnqueueUserResumeDetail(
-                        userLink, 
-                        about: notFoundMessage, 
+                        userLink,
+                        about: notFoundMessage,
                         skills: new List<string>(),
                         age: null,
                         experienceText: null,
@@ -429,18 +426,19 @@ public sealed class UserResumeDetailScraper : IDisposable
                         citizenship: null,
                         remoteWork: null,
                         userName: notFoundMessage);
-                    
+
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: страница не найдена (404)");
                     _logger.WriteLine($"  Title: {notFoundMessage}");
-                    
+
                     _statistics.IncrementSuccess();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
-                
+
                 if (!response.IsSuccessStatusCode)
                 {
+                    _statistics.IncrementFailed();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
@@ -459,18 +457,18 @@ public sealed class UserResumeDetailScraper : IDisposable
                 const string privateProfileText1 = "Доступ ограничен настройками приватности";
                 const string privateProfileText2 = "Информация скрыта";
                 const string privateProfileClass = "user-page-sidebar--status-hidden";
-                
-                bool isPrivateProfile = html.Contains(privateProfileText1) || 
+
+                bool isPrivateProfile = html.Contains(privateProfileText1) ||
                                         html.Contains(privateProfileText2) ||
                                         html.Contains(privateProfileClass);
-                
+
                 if (isPrivateProfile)
                 {
                     // Профиль приватный - сохраняем статус и переходим к следующему
                     const string privateMessage = "Доступ ограничен настройками приватности";
                     _db.EnqueueUserResumeDetail(userLink, privateMessage, new List<string>());
                     _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: false);
-                    
+
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: приватный профиль");
                     _logger.WriteLine($"  Сообщение: {privateMessage}");
@@ -480,7 +478,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     {
                         _proxyCoordinator.ReportSuccess(proxyUrl);
                     }
-                    
+
                     _statistics.IncrementSuccess();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
@@ -490,7 +488,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 if (ContainsDailyLimitMessage(html))
                 {
                     _logger.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
-                    
+
                     if (_proxyCoordinator != null && proxyUrl != null)
                     {
                         _proxyCoordinator.ReportDailyLimitReached(proxyUrl);
@@ -508,10 +506,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                     
                     // Нет доступных прокси - пропускаем профиль
                     _logger.WriteLine($"Нет доступных прокси, пропускаем профиль: {userLink}");
+                    _statistics.IncrementSkipped();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
-                
+
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                 // Извлекаем имя пользователя
@@ -747,14 +746,14 @@ public sealed class UserResumeDetailScraper : IDisposable
                 
                 // Сохраняем информацию для публичного профиля
                 _db.EnqueueUserResumeDetail(
-                    userLink, 
-                    about, 
-                    skills, 
-                    age, 
-                    experienceText, 
-                    registration, 
-                    lastVisit, 
-                    citizenship, 
+                    userLink,
+                    about,
+                    skills,
+                    age,
+                    experienceText,
+                    registration,
+                    lastVisit,
+                    citizenship,
                     remoteWork,
                     userName,
                     infoTech,
@@ -766,7 +765,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
                 _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: true);
-                
+
                 _logger.WriteLine($"Пользователь {userLink}:");
                 _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
                 _logger.WriteLine($"  Техническая информация: {infoTech ?? "(не найдено)"}");
@@ -792,7 +791,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 {
                     _proxyCoordinator.ReportSuccess(proxyUrl);
                 }
-                
+
                 _statistics.IncrementSuccess();
             }
             catch (Exception ex)
@@ -804,23 +803,22 @@ public sealed class UserResumeDetailScraper : IDisposable
                 {
                     _proxyCoordinator.ReportFailure(proxyUrl);
                 }
-                
+
                 _statistics.IncrementFailed();
             }
             finally
             {
+                response?.Dispose();
                 _activeRequests.TryRemove(userLink, out _);
             }
         },
         controller: _controller,
         ct: ct
         );
-        
+
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine($"Обход завершён. {_statistics}");
-        _logger.WriteLine($"Статистика HTTP кодов: {_statistics.GetStatusCodeStatsString()}");
-        
-        // Записываем статистику в отдельный лог-файл
+        _logger.WriteLine(_statistics.ToDetailedString());
+
         _statistics.WriteToLogFile();
     }
 }
