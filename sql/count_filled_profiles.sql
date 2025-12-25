@@ -5,7 +5,7 @@ WITH filled_profiles AS (
     FROM habr_resumes r
     WHERE 
         -- Не пустой about (не NULL и не пустая строка)
-        (r.about IS NOT NULL AND TRIM(r.about) != '')
+        (r.about IS NOT NULL AND TRIM(r.about) != '' AND about != 'Доступ ограничен настройками приватности' AND about != 'Ошибка 404')
         OR
         -- Есть опыт работы в habr_user_experience
         EXISTS (SELECT 1 FROM habr_user_experience ue WHERE ue.user_id = r.id)
