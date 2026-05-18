@@ -2,7 +2,7 @@ WITH experience_rows AS (
     SELECT
         ue.id AS experience_id,
         ue.user_id,
-        ue.company_id,
+        ue.company_id::text AS company_id,
         ue.position,
         ue.duration,
         ue.description,
@@ -44,11 +44,11 @@ combined AS (
 
     SELECT
         user_id,
-        NULL::INTEGER AS company_id,
+        '---' AS company_id,
         '---' AS position,
-        NULL::TEXT AS duration,
-        NULL::TEXT AS description,
-        NULL::TEXT AS skills,
+        '---' AS duration,
+        '---' AS description,
+        '---' AS skills,
         experience_id,
         1 AS sort_offset
     FROM numbered
