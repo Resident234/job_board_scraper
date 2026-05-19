@@ -1,5 +1,5 @@
--- Опыт работы с навыками: по 5 строк на запись, разделители между блоками
--- Формат: id/user_id/company_id → position → duration → description → skills
+-- Опыт работы: по 4 строки на запись + разделитель
+-- Формат: id/user_id/company_id → position → duration → description
 -- Между записями одного user_id: ----------- ; между разными user_id: ===========
 
 WITH experience_rows AS (
@@ -9,17 +9,7 @@ WITH experience_rows AS (
         ue.company_id::text AS company_id,
         ue.position,
         ue.duration,
-        ue.description,
-        ARRAY_TO_STRING(
-            ARRAY(
-                SELECT DISTINCT s.title
-                FROM habr_user_experience_skills ues
-                JOIN habr_skills s ON ues.skill_id = s.id
-                WHERE ues.experience_id = ue.id
-                ORDER BY s.title
-            ),
-            ' • '
-        ) AS skills
+        ue.description
     FROM habr_user_experience ue
     WHERE company_id IS NOT NULL
        OR (position IS NOT NULL AND TRIM(position) <> '')
@@ -73,15 +63,6 @@ formatted_output AS (
         user_id,
         experience_id,
         5,
-        COALESCE(skills, '')
-    FROM numbered
-
-    UNION ALL
-
-    SELECT
-        user_id,
-        experience_id,
-        6,
         CASE
             WHEN next_user_id IS NOT NULL
              AND next_user_id IS DISTINCT FROM user_id
