@@ -1,3 +1,7 @@
+-- Опыт работы с навыками: по 5 строк на запись, разделители между блоками
+-- Формат: id/user_id/company_id → position → duration → description → skills
+-- Между записями одного user_id: ----------- ; между разными user_id: ===========
+
 WITH experience_rows AS (
     SELECT
         ue.id AS experience_id,
@@ -28,39 +32,64 @@ numbered AS (
         LEAD(user_id) OVER (ORDER BY user_id, experience_id) AS next_user_id
     FROM experience_rows
 ),
-combined AS (
+formatted_output AS (
     SELECT
         user_id,
-        company_id,
-        position,
-        duration,
-        description,
-        skills,
         experience_id,
-        0 AS sort_offset
+        1 AS line_order,
+        experience_id::text || ', ' || user_id::text || ', ' || COALESCE(company_id, '') AS output_line
     FROM numbered
 
     UNION ALL
 
     SELECT
         user_id,
-        '---' AS company_id,
-        '---' AS position,
-        '---' AS duration,
-        '---' AS description,
-        '---' AS skills,
         experience_id,
-        1 AS sort_offset
+        2,
+        COALESCE(position, '')
     FROM numbered
-    WHERE next_user_id IS NOT NULL
-      AND next_user_id IS DISTINCT FROM user_id
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        experience_id,
+        3,
+        COALESCE(duration, '')
+    FROM numbered
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        experience_id,
+        4,
+        COALESCE(description, '')
+    FROM numbered
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        experience_id,
+        5,
+        COALESCE(skills, '')
+    FROM numbered
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        experience_id,
+        6,
+        CASE
+            WHEN next_user_id IS NOT NULL
+             AND next_user_id IS DISTINCT FROM user_id
+            THEN '==========='
+            ELSE '-----------'
+        END
+    FROM numbered
 )
-SELECT
-    user_id,
-    company_id,
-    position,
-    duration,
-    description,
-    skills
-FROM combined
-ORDER BY user_id, experience_id, sort_offset;
+SELECT output_line
+FROM formatted_output
+ORDER BY user_id, experience_id, line_order;
