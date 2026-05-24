@@ -169,7 +169,8 @@ public sealed class DatabaseClient
         int? salary = null,
         string? lastVisit = null,
         bool? isPublic = null,
-        string? jobSearchStatus = null)
+        string? jobSearchStatus = null,
+        bool? isEmpty = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -189,7 +190,7 @@ public sealed class DatabaseClient
                 }
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
@@ -203,6 +204,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
 
                 cmd.ExecuteNonQuery();
                 _statistics.RecordInsert("habr_resumes", link);
@@ -252,8 +254,8 @@ public sealed class DatabaseClient
             {
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, created_at, updated_at) 
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, NOW(), NOW())
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) 
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, NOW(), NOW())
                     ON CONFLICT (link) 
                     DO UPDATE SET 
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
@@ -267,6 +269,7 @@ public sealed class DatabaseClient
                         last_visit = COALESCE(EXCLUDED.last_visit, habr_resumes.last_visit),
                         public = COALESCE(EXCLUDED.public, habr_resumes.public),
                         job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
+                        is_empty = COALESCE(EXCLUDED.is_empty, habr_resumes.is_empty),
                         updated_at = NOW()
                     RETURNING xmax", conn);
                 cmd.Parameters.AddWithValue("@link", link);
@@ -281,6 +284,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
 
                 var xmaxResult = cmd.ExecuteScalar();
                 var xmax = Convert.ToUInt32(xmaxResult);
@@ -693,7 +697,8 @@ public sealed class DatabaseClient
                                     salary: profile.Salary,
                                     lastVisit: profile.LastVisit,
                                     isPublic: profile.IsPublic,
-                                    jobSearchStatus: profile.JobSearchStatus
+                                    jobSearchStatus: profile.JobSearchStatus,
+                                    isEmpty: profile.isEmpty
                                 );
                             }
                             // Если это просто обновление статуса публичности
@@ -1615,7 +1620,8 @@ public sealed class DatabaseClient
         string? levelTitle = null,
         int? salary = null,
         string? jobSearchStatus = null,
-        List<CommunityParticipationData>? communityParticipation = null)
+        List<CommunityParticipationData>? communityParticipation = null,
+        bool? isEmpty = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
@@ -1642,7 +1648,8 @@ public sealed class DatabaseClient
                     WorkExperience: experienceText,
                     LastVisit: lastVisit,
                     IsPublic: null,
-                    JobSearchStatus: jobSearchStatus
+                    JobSearchStatus: jobSearchStatus,
+                    isEmpty: isEmpty
                 )
             );
             _saveQueue.Enqueue(profileRecord);
@@ -1774,6 +1781,53 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Log($"[DB] UserAbout {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
+        }
+    }
+
+    /// <summary>
+    /// Обновить флаг пустого профиля для пользователя
+    /// </summary>
+    public void DatabaseUpdateUserEmptyProfile(NpgsqlConnection conn, string userLink, bool isEmpty)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes 
+                SET is_empty = @is_empty
+                WHERE link = @link", conn);
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@is_empty", isEmpty);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                _statistics.RecordUpdate("habr_resumes", userLink);
+                Log($"[DB] UserEmptyProfile {userLink}: ✓ UPDATE (isEmpty={isEmpty})");
+            }
+            else
+            {
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] UserEmptyProfile {userLink}: ⚠ NOT FOUND");
+            }
+            TryDumpStatistics();
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] UserEmptyProfile {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] UserEmptyProfile {userLink}: ❌ ERROR - {ex.Message}");
             _statistics.RecordError("habr_resumes", userLink);
         }
     }

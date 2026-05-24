@@ -1,4 +1,4 @@
-namespace JobBoardScraper.Domain.Models;
+﻿namespace JobBoardScraper.Domain.Models;
 
 /// <summary>
 /// Структура для хранения данных профиля пользователя
@@ -13,5 +13,6 @@ public readonly record struct UserProfileData(
     string? WorkExperience,
     string? LastVisit,
     bool? IsPublic,
-    string? JobSearchStatus
+    string? JobSearchStatus,
+    bool? isEmpty
 );

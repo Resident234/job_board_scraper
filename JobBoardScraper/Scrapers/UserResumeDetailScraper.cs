@@ -1,4 +1,4 @@
-using JobBoardScraper.Infrastructure.Logging;
+﻿using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Throttling;
 using JobBoardScraper.Infrastructure.Utils;
@@ -744,6 +744,35 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем данные об участии в профсообществах
                 var communityParticipationData = ProfileDataExtractor.ExtractCommunityParticipationData(doc);
                 
+                // Определяем, является ли профиль пустым
+                // Пустой профиль - это когда НИ ОДНО из следующих условий не выполняется:
+                // 1. Есть не пустой about (не NULL, не пустая строка, не "Доступ ограничен настройками приватности", не "Ошибка 404")
+                // 2. Есть опыт работы в habr_user_experience
+                // 3. Есть высшее образование в habr_resumes_universities
+                // 4. Есть дополнительное образование в habr_resumes_educations
+                // 5. Есть участие в профсообществах (JSONB массив не пустой)
+                
+                // Проверяем, не является ли about служебным сообщением
+                bool isServiceMessage = !string.IsNullOrWhiteSpace(about) && 
+                                       (about == "Доступ ограничен настройками приватности" || 
+                                        about == "Ошибка 404");
+                
+                // Профиль пустой только если:
+                // - about пустой ИЛИ не является служебным сообщением
+                // - И нет других данных
+                bool isEmpty = !isServiceMessage &&
+                              string.IsNullOrWhiteSpace(about) && 
+                              experienceCount == 0 && 
+                              educationCount == 0 && 
+                              additionalEducationCount == 0 && 
+                              communityParticipationData.Count == 0;
+                
+                // Если профиль пустой, записываем "Пустой профиль" в about
+                if (isEmpty)
+                {
+                    about = "Пустой профиль";
+                }
+                
                 // Сохраняем информацию для публичного профиля
                 _db.EnqueueUserResumeDetail(
                     userLink,
@@ -760,7 +789,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                     levelTitle,
                     salary,
                     jobSearchStatus,
-                    communityParticipationData);
+                    communityParticipationData,
+                    isEmpty: isEmpty);
                 
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
