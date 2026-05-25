@@ -190,6 +190,13 @@ public sealed class DatabaseClient
                     return;
                 }
 
+                if (title.Contains("Ошибка 404"))
+                {
+                    Log($"[DB] Resume {link}: ⏭ SKIP (404 страница)");
+                    _statistics.RecordSkipped("habr_resumes", link);
+                    return;
+                }
+
                 using var cmd = new NpgsqlCommand(
                     "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, NOW(), NOW())",
                     conn);
@@ -253,6 +260,13 @@ public sealed class DatabaseClient
             }
             else // UpdateIfExists
             {
+                if (title.Contains("Ошибка 404"))
+                {
+                    Log($"[DB] Resume {link}: ⏭ SKIP (404 страница)");
+                    _statistics.RecordSkipped("habr_resumes", link);
+                    return;
+                }
+
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
                     INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) 
@@ -2847,6 +2861,29 @@ public sealed class DatabaseClient
         cmd.ExecuteNonQuery();
     }
 
-    #endregion
+    /// <summary>
+    /// Удаляет все записи с 404 ошибками из таблицы habr_resumes
+    /// </summary>
+    /// <returns>Количество удалённых записей</returns>
+    public int DatabaseCleanup404Pages(NpgsqlConnection conn)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
 
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+            using var cmd = new NpgsqlCommand(
+                "DELETE FROM habr_resumes WHERE title LIKE '%Ошибка 404%' OR about LIKE '%Ошибка 404%'", conn);
+            int deleted = cmd.ExecuteNonQuery();
+            Log($"[DB] Очистка 404: удалено {deleted} записей");
+            return deleted;
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при очистке 404: {ex.Message}");
+            return 0;
+        }
+    }
+
+    #endregion
 }
