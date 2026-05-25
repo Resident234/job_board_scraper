@@ -10,6 +10,35 @@ public class DatabaseStatistics
     private readonly ConcurrentDictionary<string, TableStatistics> _tableStats = new();
     private readonly DateTime _startTime = DateTime.Now;
 
+    // Все таблицы проекта
+    private static readonly string[] AllTables = new string[]
+    {
+        "habr_resumes",
+        "habr_companies",
+        "habr_category_root_ids",
+        "habr_skills",
+        "habr_company_skills",
+        "habr_levels",
+        "habr_user_skills",
+        "habr_user_experience",
+        "habr_user_experience_skills",
+        "habr_resumes_universities",
+        "habr_resumes_educations",
+        "habr_universities",
+        "habr_company_reviews"
+    };
+
+    /// <summary>
+    /// Инициализация всех таблиц для отображения в статистике
+    /// </summary>
+    public void InitializeAllTables()
+    {
+        foreach (var table in AllTables)
+        {
+            _tableStats.GetOrAdd(table, _ => new TableStatistics(table));
+        }
+    }
+
     /// <summary>
     /// Получить или создать статистику для таблицы
     /// </summary>

@@ -59,26 +59,27 @@ public readonly record struct DbRecord(
     List<CommunityParticipationData>? CommunityParticipation = null);
 
 public sealed class DatabaseClient
-{
-    private readonly string _connectionString;
-    private Task? _dbWriterTask;
-    private CancellationTokenSource? _writerCts;
-    private ConcurrentQueue<DbRecord>? _saveQueue;
-    private readonly ConsoleLogger? _logger;
-    private readonly DatabaseStatistics _statistics = new();
-    private DateTime _lastStatsDump = DateTime.Now;
-    private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
-
-    /// <summary>
-    /// Статистика операций с БД
-    /// </summary>
-    public DatabaseStatistics Statistics => _statistics;
-
-    public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _logger = logger;
-    }
+        private readonly string _connectionString;
+        private Task? _dbWriterTask;
+        private CancellationTokenSource? _writerCts;
+        private ConcurrentQueue<DbRecord>? _saveQueue;
+        private readonly ConsoleLogger? _logger;
+        private readonly DatabaseStatistics _statistics = new();
+        private DateTime _lastStatsDump = DateTime.Now;
+        private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// Статистика операций с БД
+        /// </summary>
+        public DatabaseStatistics Statistics => _statistics;
+
+        public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
+        {
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _logger = logger;
+            _statistics.InitializeAllTables();
+        }
 
     /// <summary>
     /// Периодически выводит статистику в лог (раз в 5 минут)
@@ -1369,6 +1370,7 @@ public sealed class DatabaseClient
 
             // Добавляем навыки
             int addedCount = 0;
+            int newSkillsCount = 0;
             foreach (var skillTitle in skills)
             {
                 if (string.IsNullOrWhiteSpace(skillTitle)) continue;
@@ -1399,9 +1401,14 @@ public sealed class DatabaseClient
                 }
 
                 addedCount++;
+                newSkillsCount++;
             }
 
-            _statistics.RecordUpdate("habr_company_skills", companyCode);
+            if (addedCount > 0)
+            {
+                _statistics.RecordInsert("habr_company_skills", companyCode);
+                _statistics.RecordInsert("habr_skills", $"{newSkillsCount} навыков для компании {companyCode}");
+            }
             Log($"[DB] CompanySkills {companyCode}: ✓ {addedCount} навыков добавлено");
             TryDumpStatistics();
         }
@@ -2088,6 +2095,7 @@ public sealed class DatabaseClient
 
             // Добавляем навыки
             int addedCount = 0;
+            int newSkillsCount = 0;
             foreach (var skillTitle in skills)
             {
                 if (string.IsNullOrWhiteSpace(skillTitle)) continue;
@@ -2118,8 +2126,14 @@ public sealed class DatabaseClient
                 }
 
                 addedCount++;
+                newSkillsCount++;
             }
 
+            if (addedCount > 0)
+            {
+                _statistics.RecordInsert("habr_user_skills", $"{userId}-{userLink}");
+                _statistics.RecordInsert("habr_skills", $"{newSkillsCount} навыков для {userLink}");
+            }
             Log($"[DB] Добавлено {addedCount} навыков для пользователя {userLink}");
         }
         catch (NpgsqlException dbEx)
@@ -2269,6 +2283,7 @@ public sealed class DatabaseClient
             }
 
             // Добавляем навыки
+            int experienceSkillsCount = 0;
             if (exp.Skills != null && exp.Skills.Count > 0)
             {
                 foreach (var (skillId, skillName) in exp.Skills)
@@ -2296,6 +2311,7 @@ public sealed class DatabaseClient
                                 cmdInsertSkill.Parameters.AddWithValue("@title", skillName.Trim());
                                 var insertResult = cmdInsertSkill.ExecuteScalar();
                                 actualSkillId = Convert.ToInt32(insertResult);
+                                _statistics.RecordInsert("habr_skills", skillName.Trim());
                             }
                         }
                     }
@@ -2310,10 +2326,13 @@ public sealed class DatabaseClient
                         cmdLinkSkill.Parameters.AddWithValue("@skill_id", actualSkillId);
                         cmdLinkSkill.ExecuteNonQuery();
                     }
+                    experienceSkillsCount++;
                 }
+                _statistics.RecordInsert("habr_user_experience_skills", $"{experienceId}");
             }
 
             Log($"[DB] Добавлен опыт работы для {exp.UserLink}: Company={exp.CompanyTitle}, Position={exp.Position}, Skills={exp.Skills?.Count ?? 0}");
+            _statistics.RecordInsert("habr_user_experience", $"{userId}-{exp.CompanyTitle}");
         }
         catch (NpgsqlException dbEx)
         {
