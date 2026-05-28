@@ -18,6 +18,7 @@ public sealed class FreeProxyListScraper : IDisposable
     private readonly string _proxyListUrl;
     private bool _adaptiveModeEnabled;
     private int _adaptiveTriggerThreshold;
+    private readonly ProxySourceStatistics _statistics;
 
     public FreeProxyListScraper(
         FreeProxyPool proxyPool,
@@ -36,6 +37,7 @@ public sealed class FreeProxyListScraper : IDisposable
         _cts = new CancellationTokenSource();
         _adaptiveModeEnabled = adaptiveModeEnabled;
         _adaptiveTriggerThreshold = adaptiveTriggerThreshold;
+        _statistics = new ProxySourceStatistics("FreeProxyList.net");
 
         if (_adaptiveModeEnabled)
         {
@@ -127,12 +129,25 @@ public sealed class FreeProxyListScraper : IDisposable
             var html = await _httpClient.GetStringAsync(_proxyListUrl, ct);
             var proxies = await ParseProxyTableAsync(html, ct);
             _logger.WriteLine($"[FreeProxyListScraper] Parsed {proxies.Count} proxies");
+
+            // Update statistics for scraped proxies
+            foreach (var proxy in proxies)
+            {
+                _statistics.RecordProxyScraped();
+            }
+
             var filtered = FilterProxies(proxies);
             _logger.WriteLine($"[FreeProxyListScraper] Filtered to {filtered.Count} proxies");
             var added = 0;
             foreach (var proxy in filtered)
-                if (_proxyPool.AddProxy(proxy.ToProxyUrl())) added++;
+            {
+                var proxyUrlWithSource = ProxySourceHelper.AddSourceToProxyUrl(proxy.ToProxyUrl(), "FreeProxyList.net");
+                if (_proxyPool.AddProxy(proxyUrlWithSource)) added++;
+            }
             _logger.WriteLine($"[FreeProxyListScraper] Added {added} proxies (total: {_proxyPool.GetCount()})");
+
+            // Log statistics
+            _logger.WriteLine($"[FreeProxyListScraper] Stats: {_statistics.GetSummary()}");
         }
         catch (Exception ex)
         {
@@ -173,6 +188,8 @@ public sealed class FreeProxyListScraper : IDisposable
                .OrderByDescending(p => p.GetQualityScore())
                .ThenByDescending(p => p.IsRecentlyChecked())
                .ToList();
+
+    public ProxySourceStatistics GetStatistics() => _statistics;
 
     public void Dispose()
     {

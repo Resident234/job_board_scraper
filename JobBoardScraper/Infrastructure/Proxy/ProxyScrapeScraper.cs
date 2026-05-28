@@ -18,6 +18,7 @@ public sealed class ProxyScrapeScraper : IDisposable
     private readonly string _apiUrl;
     private bool _adaptiveModeEnabled;
     private int _adaptiveTriggerThreshold;
+    private readonly ProxySourceStatistics _statistics;
 
     public ProxyScrapeScraper(
         FreeProxyPool proxyPool,
@@ -36,6 +37,7 @@ public sealed class ProxyScrapeScraper : IDisposable
         _cts = new CancellationTokenSource();
         _adaptiveModeEnabled = adaptiveModeEnabled;
         _adaptiveTriggerThreshold = adaptiveTriggerThreshold;
+        _statistics = new ProxySourceStatistics("ProxyScrape API");
 
         if (_adaptiveModeEnabled)
         {
@@ -123,13 +125,23 @@ public sealed class ProxyScrapeScraper : IDisposable
             var proxies = ParseProxyList(response);
             _logger.WriteLine($"Parsed {proxies.Count} proxies");
 
+            // Update statistics for scraped proxies
+            foreach (var proxyUrl in proxies)
+            {
+                _statistics.RecordProxyScraped();
+            }
+
             var added = 0;
             foreach (var proxyUrl in proxies)
             {
-                if (_proxyPool.AddProxy(proxyUrl))
+                var proxyUrlWithSource = ProxySourceHelper.AddSourceToProxyUrl(proxyUrl, "ProxyScrape API");
+                if (_proxyPool.AddProxy(proxyUrlWithSource))
                     added++;
             }
             _logger.WriteLine($"Added {added} proxies (total: {_proxyPool.GetCount()})");
+
+            // Log statistics
+            _logger.WriteLine($"[ProxyScrapeScraper] Stats: {_statistics.GetSummary()}");
         }
         catch (Exception ex)
         {
@@ -188,6 +200,8 @@ public sealed class ProxyScrapeScraper : IDisposable
 
         return true;
     }
+
+    public ProxySourceStatistics GetStatistics() => _statistics;
 
     public void Dispose()
     {
