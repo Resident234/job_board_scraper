@@ -11,12 +11,13 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     private readonly GeneralPoolManager _generalPoolManager;
     private readonly ConsoleLogger? _logger;
     private readonly TimeSpan _whitelistRecheckInterval;
-    
+
     private bool _usingWhitelist = true;
     private DateTime _switchedToGeneralAt;
     private string? _lastUsedProxy;
     private ProxySource _lastProxySource;
     private bool _disposed;
+    private readonly Dictionary<string, ProxySourceStatistics> _sourceStatistics = new();
 
     public enum ProxySource
     {
@@ -96,6 +97,13 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     {
         if (string.IsNullOrEmpty(proxyUrl)) return;
 
+        // Update source statistics for working proxy
+        var source = ProxySourceHelper.GetProxySource(proxyUrl);
+        if (source != null)
+        {
+            GetOrCreateSourceStatistics(source).RecordWorkingProxy();
+        }
+
         // Маршрутизируем в нужный менеджер
         if (_lastProxySource == ProxySource.Whitelist)
         {
@@ -110,6 +118,13 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     public void ReportFailure(string proxyUrl)
     {
         if (string.IsNullOrEmpty(proxyUrl)) return;
+
+        // Update source statistics for failed proxy
+        var source = ProxySourceHelper.GetProxySource(proxyUrl);
+        if (source != null)
+        {
+            GetOrCreateSourceStatistics(source).RecordFailedProxy();
+        }
 
         // Маршрутизируем в нужный менеджер
         if (_lastProxySource == ProxySource.Whitelist)
@@ -128,6 +143,13 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     public void ReportDailyLimitReached(string proxyUrl)
     {
         if (string.IsNullOrEmpty(proxyUrl)) return;
+
+        // Update source statistics for whitelisted proxy
+        var source = ProxySourceHelper.GetProxySource(proxyUrl);
+        if (source != null)
+        {
+            GetOrCreateSourceStatistics(source).RecordWhitelistedProxy();
+        }
 
         // Маршрутизируем в нужный менеджер
         if (_lastProxySource == ProxySource.Whitelist)
@@ -185,6 +207,57 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         var source = _usingWhitelist ? "Whitelist" : "General Pool";
         return $"[{source}] WL: {_whitelistManager.WhitelistCount} | Pool: {_generalPoolManager.Count} | " +
                $"Blacklist: {_generalPoolManager.BlacklistCount} | Current: {_lastUsedProxy ?? "none"}";
+    }
+
+    /// <summary>
+    /// Get source-specific statistics
+    /// </summary>
+    public string GetSourceStatisticsSummary()
+    {
+        if (_sourceStatistics.Count == 0)
+            return "No source statistics available";
+
+        var summaries = _sourceStatistics.Values
+            .Select(stats => stats.GetSummary())
+            .ToList();
+
+        return "Source Statistics:\n" + string.Join("\n", summaries);
+    }
+
+    /// <summary>
+    /// Get detailed source statistics
+    /// </summary>
+    public string GetDetailedSourceStatistics()
+    {
+        if (_sourceStatistics.Count == 0)
+            return "No source statistics available";
+
+        var detailedStats = _sourceStatistics.Values
+            .Select(stats => stats.GetDetailedStats())
+            .ToList();
+
+        return "Detailed Source Statistics:\n" + string.Join("\n\n", detailedStats);
+    }
+
+    /// <summary>
+    /// Get or create source statistics for a given source
+    /// </summary>
+    private ProxySourceStatistics GetOrCreateSourceStatistics(string sourceName)
+    {
+        if (!_sourceStatistics.TryGetValue(sourceName, out var stats))
+        {
+            stats = new ProxySourceStatistics(sourceName);
+            _sourceStatistics[sourceName] = stats;
+        }
+        return stats;
+    }
+
+    /// <summary>
+    /// Register statistics from a scraper
+    /// </summary>
+    public void RegisterScraperStatistics(ProxySourceStatistics statistics)
+    {
+        _sourceStatistics[statistics.SourceName] = statistics;
     }
 
     public void Dispose()

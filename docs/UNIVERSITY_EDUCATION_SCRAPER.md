@@ -304,4 +304,4 @@ dotnet test JobBoardScraper.Tests --filter "FullyQualifiedName~Education|FullyQu
 ## См. также
 
 - [USER_RESUME_DETAIL_SCRAPER.md](USER_RESUME_DETAIL_SCRAPER.md) — Основной скрапер резюме
-- [USER_ADDITIONAL_DATA_EXTRACTION.md](USER_ADDITIONAL_DATA_EXTRACTION.md) — Извлечение дополнительных данных
+- [CHANGELOG.md](../CHANGELOG.md) — Извлечение дополнительных данных профиля

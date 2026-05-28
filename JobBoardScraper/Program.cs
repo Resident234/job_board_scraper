@@ -391,13 +391,43 @@ class Program
                 var whitelistStorage = new JsonWhitelistStorage(AppConfig.ProxyWhitelistFilePath);
                 var whitelistManager = new ProxyWhitelistManager(whitelistStorage);
                 await whitelistManager.LoadStateAsync();
-                
+
                 var generalPoolManager = new GeneralPoolManager(freeProxyPool);
                 proxyCoordinator = new ProxyCoordinator(whitelistManager, generalPoolManager);
-                
+
+                // Register scraper statistics with coordinator
+                if (freeProxyListScraper != null)
+                {
+                    proxyCoordinator.RegisterScraperStatistics(freeProxyListScraper.GetStatistics());
+                }
+                if (proxyScrapeScraper != null)
+                {
+                    proxyCoordinator.RegisterScraperStatistics(proxyScrapeScraper.GetStatistics());
+                }
+
                 Console.WriteLine($"[Program] UserResumeDetailScraper: ProxyCoordinator ВКЛЮЧЕН");
                 Console.WriteLine($"[Program]   - Whitelist: {whitelistManager.WhitelistCount} прокси");
                 Console.WriteLine($"[Program]   - General Pool: {freeProxyPool.GetCount()} прокси");
+
+                // Display initial source statistics
+                Console.WriteLine($"[Program] Source Statistics:\n{proxyCoordinator.GetSourceStatisticsSummary()}");
+
+                // Start periodic statistics reporting
+                var statsTimer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        while (await statsTimer.WaitForNextTickAsync(cts.Token))
+                        {
+                            Console.WriteLine($"[STATS] Source Statistics Update:\n{proxyCoordinator.GetSourceStatisticsSummary()}");
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Timer stopped due to cancellation
+                    }
+                }, cts.Token);
             }
             else
             {
