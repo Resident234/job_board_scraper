@@ -83,7 +83,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
     public void ReportSuccess(string proxyUrl)
     {
         if (string.IsNullOrEmpty(proxyUrl)) return;
-        
+
         lock (_lock)
         {
             var entry = _whitelist.FirstOrDefault(e => e.ProxyUrl == proxyUrl);
@@ -94,6 +94,13 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
                 entry.FailedSince = null;
                 entry.LastUsed = DateTime.UtcNow;
                 _logger?.WriteLine($"[WHITELIST] ✓ Прокси OK: {proxyUrl}");
+            }
+            else
+            {
+                // Добавляем новый прокси в whitelist после первого успешного использования
+                _whitelist.Add(new WhitelistProxyEntry { ProxyUrl = proxyUrl, LastUsed = DateTime.UtcNow });
+                _logger?.WriteLine($"[WHITELIST] ★ Добавлен в whitelist после успешного использования: {proxyUrl}");
+                LogStats("После добавления");
             }
             _currentProxy = proxyUrl;
         }
