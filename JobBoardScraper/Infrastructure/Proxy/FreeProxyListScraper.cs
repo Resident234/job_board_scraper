@@ -16,12 +16,16 @@ public sealed class FreeProxyListScraper : IDisposable
     private Task? _scraperTask;
     private bool _disposed;
     private readonly string _proxyListUrl;
+    private bool _adaptiveModeEnabled;
+    private int _adaptiveTriggerThreshold;
 
     public FreeProxyListScraper(
         FreeProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly,
-        string? proxyListUrl = null)
+        string? proxyListUrl = null,
+        bool adaptiveModeEnabled = true,
+        int adaptiveTriggerThreshold = 100)
     {
         _proxyPool = proxyPool ?? throw new ArgumentNullException(nameof(proxyPool));
         _refreshInterval = refreshInterval ?? TimeSpan.FromMinutes(10);
@@ -30,7 +34,18 @@ public sealed class FreeProxyListScraper : IDisposable
         _logger = new ConsoleLogger("FreeProxyListScraper");
         _logger.SetOutputMode(outputMode);
         _cts = new CancellationTokenSource();
-        _logger.WriteLine($"[FreeProxyListScraper] Initialized with refresh interval: {_refreshInterval}");
+        _adaptiveModeEnabled = adaptiveModeEnabled;
+        _adaptiveTriggerThreshold = adaptiveTriggerThreshold;
+
+        if (_adaptiveModeEnabled)
+        {
+            _proxyPool.OnPoolLow += HandlePoolLowEvent;
+            _logger.WriteLine($"[FreeProxyListScraper] Initialized with ADAPTIVE mode (threshold: {_adaptiveTriggerThreshold}), refresh interval: {_refreshInterval}");
+        }
+        else
+        {
+            _logger.WriteLine($"[FreeProxyListScraper] Initialized with FIXED interval mode: {_refreshInterval}");
+        }
     }
 
     public void Start()
@@ -53,20 +68,55 @@ public sealed class FreeProxyListScraper : IDisposable
     private async Task RunAsync(CancellationToken ct)
     {
         await ScrapeProxiesAsync(ct);
-        using var timer = new PeriodicTimer(_refreshInterval);
-        try
+
+        if (_adaptiveModeEnabled)
         {
-            while (await timer.WaitForNextTickAsync(ct))
+            // In adaptive mode, we still run periodic checks but rely more on event-driven refreshes
+            using var timer = new PeriodicTimer(_refreshInterval);
+            try
             {
-                await ScrapeProxiesAsync(ct);
-                if (_proxyPool.GetCount() < 100)
+                while (await timer.WaitForNextTickAsync(ct))
                 {
-                    _logger.WriteLine("[FreeProxyListScraper] Pool below 100, immediate refresh");
+                    // Periodic health check - scrape even if pool is not low to refresh stale proxies
                     await ScrapeProxiesAsync(ct);
                 }
             }
+            catch (OperationCanceledException) { }
         }
-        catch (OperationCanceledException) { }
+        else
+        {
+            // Legacy fixed interval mode
+            using var timer = new PeriodicTimer(_refreshInterval);
+            try
+            {
+                while (await timer.WaitForNextTickAsync(ct))
+                {
+                    await ScrapeProxiesAsync(ct);
+                    if (_proxyPool.GetCount() < 100)
+                    {
+                        _logger.WriteLine("[FreeProxyListScraper] Pool below 100, immediate refresh");
+                        await ScrapeProxiesAsync(ct);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    /// <summary>
+    /// Handle pool low event - trigger immediate proxy scraping
+    /// </summary>
+    private async void HandlePoolLowEvent(int currentCount)
+    {
+        try
+        {
+            _logger.WriteLine($"[FreeProxyListScraper] 🚨 Pool low event triggered! Current: {currentCount}, threshold: {_adaptiveTriggerThreshold}");
+            await ScrapeProxiesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"[FreeProxyListScraper] Error handling pool low event: {ex.Message}");
+        }
     }
 
     public async Task ScrapeProxiesAsync(CancellationToken ct = default)
@@ -127,6 +177,13 @@ public sealed class FreeProxyListScraper : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
+
+        // Unsubscribe from events to prevent memory leaks
+        if (_adaptiveModeEnabled)
+        {
+            _proxyPool.OnPoolLow -= HandlePoolLowEvent;
+        }
+
         Stop();
         _cts?.Dispose();
         _httpClient?.Dispose();

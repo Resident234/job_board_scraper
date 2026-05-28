@@ -341,13 +341,16 @@ class Program
             
             freeProxyPool = new FreeProxyPool(
                 maxSize: AppConfig.ProxyPoolMaxSize,
-                logger: new ConsoleLogger("FreeProxyPool"));
+                logger: new ConsoleLogger("FreeProxyPool"),
+                lowWaterMark: 200);
             
             freeProxyListScraper = new FreeProxyListScraper(
                 freeProxyPool,
                 refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
                 outputMode: AppConfig.UserResumeDetailOutputMode,
-                proxyListUrl: AppConfig.FreeProxyListUrl);
+                proxyListUrl: AppConfig.FreeProxyListUrl,
+                adaptiveModeEnabled: true,
+                adaptiveTriggerThreshold: 200);
             
             freeProxyListScraper.Start();
             
@@ -358,7 +361,9 @@ class Program
                 proxyScrapeScraper = new ProxyScrapeScraper(
                     freeProxyPool,
                     refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
-                    outputMode: AppConfig.UserResumeDetailOutputMode);
+                    outputMode: AppConfig.UserResumeDetailOutputMode,
+                    adaptiveModeEnabled: true,
+                    adaptiveTriggerThreshold: 200);
                 
                 proxyScrapeScraper.Start();
             }

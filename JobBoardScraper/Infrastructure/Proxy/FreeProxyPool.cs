@@ -3,7 +3,7 @@ using JobBoardScraper.Infrastructure.Logging;
 namespace JobBoardScraper.Infrastructure.Proxy;
 
 /// <summary>
-/// Thread-safe pool for managing free proxy servers
+/// Thread-safe pool for managing free proxy servers with adaptive monitoring
 /// </summary>
 public sealed class FreeProxyPool
 {
@@ -11,16 +11,23 @@ public sealed class FreeProxyPool
     private readonly object _lock;
     private readonly int _maxSize;
     private readonly ConsoleLogger? _logger;
+    private int _lowWaterMark;
 
-    public FreeProxyPool(int maxSize = 1000, ConsoleLogger? logger = null)
+    // Event for notifying when pool level drops below threshold
+    public event Action<int>? OnPoolLow;
+
+    public FreeProxyPool(int maxSize = 1000, ConsoleLogger? logger = null, int lowWaterMark = 100)
     {
         if (maxSize <= 0)
             throw new ArgumentException("Max size must be positive", nameof(maxSize));
+        if (lowWaterMark <= 0 || lowWaterMark > maxSize)
+            throw new ArgumentException("Low water mark must be positive and less than max size", nameof(lowWaterMark));
 
         _proxies = new Queue<string>();
         _lock = new object();
         _maxSize = maxSize;
         _logger = logger;
+        _lowWaterMark = lowWaterMark;
     }
 
     public string? GetNextProxy()
@@ -100,5 +107,40 @@ public sealed class FreeProxyPool
     public string GetStatus()
     {
         lock (_lock) { return $"Pool: {_proxies.Count}/{_maxSize} proxies"; }
+    }
+
+    /// <summary>
+    /// Check if pool level is below low water mark and trigger event if needed
+    /// </summary>
+    public void CheckPoolLevel()
+    {
+        lock (_lock)
+        {
+            if (_proxies.Count < _lowWaterMark)
+            {
+                _logger?.WriteLine($"[POOL] ⚠ Low pool level: {_proxies.Count}/{_maxSize} (threshold: {_lowWaterMark})");
+                OnPoolLow?.Invoke(_proxies.Count);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Get the low water mark threshold
+    /// </summary>
+    public int GetLowWaterMark() => _lowWaterMark;
+
+    /// <summary>
+    /// Set a new low water mark threshold
+    /// </summary>
+    public void SetLowWaterMark(int newThreshold)
+    {
+        if (newThreshold <= 0 || newThreshold > _maxSize)
+            throw new ArgumentException("Low water mark must be positive and less than max size", nameof(newThreshold));
+
+        lock (_lock)
+        {
+            _lowWaterMark = newThreshold;
+            _logger?.WriteLine($"[POOL] Low water mark updated to: {_lowWaterMark}");
+        }
     }
 }

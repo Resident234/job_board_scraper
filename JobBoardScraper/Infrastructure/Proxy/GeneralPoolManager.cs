@@ -64,8 +64,11 @@ public class GeneralPoolManager : IProxyManager
                 return proxy;
             }
 
-            // Логируем только когда прокси закончились
+             // Логируем только когда прокси закончились
             _logger?.WriteLine("[GENERAL] ⚠ Нет доступных прокси в пуле");
+
+            // Check if we need to trigger adaptive proxy fetching
+            _pool.CheckPoolLevel();
             return null;
         }
     }
