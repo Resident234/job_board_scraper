@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿﻿﻿using System;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -24,7 +24,8 @@ public enum DbRecordType
     UserSkills,
     UserExperience,
     UserAdditionalData,
-    UserCommunityParticipation
+    UserCommunityParticipation,
+    UserDeleted
 }
 
 public enum InsertMode
@@ -33,7 +34,7 @@ public enum InsertMode
     /// Пропустить вставку, если запись уже существует
     /// </summary>
     SkipIfExists,
-    
+
     /// <summary>
     /// Обновить запись, если она уже существует (UPSERT)
     /// </summary>
@@ -41,10 +42,10 @@ public enum InsertMode
 }
 
 public readonly record struct DbRecord(
-    DbRecordType Type, 
-    string PrimaryValue, 
-    string SecondaryValue, 
-    string? TertiaryValue = null, 
+    DbRecordType Type,
+    string PrimaryValue,
+    string SecondaryValue,
+    string? TertiaryValue = null,
     InsertMode Mode = InsertMode.SkipIfExists,
     string? Code = null,
     bool? Expert = null,
@@ -56,7 +57,8 @@ public readonly record struct DbRecord(
     UserProfileData? UserProfile = null,
     UserExperienceData? UserExperience = null,
     Dictionary<string, string?>? AdditionalData = null,
-    List<CommunityParticipationData>? CommunityParticipation = null);
+    List<CommunityParticipationData>? CommunityParticipation = null,
+    bool? IsDeleted = null);
 
 public sealed class DatabaseClient
     {
@@ -92,7 +94,7 @@ public sealed class DatabaseClient
             _lastStatsDump = DateTime.Now;
         }
     }
-    
+
     private void Log(string message)
     {
         if (_logger != null)
@@ -104,7 +106,7 @@ public sealed class DatabaseClient
             Console.WriteLine(message);
         }
     }
-    
+
     /// <summary>
     /// Обрезает строку до указанной длины, если она превышает лимит
     /// </summary>
@@ -112,7 +114,7 @@ public sealed class DatabaseClient
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
         if (value.Length <= maxLength) return value;
-        
+
         return value.Substring(0, maxLength - 3) + "...";
     }
 
@@ -164,14 +166,15 @@ public sealed class DatabaseClient
         string? code = null,
         bool? expert = null,
         string? workExperience = null,
-        InsertMode mode = InsertMode.SkipIfExists,
-        int? levelId = null,
-        string? infoTech = null,
-        int? salary = null,
-        string? lastVisit = null,
-        bool? isPublic = null,
-        string? jobSearchStatus = null,
-        bool? isEmpty = null)
+         InsertMode mode = InsertMode.SkipIfExists,
+         int? levelId = null,
+         string? infoTech = null,
+         int? salary = null,
+         string? lastVisit = null,
+         bool? isPublic = null,
+         string? jobSearchStatus = null,
+         bool? isEmpty = null,
+         bool? isDeleted = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -197,8 +200,10 @@ public sealed class DatabaseClient
                     return;
                 }
 
+
+
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title);
@@ -213,48 +218,49 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
 
                 cmd.ExecuteNonQuery();
                 _statistics.RecordInsert("habr_resumes", link);
-                
+
                 // Подробное логирование
                 var logParts = new List<string> { $"[DB] Resume {link}:" };
-                
+
                 if (title != null)
                     logParts.Add($"Title={title}");
-                
+
                 if (!string.IsNullOrWhiteSpace(slogan))
                     logParts.Add($"Slogan={slogan}");
-                
+
                 if (code != null)
                     logParts.Add($"Code={code}");
-                
+
                 if (expert == true)
                     logParts.Add("Expert=✓");
-                
+
                 if (workExperience != null)
                     logParts.Add($"Experience={workExperience}");
-                
+
                 if (levelId.HasValue)
                     logParts.Add($"LevelID={levelId.Value}");
-                
+
                 if (infoTech != null)
                     logParts.Add($"InfoTech={infoTech}");
-                
+
                 if (salary.HasValue)
                     logParts.Add($"Salary={salary.Value}");
-                
+
                 if (lastVisit != null)
                     logParts.Add($"LastVisit={lastVisit}");
-                
+
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
-                
+
                 if (jobSearchStatus != null)
                     logParts.Add($"JobStatus={jobSearchStatus}");
-                
+
                 logParts.Add("✓ INSERT");
-                
+
                 Log(string.Join(" | ", logParts));
                 TryDumpStatistics();
             }
@@ -267,12 +273,17 @@ public sealed class DatabaseClient
                     return;
                 }
 
+                if (title.Contains("Профиль удален") && isDeleted == true)
+                {
+                    Log($"[DB] Resume {link}: ⏭ Обработка удалённого профиля");
+                }
+
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, created_at, updated_at) 
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, NOW(), NOW())
-                    ON CONFLICT (link) 
-                    DO UPDATE SET 
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, created_at, updated_at)
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, NOW(), NOW())
+                    ON CONFLICT (link)
+                    DO UPDATE SET
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
                         slogan = COALESCE(EXCLUDED.slogan, habr_resumes.slogan),
                         code = COALESCE(EXCLUDED.code, habr_resumes.code),
@@ -285,6 +296,7 @@ public sealed class DatabaseClient
                         public = COALESCE(EXCLUDED.public, habr_resumes.public),
                         job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
                         is_empty = COALESCE(EXCLUDED.is_empty, habr_resumes.is_empty),
+                        is_deleted = COALESCE(EXCLUDED.is_deleted, habr_resumes.is_deleted),
                         updated_at = NOW()
                     RETURNING xmax", conn);
                 cmd.Parameters.AddWithValue("@link", link);
@@ -300,52 +312,53 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
 
                 var xmaxResult = cmd.ExecuteScalar();
                 var xmax = Convert.ToUInt32(xmaxResult);
                 var isInsert = xmax == 0;
-                
+
                 // Записываем статистику
                 if (isInsert)
                     _statistics.RecordInsert("habr_resumes", link);
                 else
                     _statistics.RecordUpdate("habr_resumes", link);
-                
+
                 // Подробное логирование
                 var logParts = new List<string> { $"[DB] Resume {link}:" };
-                
+
                 if (title != null)
                     logParts.Add($"Title={title}");
-                
+
                 if (!string.IsNullOrWhiteSpace(slogan))
                     logParts.Add($"Slogan={slogan}");
-                
+
                 if (code != null)
                     logParts.Add($"Code={code}");
-                
+
                 if (expert == true)
                     logParts.Add("Expert=✓");
-                
+
                 if (workExperience != null)
                     logParts.Add($"Experience={workExperience}");
-                
+
                 if (levelId.HasValue)
                     logParts.Add($"LevelID={levelId.Value}");
-                
+
                 if (infoTech != null)
                     logParts.Add($"InfoTech={infoTech}");
-                
+
                 if (salary.HasValue)
                     logParts.Add($"Salary={salary.Value}");
-                
+
                 if (lastVisit != null)
                     logParts.Add($"LastVisit={lastVisit}");
-                
+
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
-                
+
                 logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
-                
+
                 Log(string.Join(" | ", logParts));
                 TryDumpStatistics();
             }
@@ -412,8 +425,8 @@ public sealed class DatabaseClient
 
     // Вставка компании
     public void DatabaseInsertCompany(
-        NpgsqlConnection conn, 
-        string companyCode, 
+        NpgsqlConnection conn,
+        string companyCode,
         string companyUrl,
         string? companyTitle = null,
         long? companyId = null
@@ -430,8 +443,8 @@ public sealed class DatabaseClient
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_companies (code, url, title, company_id, created_at, updated_at)
                 VALUES (@code, @url, @title, @company_id, NOW(), NOW())
-                ON CONFLICT (code) 
-                DO UPDATE SET 
+                ON CONFLICT (code)
+                DO UPDATE SET
                     url = EXCLUDED.url,
                     title = EXCLUDED.title,
                     company_id = COALESCE(EXCLUDED.company_id, habr_companies.company_id),
@@ -446,27 +459,27 @@ public sealed class DatabaseClient
             var xmaxResult = cmd.ExecuteScalar();
             var xmax = Convert.ToUInt32(xmaxResult);
             var isInsert = xmax == 0;
-            
+
             if (isInsert)
                 _statistics.RecordInsert("habr_companies", companyCode);
             else
                 _statistics.RecordUpdate("habr_companies", companyCode);
-            
+
             // Подробное логирование
             var logParts = new List<string>
             {
                 $"[DB] Компания {companyCode}:",
                 $"URL={companyUrl}"
             };
-            
+
             if (companyTitle != null)
                 logParts.Add($"Title={companyTitle}");
-            
+
             if (companyId.HasValue)
                 logParts.Add($"CompanyID={companyId.Value}");
-            
+
             logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
-            
+
             Log(string.Join(" | ", logParts));
             TryDumpStatistics();
         }
@@ -496,8 +509,8 @@ public sealed class DatabaseClient
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_category_root_ids (category_id, category_name, created_at, updated_at)
                 VALUES (@id, @name, NOW(), NOW())
-                ON CONFLICT (category_id) 
-                DO UPDATE SET 
+                ON CONFLICT (category_id)
+                DO UPDATE SET
                     category_name = EXCLUDED.category_name,
                     updated_at = NOW()
                 RETURNING xmax", conn);
@@ -508,12 +521,12 @@ public sealed class DatabaseClient
             var xmaxResult = cmd.ExecuteScalar();
             var xmax = Convert.ToUInt32(xmaxResult);
             var isInsert = xmax == 0;
-            
+
             if (isInsert)
                 _statistics.RecordInsert("habr_category_root_ids", categoryId);
             else
                 _statistics.RecordUpdate("habr_category_root_ids", categoryId);
-            
+
             Log($"[DB] Category {categoryId} -> {categoryName}: {(isInsert ? "✓ INSERT" : "✓ UPDATE")}");
         }
         catch (NpgsqlException dbEx)
@@ -554,14 +567,14 @@ public sealed class DatabaseClient
                 while (!linkedToken.IsCancellationRequested)
                 {
                     var queueSize = _saveQueue.Count;
-                    
+
                     // Логируем размер очереди каждые 30 секунд
                     if ((DateTime.Now - lastQueueSizeLog).TotalSeconds >= 30)
                     {
                         Log($"[DB Writer] Размер очереди: {queueSize}");
                         lastQueueSizeLog = DateTime.Now;
                     }
-                    
+
                     while (_saveQueue.TryDequeue(out var record))
                     {
                         try
@@ -587,12 +600,12 @@ public sealed class DatabaseClient
                                     }
                                 }
                             }
-                            
+
                             // Объединенная вставка/обновление всех полей
                             DatabaseInsert(conn,
                                 link: record.PrimaryValue,
-                                title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName) 
-                                    ? record.UserProfile.Value.UserName 
+                                title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName)
+                                    ? record.UserProfile.Value.UserName
                                     : record.SecondaryValue,
                                 slogan: record.TertiaryValue,
                                 code: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserCode)
@@ -610,9 +623,10 @@ public sealed class DatabaseClient
                                 salary: record.UserProfile?.Salary,
                                 lastVisit: record.UserProfile?.LastVisit,
                                 isPublic: record.UserProfile?.IsPublic,
-                                jobSearchStatus: record.UserProfile?.JobSearchStatus
+                                jobSearchStatus: record.UserProfile?.JobSearchStatus,
+                                isDeleted: record.IsDeleted
                             );
-                            
+
                             // Если есть навыки, добавляем их
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
@@ -621,11 +635,11 @@ public sealed class DatabaseClient
                             break;
                         case DbRecordType.Company:
                             DatabaseInsertCompany(
-                                conn, 
+                                conn,
                                 companyCode: record.PrimaryValue,
-                                companyUrl: record.SecondaryValue, 
+                                companyUrl: record.SecondaryValue,
                                 companyTitle: record.TertiaryValue,
-                                companyId: record.CompanyId  
+                                companyId: record.CompanyId
                             );
                             break;
                         case DbRecordType.CategoryRootId:
@@ -678,7 +692,7 @@ public sealed class DatabaseClient
                             if (record.UserProfile.HasValue)
                             {
                                 var profile = record.UserProfile.Value;
-                                
+
                                 // Получаем или создаём level_id
                                 int? profileLevelId = null;
                                 if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
@@ -697,7 +711,7 @@ public sealed class DatabaseClient
                                         }
                                     }
                                 }
-                                
+
                                 // Обновляем профиль через DatabaseInsert
                                 DatabaseInsert(
                                     conn,
@@ -756,6 +770,9 @@ public sealed class DatabaseClient
                                 DatabaseUpdateUserCommunityParticipation(conn, userLink: record.PrimaryValue, communityParticipation: record.CommunityParticipation);
                             }
                             break;
+                        case DbRecordType.UserDeleted:
+                            DatabaseMarkProfileAsDeleted(conn, userLink: record.PrimaryValue);
+                            break;
                         case DbRecordType.CompanyRating:
                             if (record.CompanyRating != null)
                             {
@@ -775,7 +792,7 @@ public sealed class DatabaseClient
                     // Обрабатываем очереди университетов
                     FlushUniversityQueue(conn);
                     FlushUserUniversityQueue(conn);
-                    
+
                     // Обрабатываем очередь дополнительного образования
                     FlushAdditionalEducationQueue(conn);
 
@@ -843,14 +860,14 @@ public sealed class DatabaseClient
     public bool IsWriterTaskRunning()
     {
         if (_dbWriterTask == null) return false;
-        
+
         var isRunning = !_dbWriterTask.IsCompleted && !_dbWriterTask.IsCanceled && !_dbWriterTask.IsFaulted;
-        
+
         if (_dbWriterTask.IsFaulted)
         {
             Log($"[DB Writer] Задача завершилась с ошибкой: {_dbWriterTask.Exception?.Message}");
         }
-        
+
         return isRunning;
     }
 
@@ -893,14 +910,14 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
 
         var record = new DbRecord(
-            Type: DbRecordType.Company, 
-            PrimaryValue: companyCode, 
-            SecondaryValue: companyUrl, 
+            Type: DbRecordType.Company,
+            PrimaryValue: companyCode,
+            SecondaryValue: companyUrl,
             TertiaryValue: companyTitle,
             CompanyId: companyId
         );
         _saveQueue.Enqueue(record);
-        
+
         var logMessage = $"[DB Queue] Company: {companyCode} -> {companyUrl}";
         if (companyId.HasValue)
             logMessage += $" (ID: {companyId})";
@@ -933,26 +950,26 @@ public sealed class DatabaseClient
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
         var companyIds = new List<long>();
-        
+
         try
         {
             DatabaseEnsureConnectionOpen(conn);
             using var cmd = new NpgsqlCommand("SELECT company_id FROM habr_companies WHERE company_id IS NOT NULL ORDER BY company_id", conn);
             using var reader = cmd.ExecuteReader();
-            
+
             while (reader.Read())
             {
                 var companyId = reader.GetInt64(0);
                 companyIds.Add(companyId);
             }
-            
+
             Log($"[DB] Загружено {companyIds.Count} company_id из БД");
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при загрузке company_id: {ex.Message}");
         }
-        
+
         return companyIds;
     }
 
@@ -964,26 +981,26 @@ public sealed class DatabaseClient
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
         var universityIds = new List<int>();
-        
+
         try
         {
             DatabaseEnsureConnectionOpen(conn);
             using var cmd = new NpgsqlCommand("SELECT habr_id FROM habr_universities ORDER BY habr_id", conn);
             using var reader = cmd.ExecuteReader();
-            
+
             while (reader.Read())
             {
                 var universityId = reader.GetInt32(0);
                 universityIds.Add(universityId);
             }
-            
+
             Log($"[DB] Загружено {universityIds.Count} university_id из БД");
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при загрузке university_id: {ex.Message}");
         }
-        
+
         return universityIds;
     }
 
@@ -1168,7 +1185,7 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_companies 
+                UPDATE habr_companies
                 SET company_id = @company_id, updated_at = NOW()
                 WHERE code = @code", conn);
 
@@ -1213,12 +1230,12 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating, 
+                INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating,
                     current_employees, past_employees, followers, want_work, employees_count, habr, created_at, updated_at)
-                VALUES (@code, @url, @company_id, @title, @about, @description, @site, @rating, 
+                VALUES (@code, @url, @company_id, @title, @about, @description, @site, @rating,
                     @current_employees, @past_employees, @followers, @want_work, @employees_count, @habr, NOW(), NOW())
-                ON CONFLICT (code) 
-                DO UPDATE SET 
+                ON CONFLICT (code)
+                DO UPDATE SET
                     url = EXCLUDED.url,
                     company_id = EXCLUDED.company_id,
                     title = COALESCE(EXCLUDED.title, habr_companies.title),
@@ -1256,7 +1273,7 @@ public sealed class DatabaseClient
             var xmaxResult = cmd.ExecuteScalar();
             var xmax = Convert.ToUInt32(xmaxResult);
             var isInsert = xmax == 0;
-            
+
             if (isInsert)
                 _statistics.RecordInsert("habr_companies", companyCode);
             else
@@ -1264,47 +1281,47 @@ public sealed class DatabaseClient
 
             // Подробное логирование
             var logParts = new List<string> { $"[DB] CompanyDetails {companyCode}:" };
-            
+
             if (companyId.HasValue)
                 logParts.Add($"CompanyID={companyId.Value}");
-            
+
             logParts.Add($"URL={companyUrl}");
-            
+
             if (companyTitle != null)
                 logParts.Add($"Title={companyTitle}");
-            
+
             if (companyAbout != null)
             {
                 var aboutPreview = companyAbout.Length > 50 ? companyAbout.Substring(0, 50) + "..." : companyAbout;
                 logParts.Add($"About={aboutPreview}");
             }
-            
+
             if (companyDescription != null)
             {
                 var descPreview = companyDescription.Length > 50 ? companyDescription.Substring(0, 50) + "..." : companyDescription;
                 logParts.Add($"Description={descPreview}");
             }
-            
+
             if (companySite != null)
                 logParts.Add($"Site={companySite}");
-            
+
             if (companyRating.HasValue)
                 logParts.Add($"Rating={companyRating.Value:F2}");
-            
+
             if (currentEmployees.HasValue || pastEmployees.HasValue)
                 logParts.Add($"Employees={currentEmployees?.ToString() ?? "?"}/{pastEmployees?.ToString() ?? "?"}");
-            
+
             if (followers.HasValue || wantWork.HasValue)
                 logParts.Add($"Followers={followers?.ToString() ?? "?"}/{wantWork?.ToString() ?? "?"}");
-            
+
             if (employeesCount != null)
                 logParts.Add($"Size={employeesCount}");
-            
+
             if (habr.HasValue)
                 logParts.Add($"Habr={habr.Value}");
-            
+
             logParts.Add(isInsert ? "✓ INSERT" : "✓ UPDATE");
-            
+
             Log(string.Join(" | ", logParts));
             TryDumpStatistics();
         }
@@ -1394,7 +1411,7 @@ public sealed class DatabaseClient
                 using (var cmdInsertSkill = new NpgsqlCommand(@"
                     INSERT INTO habr_skills (title, created_at, updated_at)
                     VALUES (@title, NOW(), NOW())
-                    ON CONFLICT (title) 
+                    ON CONFLICT (title)
                     DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                     RETURNING id", conn))
                 {
@@ -1437,7 +1454,7 @@ public sealed class DatabaseClient
             _statistics.RecordError("habr_company_skills", companyCode);
         }
     }
-    
+
     /// <summary>
     /// Получить все коды пользователей из таблицы habr_resumes
     /// </summary>
@@ -1526,8 +1543,8 @@ public sealed class DatabaseClient
 
             var query = onlyPublic
                 ? "SELECT link FROM habr_resumes WHERE link IS NOT NULL AND public = true ORDER BY updated_at ASC NULLS FIRST"
-                : @"SELECT link FROM habr_resumes 
-                    WHERE link IS NOT NULL 
+                : @"SELECT link FROM habr_resumes
+                    WHERE link IS NOT NULL
                     AND NOT (public = false AND about = 'Доступ ограничен настройками приватности')
                     ORDER BY updated_at ASC NULLS FIRST";
 
@@ -1577,7 +1594,7 @@ public sealed class DatabaseClient
 
             // Выбираем профили без заполненных данных (включая приватные - они будут обработаны и помечены)
             var query = @"
-                SELECT r.link 
+                SELECT r.link
                 FROM habr_resumes r
                 WHERE r.link IS NOT NULL
                   -- НЕТ заполненного about
@@ -1614,7 +1631,7 @@ public sealed class DatabaseClient
         return userLinks;
     }
 
-    
+
     /// <summary>
     /// Добавить детальную информацию о резюме пользователя в очередь
     /// </summary>
@@ -1622,13 +1639,13 @@ public sealed class DatabaseClient
     {
         return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null, null, null, null, null, null, null);
     }
-    
+
     /// <summary>
     /// Добавить детальную информацию о резюме пользователя в очередь (с дополнительными полями)
     /// </summary>
     public bool EnqueueUserResumeDetail(
-        string userLink, 
-        string? about, 
+        string userLink,
+        string? about,
         List<string>? skills,
         string? age,
         string? experienceText,
@@ -1648,9 +1665,9 @@ public sealed class DatabaseClient
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
         // Обновляем основные данные профиля (имя, техническая информация, уровень, зарплата)
-        if (!string.IsNullOrWhiteSpace(userName) || 
-            !string.IsNullOrWhiteSpace(infoTech) || 
-            !string.IsNullOrWhiteSpace(levelTitle) || 
+        if (!string.IsNullOrWhiteSpace(userName) ||
+            !string.IsNullOrWhiteSpace(infoTech) ||
+            !string.IsNullOrWhiteSpace(levelTitle) ||
             salary.HasValue ||
             !string.IsNullOrWhiteSpace(lastVisit))
         {
@@ -1675,7 +1692,7 @@ public sealed class DatabaseClient
             );
             _saveQueue.Enqueue(profileRecord);
         }
-        
+
         // Обновляем about (записываем пустую строку если не найден)
         var aboutRecord = new DbRecord(
             Type: DbRecordType.UserAbout,
@@ -1683,7 +1700,7 @@ public sealed class DatabaseClient
             SecondaryValue: about ?? ""
         );
         _saveQueue.Enqueue(aboutRecord);
-        
+
         // Добавляем навыки
         if (skills != null && skills.Count > 0)
         {
@@ -1695,11 +1712,11 @@ public sealed class DatabaseClient
             );
             _saveQueue.Enqueue(skillsRecord);
         }
-        
+
         // Добавляем дополнительные данные профиля
-        if (!string.IsNullOrWhiteSpace(age) || 
-            !string.IsNullOrWhiteSpace(registration) || 
-            !string.IsNullOrWhiteSpace(citizenship) || 
+        if (!string.IsNullOrWhiteSpace(age) ||
+            !string.IsNullOrWhiteSpace(registration) ||
+            !string.IsNullOrWhiteSpace(citizenship) ||
             remoteWork.HasValue ||
             !string.IsNullOrWhiteSpace(jobSearchStatus))
         {
@@ -1718,7 +1735,7 @@ public sealed class DatabaseClient
             );
             _saveQueue.Enqueue(additionalDataRecord);
         }
-        
+
         // Добавляем участие в профсообществах
         if (communityParticipation != null && communityParticipation.Count > 0)
         {
@@ -1730,9 +1747,57 @@ public sealed class DatabaseClient
             );
             _saveQueue.Enqueue(communityRecord);
         }
-        
+
         Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
-        
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить информацию об удалённом профиле в очередь
+    /// </summary>
+    public bool EnqueueDeletedProfile(string userLink, string about)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true (upsert)
+        var deletedResumeRecord = new DbRecord(
+            Type: DbRecordType.Resume,
+            PrimaryValue: userLink,
+            SecondaryValue: "Профиль удален",
+            TertiaryValue: null,
+            Mode: InsertMode.UpdateIfExists,
+            Code: null,
+            Expert: null,
+            WorkExperience: null,
+            CompanyId: null,
+            CompanyDetails: null,
+            CompanyRating: null,
+            Skills: null,
+            UserProfile: null,
+            UserExperience: null,
+            AdditionalData: null,
+            CommunityParticipation: null,
+            IsDeleted: true
+        );
+        _saveQueue.Enqueue(deletedResumeRecord);
+
+        // 2. Обновить about
+        _saveQueue.Enqueue(new DbRecord(
+            Type: DbRecordType.UserAbout,
+            PrimaryValue: userLink,
+            SecondaryValue: about
+        ));
+
+        // 3. Для обратной совместимости: UserDeleted
+        _saveQueue.Enqueue(new DbRecord(
+            Type: DbRecordType.UserDeleted,
+            PrimaryValue: userLink,
+            SecondaryValue: ""
+        ));
+
+        Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
         return true;
     }
 
@@ -1752,9 +1817,9 @@ public sealed class DatabaseClient
             Mode: InsertMode.UpdateIfExists
         );
         _saveQueue.Enqueue(record);
-        
+
         Log($"[DB Queue] UpdateUserPublicStatus: {userLink} -> public={isPublic}");
-        
+
         return true;
     }
 
@@ -1772,7 +1837,7 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes 
+                UPDATE habr_resumes
                 SET about = @about
                 WHERE link = @link", conn);
 
@@ -1820,7 +1885,7 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes 
+                UPDATE habr_resumes
                 SET is_empty = @is_empty
                 WHERE link = @link", conn);
 
@@ -1849,6 +1914,55 @@ public sealed class DatabaseClient
         catch (Exception ex)
         {
             Log($"[DB] UserEmptyProfile {userLink}: ❌ ERROR - {ex.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
+        }
+    }
+
+    /// <summary>
+    /// Пометить профиль как удалённый
+    /// </summary>
+    public void DatabaseMarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
+
+        try
+        {
+            DatabaseEnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                UPDATE habr_resumes
+                SET is_deleted = true,
+                    title = 'Профиль удален',
+                    about = 'Профиль пользователя удален со всей информацией, которую он о себе оставлял',
+                    updated_at = NOW()
+                WHERE link = @link", conn);
+
+            cmd.Parameters.AddWithValue("@link", userLink);
+
+            int rowsAffected = cmd.ExecuteNonQuery();
+
+            if (rowsAffected > 0)
+            {
+                _statistics.RecordUpdate("habr_resumes", userLink);
+                Log($"[DB] MarkDeleted {userLink}: ✓ UPDATE (is_deleted=true)");
+            }
+            else
+            {
+                _statistics.RecordSkipped("habr_resumes", userLink);
+                Log($"[DB] MarkDeleted {userLink}: ⚠ NOT FOUND");
+            }
+            TryDumpStatistics();
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] MarkDeleted {userLink}: ❌ ERROR - {dbEx.Message}");
+            _statistics.RecordError("habr_resumes", userLink);
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] MarkDeleted {userLink}: ❌ ERROR - {ex.Message}");
             _statistics.RecordError("habr_resumes", userLink);
         }
     }
@@ -1919,7 +2033,7 @@ public sealed class DatabaseClient
                 return;
 
             cmd.CommandText = $@"
-                UPDATE habr_resumes 
+                UPDATE habr_resumes
                 SET {string.Join(", ", setClauses)}
                 WHERE link = @link";
 
@@ -1983,7 +2097,7 @@ public sealed class DatabaseClient
             var jsonString = jsonArray.ToJsonString();
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes 
+                UPDATE habr_resumes
                 SET community_participation = @community_participation::jsonb,
                     updated_at = NOW()
                 WHERE link = @link", conn);
@@ -2032,7 +2146,7 @@ public sealed class DatabaseClient
             DatabaseEnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes 
+                UPDATE habr_resumes
                 SET public = @public,
                     updated_at = NOW()
                 WHERE link = @link", conn);
@@ -2119,7 +2233,7 @@ public sealed class DatabaseClient
                 using (var cmdInsertSkill = new NpgsqlCommand(@"
                     INSERT INTO habr_skills (title, created_at, updated_at)
                     VALUES (@title, NOW(), NOW())
-                    ON CONFLICT (title) 
+                    ON CONFLICT (title)
                     DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
                     RETURNING id", conn))
                 {
@@ -2226,7 +2340,7 @@ public sealed class DatabaseClient
 
                         // Обновляем информацию о компании
                         using (var cmdUpdateCompany = new NpgsqlCommand(@"
-                            UPDATE habr_companies 
+                            UPDATE habr_companies
                             SET url = COALESCE(@url, url),
                                 title = COALESCE(@title, title),
                                 about = COALESCE(@about, about),
@@ -2425,7 +2539,7 @@ public sealed class DatabaseClient
             {
                 checkCmd.Parameters.AddWithValue("@skill_id", skillId);
                 var count = (long)(checkCmd.ExecuteScalar() ?? 0L);
-                
+
                 if (count > 0)
                 {
                     Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
@@ -2465,7 +2579,7 @@ public sealed class DatabaseClient
         var record = new DbRecord(
             Type: DbRecordType.CompanyRating,
             PrimaryValue: ratingData.Code,
-            SecondaryValue: "", 
+            SecondaryValue: "",
             CompanyRating: ratingData
         );
         _saveQueue.Enqueue(record);
@@ -2501,8 +2615,8 @@ public sealed class DatabaseClient
                     companyId = Convert.ToInt32(result);
 
                     using var cmdUpdate = new NpgsqlCommand(@"
-                        UPDATE habr_companies 
-                        SET 
+                        UPDATE habr_companies
+                        SET
                             url = @url,
                             title = COALESCE(@title, title),
                             rating = COALESCE(@rating, rating),
@@ -2668,8 +2782,8 @@ public sealed class DatabaseClient
         using var cmd = new NpgsqlCommand(@"
             INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
             VALUES (@habr_id, @name, @city, @graduate_count, NOW(), NOW())
-            ON CONFLICT (habr_id) 
-            DO UPDATE SET 
+            ON CONFLICT (habr_id)
+            DO UPDATE SET
                 name = EXCLUDED.name,
                 city = COALESCE(EXCLUDED.city, habr_universities.city),
                 graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
@@ -2740,8 +2854,8 @@ public sealed class DatabaseClient
         using var cmd = new NpgsqlCommand(@"
             INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
             VALUES (@user_id, @university_id, @courses::jsonb, @description, NOW(), NOW())
-            ON CONFLICT (user_id, university_id) 
-            DO UPDATE SET 
+            ON CONFLICT (user_id, university_id)
+            DO UPDATE SET
                 courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
                 description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
                 updated_at = NOW()", conn);

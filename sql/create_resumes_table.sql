@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS habr_resumes
     public boolean,
     about text COLLATE pg_catalog."default",
     viewed bit(1),
+    is_deleted boolean DEFAULT FALSE,
     is_empty boolean DEFAULT FALSE,
     created_at timestamp DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -45,6 +46,7 @@ COMMENT ON COLUMN habr_resumes.last_visit IS 'Последний визит (н�
 COMMENT ON COLUMN habr_resumes.public IS 'Публичность профиля (true - публичный, false - приватный)';
 COMMENT ON COLUMN habr_resumes.about IS 'Информация "О себе" из резюме пользователя';
 COMMENT ON COLUMN habr_resumes.viewed IS 'Флаг просмотра записи';
+COMMENT ON COLUMN habr_resumes.is_deleted IS 'Флаг: является ли профиль удалённым (не существующим)';
 COMMENT ON COLUMN habr_resumes.is_empty IS 'Флаг: является ли профиль пустым (не содержит данных)';
 COMMENT ON COLUMN habr_resumes.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN habr_resumes.updated_at IS 'Дата и время последнего обновления записи';

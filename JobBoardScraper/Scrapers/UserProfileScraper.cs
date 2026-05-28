@@ -4,18 +4,19 @@ using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
 
-/// <summary>
-/// Обходит профили пользователей и извлекает детальную информацию
-/// TODO нужен selenium, некоторые профили закрыты настройками приватности
-/// </summary>
-public sealed class UserProfileScraper : IDisposable
-{
+    /// <summary>
+    /// Обходит профили пользователей и извлекает детальную информацию
+    /// TODO нужен selenium, некоторые профили закрыты настройками приватности
+    /// </summary>
+    public sealed class UserProfileScraper : IDisposable
+    {
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Func<List<string>> _getUserCodes;

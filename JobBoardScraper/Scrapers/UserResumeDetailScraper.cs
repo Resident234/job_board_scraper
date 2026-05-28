@@ -436,6 +436,21 @@ public sealed class UserResumeDetailScraper : IDisposable
                     return;
                 }
 
+                if (IsDeletedProfile(html))
+                {
+                    const string deletedTitle = "Профиль удален";
+                    const string deletedAbout = "Профиль пользователя удален со всей информацией, которую он о себе оставлял";
+                    _db.EnqueueDeletedProfile(userLink, deletedAbout);
+
+                    _logger.WriteLine($"Пользователь {userLink}:");
+                    _logger.WriteLine($"  Статус: профиль удалён");
+                    _logger.WriteLine($"  Title: {deletedTitle}");
+
+                    _statistics.IncrementSuccess();
+                    _activeRequests.TryRemove(userLink, out _);
+                    return;
+                }
+
                 if (!response.IsSuccessStatusCode)
                 {
                     _statistics.IncrementFailed();
@@ -850,5 +865,15 @@ public sealed class UserResumeDetailScraper : IDisposable
         _logger.WriteLine(_statistics.ToDetailedString());
 
         _statistics.WriteToLogFile();
+    }
+
+    private static bool IsDeletedProfile(string html)
+    {
+        const string deletedMarker1 = "Профиль удален";
+        const string deletedMarker2 = "user-profile__deleted";
+        const string deletedMarker3 = "Страница удалена";
+        return html.Contains(deletedMarker1) ||
+               html.Contains(deletedMarker2) ||
+               html.Contains(deletedMarker3);
     }
 }
