@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using JobBoardScraper.Infrastructure.Logging;
 
 namespace JobBoardScraper.Core;
 
-public sealed class AdaptiveConcurrencyController
+public sealed class AdaptiveConcurrencyController : IDisposable
 {
     // Текущий желаемый уровень конкуренции (динамический)
     private int _desired;
@@ -28,6 +29,7 @@ public sealed class AdaptiveConcurrencyController
     // Агрессивность изменения
     private readonly int _increaseStep;
     private readonly double _decreaseFactor;
+    private readonly ConsoleLogger _logger;
 
     private readonly object _lock = new();
 
@@ -41,7 +43,7 @@ public sealed class AdaptiveConcurrencyController
         double emaAlpha = 0.2,              // степень сглаживания EMA [0..1]
         int increaseStep = 1,               // на сколько повышать за один шаг
         double decreaseFactor = 0.75,        // во сколько раз снижать (мультипликативно)
-        Action<string>? infoLog = null
+        OutputMode outputMode = OutputMode.ConsoleOnly
     )
     {
         if (defaultConcurrency < 1) defaultConcurrency = 1;
@@ -58,6 +60,9 @@ public sealed class AdaptiveConcurrencyController
 
         _increaseStep = Math.Max(1, increaseStep);
         _decreaseFactor = Math.Clamp(decreaseFactor, 0.1, 0.99);
+
+        _logger = new ConsoleLogger(nameof(AdaptiveConcurrencyController));
+        _logger.SetOutputMode(outputMode);
         
         Volatile.Write(ref _lastLoggedConcurrency, -1);
     }
@@ -115,7 +120,7 @@ public sealed class AdaptiveConcurrencyController
                 if (next != current)
                 {
                     Interlocked.Exchange(ref _desired, next);
-                    System.Console.WriteLine($"[Adaptive] EMA={ema:F0} ms, concurrency: {current} -> {next}");
+                    _logger.WriteLine($"EMA={ema:F0} ms, concurrency: {current} -> {next}");
                     Volatile.Write(ref _lastLoggedConcurrency, current);
                 }
             }
@@ -125,6 +130,12 @@ public sealed class AdaptiveConcurrencyController
             // нормальная остановка
         }
     }
+
+    public void Dispose()
+    {
+        _logger.Dispose();
+    }
+
 }
 
 public static class AdaptiveForEach

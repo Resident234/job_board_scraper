@@ -54,7 +54,7 @@ class Program
         using var conn = db.DatabaseConnectionInit();
         db.DatabaseEnsureConnectionOpen(conn);
 
-        var controller = new AdaptiveConcurrencyController(
+        using var controller = new AdaptiveConcurrencyController(
             defaultConcurrency: AppConfig.MaxConcurrentRequests,
             minConcurrency: 1,
             maxConcurrency: 128,

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace JobBoardScraper.Infrastructure.Logging;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace JobBoardScraper.Infrastructure.Logging;
 public sealed class ConsoleLogger : IDisposable
 {
     private readonly string _processName;
+    private readonly string _displayName;
     private readonly object _lock = new object();
     private StreamWriter? _fileWriter;
     private OutputMode _currentMode;
@@ -14,7 +17,40 @@ public sealed class ConsoleLogger : IDisposable
     public ConsoleLogger(string processName)
     {
         _processName = processName ?? throw new ArgumentNullException(nameof(processName));
+        _displayName = FormatClassName(_processName);
         _currentMode = OutputMode.ConsoleOnly;
+    }
+
+    public static ConsoleLogger CreateForClass<T>()
+    {
+        return new ConsoleLogger(typeof(T).Name);
+    }
+
+    public static string FormatClassName(string className)
+    {
+        if (string.IsNullOrWhiteSpace(className))
+            return string.Empty;
+
+        var result = new StringBuilder(className.Length + 8);
+
+        for (var i = 0; i < className.Length; i++)
+        {
+            var current = className[i];
+            var previous = i > 0 ? className[i - 1] : '\0';
+            var next = i + 1 < className.Length ? className[i + 1] : '\0';
+
+            if (i > 0
+                && char.IsUpper(current)
+                && !char.IsWhiteSpace(previous)
+                && (!char.IsUpper(previous) || (next != '\0' && char.IsLower(next))))
+            {
+                result.Append(' ');
+            }
+
+            result.Append(current);
+        }
+
+        return result.ToString();
     }
 
     public OutputMode CurrentMode => _currentMode;
@@ -61,7 +97,7 @@ public sealed class ConsoleLogger : IDisposable
 
     public void WriteLine(string message)
     {
-        var formattedMessage = $"[{_processName}] {message}";
+        var formattedMessage = $"[{_displayName}] {message}";
         
         lock (_lock)
         {
@@ -75,7 +111,7 @@ public sealed class ConsoleLogger : IDisposable
 
     public void WriteLineWithTime(string message)
     {
-        var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{_processName}] {message}";
+        var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{_displayName}] {message}";
         
         lock (_lock)
         {
