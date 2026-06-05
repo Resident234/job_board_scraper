@@ -120,7 +120,7 @@ public sealed class DatabaseClient
 
     // Создание соединения
     //"Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;"
-    public NpgsqlConnection DatabaseConnectionInit()
+    public NpgsqlConnection ConnectionInit()
     {
         NpgsqlConnection conn = new NpgsqlConnection(_connectionString);
         conn.Open();
@@ -129,7 +129,7 @@ public sealed class DatabaseClient
     }
 
     // Гарантирует, что соединение открыто
-    public void DatabaseEnsureConnectionOpen(NpgsqlConnection conn)
+    public void EnsureConnectionOpen(NpgsqlConnection conn)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (conn.State != ConnectionState.Open)
@@ -137,7 +137,7 @@ public sealed class DatabaseClient
     }
 
     // Корректное закрытие соединения
-    public void DatabaseConnectionClose(NpgsqlConnection conn)
+    public void ConnectionClose(NpgsqlConnection conn)
     {
         if (conn is null) return;
         if (conn.State != ConnectionState.Closed)
@@ -145,12 +145,12 @@ public sealed class DatabaseClient
     }
 
     // Проверка существования записи по полю link
-    public bool DatabaseRecordExistsByLink(NpgsqlConnection conn, string link)
+    public bool ResumesRecordExistsByLink(NpgsqlConnection conn, string link)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
 
-        DatabaseEnsureConnectionOpen(conn);
+        EnsureConnectionOpen(conn);
         using var cmd = new NpgsqlCommand("SELECT 1 FROM habr_resumes WHERE link = @link LIMIT 1", conn);
         cmd.Parameters.AddWithValue("@link", link);
         var result = cmd.ExecuteScalar();
@@ -158,7 +158,7 @@ public sealed class DatabaseClient
     }
 
     // Вставка ссылки, заголовка страницы, слогана и дополнительных полей
-    public void DatabaseInsert(
+    public void Insert(
         NpgsqlConnection conn,
         string link,
         string title,
@@ -181,12 +181,12 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             if (mode == InsertMode.SkipIfExists)
             {
                 // Проверка существования по link
-                if (DatabaseRecordExistsByLink(conn, link))
+                if (ResumesRecordExistsByLink(conn, link))
                 {
                     Log($"[DB] Resume {link}: ⏭ SKIP (уже существует)");
                     _statistics.RecordSkipped("habr_resumes", link);
@@ -387,7 +387,7 @@ public sealed class DatabaseClient
     //   ORDER BY LENGTH(link) DESC, link DESC
     // Если linkLength задан ( > 0 ), выбирается среди ссылок указанной длины:
     //   WHERE LENGTH(link) = @len ORDER BY link DESC
-    public string? DatabaseGetLastLink(NpgsqlConnection conn, int? linkLength = null)
+    public string? GetLastLink(NpgsqlConnection conn, int? linkLength = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (linkLength is <= 0)
@@ -395,7 +395,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = linkLength is null
                 ? new NpgsqlCommand(
@@ -424,7 +424,7 @@ public sealed class DatabaseClient
     }
 
     // Вставка компании
-    public void DatabaseInsertCompany(
+    public void InsertCompany(
         NpgsqlConnection conn,
         string companyCode,
         string companyUrl,
@@ -438,7 +438,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_companies (code, url, title, company_id, created_at, updated_at)
@@ -496,7 +496,7 @@ public sealed class DatabaseClient
     }
 
     // Вставка category_root_id
-    public void DatabaseInsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
+    public void InsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(categoryId))
@@ -504,7 +504,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_category_root_ids (category_id, category_name, created_at, updated_at)
@@ -602,7 +602,7 @@ public sealed class DatabaseClient
                             }
 
                             // Объединенная вставка/обновление всех полей
-                            DatabaseInsert(conn,
+                            Insert(conn,
                                 link: record.PrimaryValue,
                                 title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName)
                                     ? record.UserProfile.Value.UserName
@@ -630,11 +630,11 @@ public sealed class DatabaseClient
                             // Если есть навыки, добавляем их
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                                InsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
                             }
                             break;
                         case DbRecordType.Company:
-                            DatabaseInsertCompany(
+                            InsertCompany(
                                 conn,
                                 companyCode: record.PrimaryValue,
                                 companyUrl: record.SecondaryValue,
@@ -643,13 +643,13 @@ public sealed class DatabaseClient
                             );
                             break;
                         case DbRecordType.CategoryRootId:
-                            DatabaseInsertCategoryRootId(conn, categoryId: record.PrimaryValue,
+                            InsertCategoryRootId(conn, categoryId: record.PrimaryValue,
                                 categoryName: record.SecondaryValue);
                             break;
                         case DbRecordType.CompanyId:
                             if (long.TryParse(record.SecondaryValue, out var companyId))
                             {
-                                DatabaseUpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
+                                UpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
                             }
 
                             break;
@@ -658,7 +658,7 @@ public sealed class DatabaseClient
                             if (record.CompanyDetails.HasValue)
                             {
                                 var details = record.CompanyDetails.Value;
-                                DatabaseUpdateCompanyDetails(
+                                UpdateCompanyDetails(
                                     conn,
                                     companyCode: record.PrimaryValue,
                                     companyUrl: details.Url,
@@ -682,7 +682,7 @@ public sealed class DatabaseClient
                             // Обрабатываем навыки компании
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                DatabaseInsertCompanySkills(conn, companyCode: record.PrimaryValue,
+                                InsertCompanySkills(conn, companyCode: record.PrimaryValue,
                                     skills: record.Skills);
                             }
 
@@ -712,8 +712,8 @@ public sealed class DatabaseClient
                                     }
                                 }
 
-                                // Обновляем профиль через DatabaseInsert
-                                DatabaseInsert(
+                                // Обновляем профиль через Insert
+                                Insert(
                                     conn,
                                     link: record.PrimaryValue,
                                     title: profile.UserName ?? "",
@@ -733,50 +733,50 @@ public sealed class DatabaseClient
                             // Если это просто обновление статуса публичности
                             else if (record.Mode == InsertMode.UpdateIfExists && bool.TryParse(record.SecondaryValue, out var isPublic))
                             {
-                                DatabaseUpdateUserPublicStatus(conn, userLink: record.PrimaryValue, isPublic: isPublic);
+                                UpdateUserPublicStatus(conn, userLink: record.PrimaryValue, isPublic: isPublic);
                             }
 
                             break;
                         case DbRecordType.UserAbout:
-                            DatabaseUpdateUserAbout(conn, userLink: record.PrimaryValue, about: record.SecondaryValue);
+                            UpdateUserAbout(conn, userLink: record.PrimaryValue, about: record.SecondaryValue);
                             break;
                         case DbRecordType.UserSkills:
                             // Если PrimaryValue - число, это добавление навыка с skill_id
                             if (int.TryParse(record.PrimaryValue, out var skillId))
                             {
-                                DatabaseInsertSkillWithId(conn, skillId, record.SecondaryValue);
+                                InsertSkillWithId(conn, skillId, record.SecondaryValue);
                             }
                             // Иначе это навыки пользователя
                             else if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                DatabaseInsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                                InsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
                             }
                             break;
                         case DbRecordType.UserExperience:
                             if (record.UserExperience != null)
                             {
-                                DatabaseInsertUserExperience(conn, record.UserExperience);
+                                InsertUserExperience(conn, record.UserExperience);
                             }
                             break;
                         case DbRecordType.UserAdditionalData:
                             if (record.AdditionalData != null)
                             {
-                                DatabaseUpdateUserAdditionalData(conn, userLink: record.PrimaryValue, additionalData: record.AdditionalData);
+                                UpdateUserAdditionalData(conn, userLink: record.PrimaryValue, additionalData: record.AdditionalData);
                             }
                             break;
                         case DbRecordType.UserCommunityParticipation:
                             if (record.CommunityParticipation != null)
                             {
-                                DatabaseUpdateUserCommunityParticipation(conn, userLink: record.PrimaryValue, communityParticipation: record.CommunityParticipation);
+                                UpdateUserCommunityParticipation(conn, userLink: record.PrimaryValue, communityParticipation: record.CommunityParticipation);
                             }
                             break;
                         case DbRecordType.UserDeleted:
-                            DatabaseMarkProfileAsDeleted(conn, userLink: record.PrimaryValue);
+                            MarkProfileAsDeleted(conn, userLink: record.PrimaryValue);
                             break;
                         case DbRecordType.CompanyRating:
                             if (record.CompanyRating != null)
                             {
-                                DatabaseInsertOrUpdateCompanyRating(conn, record.CompanyRating);
+                                InsertOrUpdateCompanyRating(conn, record.CompanyRating);
                             }
                             break;
                         }
@@ -953,7 +953,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
             using var cmd = new NpgsqlCommand("SELECT company_id FROM habr_companies WHERE company_id IS NOT NULL ORDER BY company_id", conn);
             using var reader = cmd.ExecuteReader();
 
@@ -984,7 +984,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
             using var cmd = new NpgsqlCommand("SELECT habr_id FROM habr_universities ORDER BY habr_id", conn);
             using var reader = cmd.ExecuteReader();
 
@@ -1015,7 +1015,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
                 "SELECT category_id FROM habr_category_root_ids ORDER BY category_id", conn);
@@ -1051,7 +1051,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
                 "SELECT code FROM habr_companies ORDER BY code", conn);
@@ -1087,7 +1087,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
                 "SELECT code, url FROM habr_companies ORDER BY code", conn);
@@ -1174,7 +1174,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить company_id для компании
     /// </summary>
-    public void DatabaseUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
+    public void UpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode))
@@ -1182,7 +1182,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_companies
@@ -1216,7 +1216,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr для компании
     /// </summary>
-    public void DatabaseUpdateCompanyDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
+    public void UpdateCompanyDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
         string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
         decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
         string? employeesCount, bool? habr)
@@ -1227,7 +1227,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating,
@@ -1361,7 +1361,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить или обновить навыки компании
     /// </summary>
-    public void DatabaseInsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
+    public void InsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode))
@@ -1370,7 +1370,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Получаем ID компании по коду
             int? companyId = null;
@@ -1466,7 +1466,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(
                 "SELECT code FROM habr_resumes WHERE code IS NOT NULL ORDER BY code", conn);
@@ -1539,7 +1539,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             var query = onlyPublic
                 ? "SELECT link FROM habr_resumes WHERE link IS NOT NULL AND public = true ORDER BY updated_at ASC NULLS FIRST"
@@ -1590,7 +1590,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Выбираем профили без заполненных данных (включая приватные - они будут обработаны и помечены)
             var query = @"
@@ -1826,7 +1826,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить информацию "О себе" для пользователя
     /// </summary>
-    public void DatabaseUpdateUserAbout(NpgsqlConnection conn, string userLink, string? about)
+    public void UpdateUserAbout(NpgsqlConnection conn, string userLink, string? about)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -1834,7 +1834,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -1874,7 +1874,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить флаг пустого профиля для пользователя
     /// </summary>
-    public void DatabaseUpdateUserEmptyProfile(NpgsqlConnection conn, string userLink, bool isEmpty)
+    public void UpdateUserEmptyProfile(NpgsqlConnection conn, string userLink, bool isEmpty)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -1882,7 +1882,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -1921,7 +1921,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Пометить профиль как удалённый
     /// </summary>
-    public void DatabaseMarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
+    public void MarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -1929,7 +1929,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -1970,7 +1970,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить дополнительные данные профиля пользователя (возраст, регистрация, гражданство, удаленная работа)
     /// </summary>
-    public void DatabaseUpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
+    public void UpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -1980,7 +1980,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             var setClauses = new List<string>();
             var cmd = new NpgsqlCommand { Connection = conn };
@@ -2069,7 +2069,7 @@ public sealed class DatabaseClient
     /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
     /// Сохраняет данные в поле community_participation как JSON массив
     /// </summary>
-    public void DatabaseUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
+    public void UpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -2079,7 +2079,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Сериализуем данные в JSON
             var jsonArray = new System.Text.Json.Nodes.JsonArray();
@@ -2135,7 +2135,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Обновить статус публичности профиля пользователя
     /// </summary>
-    public void DatabaseUpdateUserPublicStatus(NpgsqlConnection conn, string userLink, bool isPublic)
+    public void UpdateUserPublicStatus(NpgsqlConnection conn, string userLink, bool isPublic)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -2143,7 +2143,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -2183,7 +2183,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить или обновить навыки пользователя
     /// </summary>
-    public void DatabaseInsertUserSkills(NpgsqlConnection conn, string userLink, List<string> skills)
+    public void InsertUserSkills(NpgsqlConnection conn, string userLink, List<string> skills)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -2192,7 +2192,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Получаем ID пользователя по ссылке
             int? userId = null;
@@ -2297,7 +2297,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить опыт работы пользователя
     /// </summary>
-    public void DatabaseInsertUserExperience(NpgsqlConnection conn, UserExperienceData exp)
+    public void InsertUserExperience(NpgsqlConnection conn, UserExperienceData exp)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(exp.UserLink))
@@ -2305,7 +2305,7 @@ public sealed class DatabaseClient
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Получаем ID пользователя по ссылке
             int? userId = null;
@@ -2525,13 +2525,13 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить навык с skill_id (только если его еще нет)
     /// </summary>
-    public void DatabaseInsertSkillWithId(NpgsqlConnection conn, int skillId, string? title)
+    public void InsertSkillWithId(NpgsqlConnection conn, int skillId, string? title)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Проверяем существование по skill_id
             using (var checkCmd = new NpgsqlCommand(@"
@@ -2592,14 +2592,14 @@ public sealed class DatabaseClient
     /// <summary>
     /// Сохранить или обновить данные рейтинга компании в базе данных
     /// </summary>
-    public void DatabaseInsertOrUpdateCompanyRating(NpgsqlConnection conn, CompanyRatingData ratingData)
+    public void InsertOrUpdateCompanyRating(NpgsqlConnection conn, CompanyRatingData ratingData)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (ratingData is null) throw new ArgumentNullException(nameof(ratingData));
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
 
             // Сначала получаем или создаем компанию
             int companyId;
@@ -2665,7 +2665,7 @@ public sealed class DatabaseClient
             // Сохраняем отзыв, если он есть
             if (!string.IsNullOrWhiteSpace(ratingData.ReviewText))
             {
-                DatabaseInsertReview(conn, companyId, ratingData.ReviewText);
+                InsertReview(conn, companyId, ratingData.ReviewText);
             }
         }
         catch (Exception ex)
@@ -2677,7 +2677,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Сохранить отзыв о компании (с проверкой дубликатов по хешу)
     /// </summary>
-    private void DatabaseInsertReview(NpgsqlConnection conn, int companyId, string reviewText)
+    private void InsertReview(NpgsqlConnection conn, int companyId, string reviewText)
     {
         try
         {
@@ -2745,7 +2745,7 @@ public sealed class DatabaseClient
         {
             try
             {
-                DatabaseInsertUniversity(conn, data);
+                InsertUniversity(conn, data);
             }
             catch (Exception ex)
             {
@@ -2763,7 +2763,7 @@ public sealed class DatabaseClient
         {
             try
             {
-                DatabaseInsertUserUniversity(conn, data);
+                InsertUserUniversity(conn, data);
             }
             catch (Exception ex)
             {
@@ -2775,9 +2775,9 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить или обновить университет в БД
     /// </summary>
-    private void DatabaseInsertUniversity(NpgsqlConnection conn, UniversityData data)
+    private void InsertUniversity(NpgsqlConnection conn, UniversityData data)
     {
-        DatabaseEnsureConnectionOpen(conn);
+        EnsureConnectionOpen(conn);
 
         using var cmd = new NpgsqlCommand(@"
             INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
@@ -2804,9 +2804,9 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить связь пользователь-университет в БД
     /// </summary>
-    private void DatabaseInsertUserUniversity(NpgsqlConnection conn, UserUniversityData data)
+    private void InsertUserUniversity(NpgsqlConnection conn, UserUniversityData data)
     {
-        DatabaseEnsureConnectionOpen(conn);
+        EnsureConnectionOpen(conn);
 
         // Получаем user_id по ссылке
         int? userId = null;
@@ -2894,7 +2894,7 @@ public sealed class DatabaseClient
         {
             try
             {
-                DatabaseInsertAdditionalEducation(conn, data);
+                InsertAdditionalEducation(conn, data);
             }
             catch (Exception ex)
             {
@@ -2906,9 +2906,9 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить запись дополнительного образования в БД
     /// </summary>
-    private void DatabaseInsertAdditionalEducation(NpgsqlConnection conn, AdditionalEducationData data)
+    private void InsertAdditionalEducation(NpgsqlConnection conn, AdditionalEducationData data)
     {
-        DatabaseEnsureConnectionOpen(conn);
+        EnsureConnectionOpen(conn);
 
         // Получаем resume_id по ссылке
         int? resumeId = null;
@@ -2951,7 +2951,7 @@ public sealed class DatabaseClient
     /// </summary>
     public void DeleteUserAdditionalEducation(NpgsqlConnection conn, string userLink)
     {
-        DatabaseEnsureConnectionOpen(conn);
+        EnsureConnectionOpen(conn);
 
         // Получаем resume_id по ссылке
         int? resumeId = null;
@@ -2979,13 +2979,13 @@ public sealed class DatabaseClient
     /// Удаляет все записи с 404 ошибками из таблицы habr_resumes
     /// </summary>
     /// <returns>Количество удалённых записей</returns>
-    public int DatabaseCleanup404Pages(NpgsqlConnection conn)
+    public int Cleanup404Pages(NpgsqlConnection conn)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
         try
         {
-            DatabaseEnsureConnectionOpen(conn);
+            EnsureConnectionOpen(conn);
             using var cmd = new NpgsqlCommand(
                 "DELETE FROM habr_resumes WHERE title LIKE '%Ошибка 404%' OR about LIKE '%Ошибка 404%'", conn);
             int deleted = cmd.ExecuteNonQuery();
