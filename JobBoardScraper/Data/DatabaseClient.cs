@@ -61,27 +61,27 @@ public readonly record struct DbRecord(
     bool? IsDeleted = null);
 
 public sealed class DatabaseClient
+{
+    private readonly string _connectionString;
+    private Task? _dbWriterTask;
+    private CancellationTokenSource? _writerCts;
+    private ConcurrentQueue<DbRecord>? _saveQueue;
+    private readonly ConsoleLogger? _logger;
+    private readonly DatabaseStatistics _statistics = new();
+    private DateTime _lastStatsDump = DateTime.Now;
+    private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Статистика операций с БД
+    /// </summary>
+    public DatabaseStatistics Statistics => _statistics;
+
+    public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
     {
-        private readonly string _connectionString;
-        private Task? _dbWriterTask;
-        private CancellationTokenSource? _writerCts;
-        private ConcurrentQueue<DbRecord>? _saveQueue;
-        private readonly ConsoleLogger? _logger;
-        private readonly DatabaseStatistics _statistics = new();
-        private DateTime _lastStatsDump = DateTime.Now;
-        private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
-
-        /// <summary>
-        /// Статистика операций с БД
-        /// </summary>
-        public DatabaseStatistics Statistics => _statistics;
-
-        public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
-        {
-            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-            _logger = logger;
-            _statistics.InitializeAllTables();
-        }
+        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger;
+        _statistics.InitializeAllTables();
+    }
 
     /// <summary>
     /// Периодически выводит статистику в лог (раз в 5 минут)
