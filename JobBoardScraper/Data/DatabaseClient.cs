@@ -41,24 +41,40 @@ public enum InsertMode
     UpdateIfExists
 }
 
+/// <summary>
+/// Record structure for database queue operations with specific fields for each record type.
+/// </summary>
 public readonly record struct DbRecord(
     DbRecordType Type,
-    string PrimaryValue,
-    string SecondaryValue,
-    string? TertiaryValue = null,
     InsertMode Mode = InsertMode.SkipIfExists,
+    // Common fields used across multiple record types
+    string? Link = null,
+    string? Title = null,
+    string? Slogan = null,
     string? Code = null,
     bool? Expert = null,
     string? WorkExperience = null,
     long? CompanyId = null,
+    string? CompanyCode = null,
+    string? CompanyUrl = null,
+    string? CompanyTitle = null,
+    string? CategoryId = null,
+    string? CategoryName = null,
+    string? UserLink = null,
+    string? About = null,
+    string? SkillTitle = null,
+    bool? IsPublic = null,
+    bool? IsDeleted = null,
+    // Special field for CompanyId record type (stores company ID as string)
+    string? CompanyIdString = null,
+    // Structured data fields
     CompanyDetailsData? CompanyDetails = null,
     CompanyRatingData? CompanyRating = null,
     List<string>? Skills = null,
     UserProfileData? UserProfile = null,
     UserExperienceData? UserExperience = null,
     Dictionary<string, string?>? AdditionalData = null,
-    List<CommunityParticipationData>? CommunityParticipation = null,
-    bool? IsDeleted = null);
+    List<CommunityParticipationData>? CommunityParticipation = null);
 
 public sealed class DatabaseClient
 {
@@ -582,6 +598,11 @@ public sealed class DatabaseClient
                             switch (record.Type)
                     {
                         case DbRecordType.Resume:
+                            // DbRecord field mapping for Resume type:
+                            // Link = userLink (main identifier)
+                            // Title = resume title
+                            // Slogan = optional slogan
+
                             // Получаем или создаём level_id если есть данные профиля
                             int? levelId = null;
                             if (record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.LevelTitle))
@@ -603,11 +624,11 @@ public sealed class DatabaseClient
 
                             // Объединенная вставка/обновление всех полей
                             Insert(conn,
-                                link: record.PrimaryValue,
+                                link: record.Link ?? "",
                                 title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName)
                                     ? record.UserProfile.Value.UserName
-                                    : record.SecondaryValue,
-                                slogan: record.TertiaryValue,
+                                    : record.Title ?? "",
+                                slogan: record.Slogan,
                                 code: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserCode)
                                     ? record.UserProfile.Value.UserCode
                                     : record.Code,
@@ -630,37 +651,47 @@ public sealed class DatabaseClient
                             // Если есть навыки, добавляем их
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                InsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                                InsertUserSkills(conn, userLink: record.Link ?? "", skills: record.Skills);
                             }
                             break;
                         case DbRecordType.Company:
+                            // DbRecord field mapping for Company type:
+                            // CompanyCode = companyCode (main identifier)
+                            // CompanyUrl = companyUrl (company URL)
+                            // CompanyTitle = optional company title
                             InsertCompany(
                                 conn,
-                                companyCode: record.PrimaryValue,
-                                companyUrl: record.SecondaryValue,
-                                companyTitle: record.TertiaryValue,
+                                companyCode: record.CompanyCode ?? "",
+                                companyUrl: record.CompanyUrl ?? "",
+                                companyTitle: record.CompanyTitle,
                                 companyId: record.CompanyId
                             );
                             break;
                         case DbRecordType.CategoryRootId:
-                            InsertCategoryRootId(conn, categoryId: record.PrimaryValue,
-                                categoryName: record.SecondaryValue);
+                            // DbRecord field mapping for CategoryRootId type:
+                            // CategoryId = categoryId (main identifier)
+                            // CategoryName = categoryName (category name)
+                            InsertCategoryRootId(conn, categoryId: record.CategoryId ?? "", categoryName: record.CategoryName ?? "");
                             break;
                         case DbRecordType.CompanyId:
-                            if (long.TryParse(record.SecondaryValue, out var companyId))
+                            // DbRecord field mapping for CompanyId type:
+                            // CompanyCode = companyCode (main identifier)
+                            // CompanyIdString = numeric company ID as string
+                            if (long.TryParse(record.CompanyIdString, out var companyId))
                             {
-                                UpdateCompanyId(conn, companyCode: record.PrimaryValue, companyId: companyId);
+                                UpdateCompanyId(conn, companyCode: record.CompanyCode ?? "", companyId: companyId);
                             }
-
                             break;
                         case DbRecordType.CompanyDetails:
-                            // Используем структуру CompanyDetailsData
+                            // DbRecord field mapping for CompanyDetails type:
+                            // CompanyCode = companyCode (main identifier)
+                            // CompanyDetails = structured data with all company details
                             if (record.CompanyDetails.HasValue)
                             {
                                 var details = record.CompanyDetails.Value;
                                 UpdateCompanyDetails(
                                     conn,
-                                    companyCode: record.PrimaryValue,
+                                    companyCode: record.CompanyCode ?? "",
                                     companyUrl: details.Url,
                                     companyId: details.CompanyId,
                                     companyTitle: details.Title,
@@ -676,19 +707,20 @@ public sealed class DatabaseClient
                                     habr: details.Habr
                                 );
                             }
-
                             break;
                         case DbRecordType.CompanySkills:
-                            // Обрабатываем навыки компании
+                            // DbRecord field mapping for CompanySkills type:
+                            // CompanyCode = companyCode (main identifier)
+                            // Skills = list of company skills
                             if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                InsertCompanySkills(conn, companyCode: record.PrimaryValue,
-                                    skills: record.Skills);
+                                InsertCompanySkills(conn, companyCode: record.CompanyCode ?? "", skills: record.Skills);
                             }
-
                             break;
                         case DbRecordType.UserProfile:
-                            // Обрабатываем профиль пользователя
+                            // DbRecord field mapping for UserProfile type:
+                            // UserLink = userLink (main identifier)
+                            // UserProfile = structured user profile data
                             if (record.UserProfile.HasValue)
                             {
                                 var profile = record.UserProfile.Value;
@@ -715,7 +747,7 @@ public sealed class DatabaseClient
                                 // Обновляем профиль через Insert
                                 Insert(
                                     conn,
-                                    link: record.PrimaryValue,
+                                    link: record.UserLink ?? "",
                                     title: profile.UserName ?? "",
                                     code: profile.UserCode,
                                     expert: profile.IsExpert,
@@ -733,23 +765,29 @@ public sealed class DatabaseClient
                             // Если это просто обновление статуса публичности
                             else if (record.Mode == InsertMode.UpdateIfExists && bool.TryParse(record.SecondaryValue, out var isPublic))
                             {
-                                UpdateUserPublicStatus(conn, userLink: record.PrimaryValue, isPublic: isPublic);
+                                UpdateUserPublicStatus(conn, userLink: record.UserLink ?? "", isPublic: isPublic);
                             }
-
                             break;
                         case DbRecordType.UserAbout:
-                            UpdateUserAbout(conn, userLink: record.PrimaryValue, about: record.SecondaryValue);
+                            // DbRecord field mapping for UserAbout type:
+                            // UserLink = userLink (main identifier)
+                            // About = aboutText (about information)
+                            UpdateUserAbout(conn, userLink: record.UserLink ?? "", about: record.About ?? "");
                             break;
                         case DbRecordType.UserSkills:
-                            // Если PrimaryValue - число, это добавление навыка с skill_id
-                            if (int.TryParse(record.PrimaryValue, out var skillId))
+                            // DbRecord field mapping for UserSkills type:
+                            // UserLink = userLink (main identifier) OR skillId (stored as string)
+                            // SkillTitle = skillTitle (secondary data)
+                            // Skills = list of skills (when UserLink is userLink)
+                            if (int.TryParse(record.UserLink, out var skillId))
                             {
-                                InsertSkillWithId(conn, skillId, record.SecondaryValue);
+                                // Case: Adding skill with skill_id
+                                InsertSkillWithId(conn, skillId, record.SkillTitle ?? "");
                             }
-                            // Иначе это навыки пользователя
                             else if (record.Skills != null && record.Skills.Count > 0)
                             {
-                                InsertUserSkills(conn, userLink: record.PrimaryValue, skills: record.Skills);
+                                // Case: Adding user skills
+                                InsertUserSkills(conn, userLink: record.UserLink ?? "", skills: record.Skills);
                             }
                             break;
                         case DbRecordType.UserExperience:
@@ -759,19 +797,27 @@ public sealed class DatabaseClient
                             }
                             break;
                         case DbRecordType.UserAdditionalData:
+                            // DbRecord field mapping for UserAdditionalData type:
+                            // UserLink = userLink (main identifier)
+                            // AdditionalData = dictionary of additional user data
                             if (record.AdditionalData != null)
                             {
-                                UpdateUserAdditionalData(conn, userLink: record.PrimaryValue, additionalData: record.AdditionalData);
+                                UpdateUserAdditionalData(conn, userLink: record.UserLink ?? "", additionalData: record.AdditionalData);
                             }
                             break;
                         case DbRecordType.UserCommunityParticipation:
+                            // DbRecord field mapping for UserCommunityParticipation type:
+                            // UserLink = userLink (main identifier)
+                            // CommunityParticipation = list of community participation data
                             if (record.CommunityParticipation != null)
                             {
-                                UpdateUserCommunityParticipation(conn, userLink: record.PrimaryValue, communityParticipation: record.CommunityParticipation);
+                                UpdateUserCommunityParticipation(conn, userLink: record.UserLink ?? "", communityParticipation: record.CommunityParticipation);
                             }
                             break;
                         case DbRecordType.UserDeleted:
-                            MarkProfileAsDeleted(conn, userLink: record.PrimaryValue);
+                            // DbRecord field mapping for UserDeleted type:
+                            // UserLink = userLink (main identifier)
+                            MarkProfileAsDeleted(conn, userLink: record.UserLink ?? "");
                             break;
                         case DbRecordType.CompanyRating:
                             if (record.CompanyRating != null)
@@ -893,7 +939,16 @@ public sealed class DatabaseClient
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.Resume, link, title, slogan, mode, code, expert, workExperience);
+        var record = new DbRecord(
+            Type: DbRecordType.Resume,
+            Link: link,
+            Title: title,
+            Slogan: slogan,
+            Mode: mode,
+            Code: code,
+            Expert: expert,
+            WorkExperience: workExperience
+        );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
                           (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
@@ -911,9 +966,9 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(
             Type: DbRecordType.Company,
-            PrimaryValue: companyCode,
-            SecondaryValue: companyUrl,
-            TertiaryValue: companyTitle,
+            CompanyCode: companyCode,
+            CompanyUrl: companyUrl,
+            CompanyTitle: companyTitle,
             CompanyId: companyId
         );
         _saveQueue.Enqueue(record);
@@ -935,7 +990,11 @@ public sealed class DatabaseClient
     {
         if (_saveQueue == null) return false;
 
-        var record = new DbRecord(DbRecordType.CategoryRootId, categoryId, categoryName);
+        var record = new DbRecord(
+            Type: DbRecordType.CategoryRootId,
+            CategoryId: categoryId,
+            CategoryName: categoryName
+        );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
 
@@ -1122,7 +1181,11 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
 
         // Используем специальный тип записи для обновления company_id
-        var record = new DbRecord(DbRecordType.CompanyId, companyCode, companyId.ToString());
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyId,
+            CompanyCode: companyCode,
+            CompanyIdString: companyId.ToString()
+        );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
 
@@ -1158,8 +1221,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(
             Type: DbRecordType.CompanyDetails,
-            PrimaryValue: companyCode,
-            SecondaryValue: "", // Не используется для CompanyDetails
+            CompanyCode: companyCode,
             CompanyDetails: companyDetails
         );
         _saveQueue.Enqueue(record);
@@ -1517,8 +1579,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
-            PrimaryValue: userLink,
-            SecondaryValue: "",
+            UserLink: userLink,
             UserProfile: profileData
         );
         _saveQueue.Enqueue(record);
@@ -1673,8 +1734,7 @@ public sealed class DatabaseClient
         {
             var profileRecord = new DbRecord(
                 Type: DbRecordType.UserProfile,
-                PrimaryValue: userLink,
-                SecondaryValue: "",
+                UserLink: userLink,
                 Mode: InsertMode.UpdateIfExists,
                 UserProfile: new UserProfileData(
                     UserCode: null,
@@ -1696,8 +1756,8 @@ public sealed class DatabaseClient
         // Обновляем about (записываем пустую строку если не найден)
         var aboutRecord = new DbRecord(
             Type: DbRecordType.UserAbout,
-            PrimaryValue: userLink,
-            SecondaryValue: about ?? ""
+            UserLink: userLink,
+            About: about ?? ""
         );
         _saveQueue.Enqueue(aboutRecord);
 
@@ -1706,8 +1766,7 @@ public sealed class DatabaseClient
         {
             var skillsRecord = new DbRecord(
                 Type: DbRecordType.UserSkills,
-                PrimaryValue: userLink,
-                SecondaryValue: "",
+                UserLink: userLink,
                 Skills: skills
             );
             _saveQueue.Enqueue(skillsRecord);
@@ -1722,8 +1781,7 @@ public sealed class DatabaseClient
         {
             var additionalDataRecord = new DbRecord(
                 Type: DbRecordType.UserAdditionalData,
-                PrimaryValue: userLink,
-                SecondaryValue: "",
+                UserLink: userLink,
                 AdditionalData: new Dictionary<string, string?>
                 {
                     { "age", age },
@@ -1741,8 +1799,7 @@ public sealed class DatabaseClient
         {
             var communityRecord = new DbRecord(
                 Type: DbRecordType.UserCommunityParticipation,
-                PrimaryValue: userLink,
-                SecondaryValue: "",
+                UserLink: userLink,
                 CommunityParticipation: communityParticipation
             );
             _saveQueue.Enqueue(communityRecord);
@@ -1764,21 +1821,9 @@ public sealed class DatabaseClient
         // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true (upsert)
         var deletedResumeRecord = new DbRecord(
             Type: DbRecordType.Resume,
-            PrimaryValue: userLink,
-            SecondaryValue: "Профиль удален",
-            TertiaryValue: null,
+            Link: userLink,
+            Title: "Профиль удален",
             Mode: InsertMode.UpdateIfExists,
-            Code: null,
-            Expert: null,
-            WorkExperience: null,
-            CompanyId: null,
-            CompanyDetails: null,
-            CompanyRating: null,
-            Skills: null,
-            UserProfile: null,
-            UserExperience: null,
-            AdditionalData: null,
-            CommunityParticipation: null,
             IsDeleted: true
         );
         _saveQueue.Enqueue(deletedResumeRecord);
@@ -1786,15 +1831,14 @@ public sealed class DatabaseClient
         // 2. Обновить about
         _saveQueue.Enqueue(new DbRecord(
             Type: DbRecordType.UserAbout,
-            PrimaryValue: userLink,
-            SecondaryValue: about
+            UserLink: userLink,
+            About: about
         ));
 
         // 3. Для обратной совместимости: UserDeleted
         _saveQueue.Enqueue(new DbRecord(
             Type: DbRecordType.UserDeleted,
-            PrimaryValue: userLink,
-            SecondaryValue: ""
+            UserLink: userLink
         ));
 
         Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
@@ -1812,8 +1856,8 @@ public sealed class DatabaseClient
         // Используем тип UserProfile для обновления is_public
         var record = new DbRecord(
             Type: DbRecordType.UserProfile,
-            PrimaryValue: userLink,
-            SecondaryValue: isPublic.ToString(),
+            UserLink: userLink,
+            IsPublic: isPublic,
             Mode: InsertMode.UpdateIfExists
         );
         _saveQueue.Enqueue(record);
@@ -2284,8 +2328,6 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(
             Type: DbRecordType.UserExperience,
-            PrimaryValue: "",
-            SecondaryValue: "",
             UserExperience: experienceData
         );
         _saveQueue.Enqueue(record);
@@ -2480,7 +2522,11 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
 
         // Используем специальный тип для навыков
-        var record = new DbRecord(DbRecordType.UserSkills, skillId.ToString(), title);
+        var record = new DbRecord(
+            Type: DbRecordType.UserSkills,
+            UserLink: skillId.ToString(),
+            SkillTitle: title
+        );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] Skill: ID={skillId}, Title={title}");
 
@@ -2497,8 +2543,8 @@ public sealed class DatabaseClient
         // Создаём запись с профилем
         var record = new DbRecord(
             Type: DbRecordType.Resume,
-            PrimaryValue: profileData.Link,
-            SecondaryValue: profileData.Title,
+            Link: profileData.Link,
+            Title: profileData.Title,
             Code: profileData.Code,
             Expert: profileData.IsExpert,
             Mode: InsertMode.UpdateIfExists,
@@ -2578,8 +2624,7 @@ public sealed class DatabaseClient
 
         var record = new DbRecord(
             Type: DbRecordType.CompanyRating,
-            PrimaryValue: ratingData.Code,
-            SecondaryValue: "",
+            CompanyCode: ratingData.Code,
             CompanyRating: ratingData
         );
         _saveQueue.Enqueue(record);
