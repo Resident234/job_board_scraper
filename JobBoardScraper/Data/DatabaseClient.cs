@@ -166,15 +166,15 @@ public sealed class DatabaseClient
         string? code = null,
         bool? expert = null,
         string? workExperience = null,
-         InsertMode mode = InsertMode.SkipIfExists,
-         int? levelId = null,
-         string? infoTech = null,
-         int? salary = null,
-         string? lastVisit = null,
-         bool? isPublic = null,
-         string? jobSearchStatus = null,
-         bool? isEmpty = null,
-         bool? isDeleted = null)
+        InsertMode mode = InsertMode.SkipIfExists,
+        int? levelId = null,
+        string? infoTech = null,
+        int? salary = null,
+        string? lastVisit = null,
+        bool? isPublic = null,
+        string? jobSearchStatus = null,
+        bool? isEmpty = null,
+        bool? isDeleted = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
