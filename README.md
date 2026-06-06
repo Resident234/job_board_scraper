@@ -6,6 +6,14 @@ JobBoardScraper - .NET 9 консольное приложение для сбо
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-336791)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE.md)
 
+## 📚 Документация
+
+- **[Coding Standards](docs/CODING_STANDARDS.md)** - Руководство по форматированию кода и соглашениям о наименовании
+- **[Architecture](docs/ARCHITECTURE.md)** - Общее описание архитектуры проекта
+- **[Configuration](docs/CONFIGURATION.md)** - Настройка параметров и конфигурации
+- **[Statistics](docs/STATISTICS.md)** - Система статистики и мониторинга операций с базой данных
+- **[Quickstart](docs/QUICKSTART.md)** - Быстрый старт и основные команды
+
 ## Реализованная Функциональность
 
 | Модуль | Документация | Основные артефакты |
