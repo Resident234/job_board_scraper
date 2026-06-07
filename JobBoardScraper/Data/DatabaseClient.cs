@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿using System;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -134,6 +134,8 @@ public sealed class DatabaseClient
         return value.Substring(0, maxLength - 3) + "...";
     }
 
+    #region Connection Management Methods
+
     // Создание соединения
     //"Server=localhost:5432;User Id=postgres; Password=admin;Database=jobs;"
     public NpgsqlConnection ConnectionInit()
@@ -159,6 +161,839 @@ public sealed class DatabaseClient
         if (conn.State != ConnectionState.Closed)
             conn.Close();
     }
+
+    #endregion
+
+    #region Queue Management Methods
+
+    /// <summary>
+    /// Запустить фоновую задачу по записи данных в базу данных с использованием внутренней очереди
+    /// </summary>
+    /// <param name="conn">Открытое соединение с базой данных</param>
+    /// <param name="token">Токен отмены операции</param>
+    /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
+    public void StartWriterTask(NpgsqlConnection conn, CancellationToken token, int delayMs = 500)
+    {
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+
+        // Создаем новую очередь
+        _saveQueue = new ConcurrentQueue<DbRecord>();
+
+        // Создаем внутренний токен отмены
+        _writerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var linkedToken = _writerCts.Token;
+
+        _dbWriterTask = Task.Run(async () =>
+        {
+            Log("[DB Writer] Фоновая задача записи в БД запущена");
+            var lastQueueSizeLog = DateTime.MinValue;
+            try
+            {
+                while (!linkedToken.IsCancellationRequested)
+                {
+                    var queueSize = _saveQueue.Count;
+
+                    // Логируем размер очереди каждые 30 секунд
+                    if ((DateTime.Now - lastQueueSizeLog).TotalSeconds >= 30)
+                    {
+                        Log($"[DB Writer] Размер очереди: {queueSize}");
+                        lastQueueSizeLog = DateTime.Now;
+                    }
+
+                    while (_saveQueue.TryDequeue(out var record))
+                    {
+                        try
+                        {
+                            switch (record.Type)
+                            {
+                                case DbRecordType.Resume:
+                                    // DbRecord field mapping for Resume type:
+                                    // Link = userLink (main identifier)
+                                    // Title = resume title
+                                    // Slogan = optional slogan
+
+                                    // Получаем или создаём level_id если есть данные профиля
+                                    int? levelId = null;
+                                    if (record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.LevelTitle))
+                                    {
+                                        using (var cmdLevel = new NpgsqlCommand(@"
+                                            INSERT INTO habr_levels (title, created_at, updated_at)
+                                            VALUES (@title, NOW(), NOW())
+                                            ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                                            RETURNING id", conn))
+                                        {
+                                            cmdLevel.Parameters.AddWithValue("@title", record.UserProfile.Value.LevelTitle);
+                                            var result = cmdLevel.ExecuteScalar();
+                                            if (result != null)
+                                            {
+                                                levelId = Convert.ToInt32(result);
+                                            }
+                                        }
+                                    }
+
+                                    // Объединенная вставка/обновление всех полей
+                                    ResumesInsert(conn,
+                                        link: record.Link ?? "",
+                                        title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName)
+                                            ? record.UserProfile.Value.UserName
+                                            : record.Title ?? "",
+                                        slogan: record.Slogan,
+                                        code: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserCode)
+                                            ? record.UserProfile.Value.UserCode
+                                            : record.Code,
+                                        expert: record.UserProfile.HasValue && record.UserProfile.Value.IsExpert.HasValue
+                                            ? record.UserProfile.Value.IsExpert
+                                            : record.Expert,
+                                        workExperience: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.WorkExperience)
+                                            ? record.UserProfile.Value.WorkExperience
+                                            : record.WorkExperience,
+                                        mode: record.Mode,
+                                        levelId: levelId,
+                                        infoTech: record.UserProfile?.InfoTech,
+                                        salary: record.UserProfile?.Salary,
+                                        lastVisit: record.UserProfile?.LastVisit,
+                                        isPublic: record.UserProfile?.IsPublic,
+                                        jobSearchStatus: record.UserProfile?.JobSearchStatus,
+                                        isDeleted: record.IsDeleted
+                                    );
+
+                                    // Если есть навыки, добавляем их
+                                    if (record.Skills != null && record.Skills.Count > 0)
+                                    {
+                                        InsertUserSkills(conn, userLink: record.Link ?? "", skills: record.Skills);
+                                    }
+                                    break;
+                                case DbRecordType.Company:
+                                    // DbRecord field mapping for Company type:
+                                    // CompanyCode = companyCode (main identifier)
+                                    // CompanyUrl = companyUrl (company URL)
+                                    // CompanyTitle = optional company title
+                                    InsertCompany(
+                                        conn,
+                                        companyCode: record.CompanyCode ?? "",
+                                        companyUrl: record.CompanyUrl ?? "",
+                                        companyTitle: record.CompanyTitle,
+                                        companyId: record.CompanyId
+                                    );
+                                    break;
+                                case DbRecordType.CategoryRootId:
+                                    // DbRecord field mapping for CategoryRootId type:
+                                    // CategoryId = categoryId (main identifier)
+                                    // CategoryName = categoryName (category name)
+                                    InsertCategoryRootId(conn, categoryId: record.CategoryId ?? "", categoryName: record.CategoryName ?? "");
+                                    break;
+                                case DbRecordType.CompanyId:
+                                    // DbRecord field mapping for CompanyId type:
+                                    // CompanyCode = companyCode (main identifier)
+                                    // CompanyIdString = numeric company ID as string
+                                    if (long.TryParse(record.CompanyIdString, out var companyId))
+                                    {
+                                        UpdateCompanyId(conn, companyCode: record.CompanyCode ?? "", companyId: companyId);
+                                    }
+                                    break;
+                                case DbRecordType.CompanyDetails:
+                                    // DbRecord field mapping for CompanyDetails type:
+                                    // CompanyCode = companyCode (main identifier)
+                                    // CompanyDetails = structured data with all company details
+                                    if (record.CompanyDetails.HasValue)
+                                    {
+                                        var details = record.CompanyDetails.Value;
+                                        UpdateCompanyDetails(
+                                            conn,
+                                            companyCode: record.CompanyCode ?? "",
+                                            companyUrl: details.Url,
+                                            companyId: details.CompanyId,
+                                            companyTitle: details.Title,
+                                            companyAbout: details.About,
+                                            companyDescription: details.Description,
+                                            companySite: details.Site,
+                                            companyRating: details.Rating,
+                                            currentEmployees: details.CurrentEmployees,
+                                            pastEmployees: details.PastEmployees,
+                                            followers: details.Followers,
+                                            wantWork: details.WantWork,
+                                            employeesCount: details.EmployeesCount,
+                                            habr: details.Habr
+                                        );
+                                    }
+                                    break;
+                                case DbRecordType.CompanySkills:
+                                    // DbRecord field mapping for CompanySkills type:
+                                    // CompanyCode = companyCode (main identifier)
+                                    // Skills = list of company skills
+                                    if (record.Skills != null && record.Skills.Count > 0)
+                                    {
+                                        InsertCompanySkills(conn, companyCode: record.CompanyCode ?? "", skills: record.Skills);
+                                    }
+                                    break;
+                                case DbRecordType.UserProfile:
+                                    // DbRecord field mapping for UserProfile type:
+                                    // UserLink = userLink (main identifier)
+                                    // UserProfile = structured user profile data
+                                    if (record.UserProfile.HasValue)
+                                    {
+                                        var profile = record.UserProfile.Value;
+
+                                        // Получаем или создаём level_id
+                                        int? profileLevelId = null;
+                                        if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
+                                        {
+                                            using (var cmdLevel = new NpgsqlCommand(@"
+                                                INSERT INTO habr_levels (title, created_at, updated_at)
+                                                VALUES (@title, NOW(), NOW())
+                                                ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                                                RETURNING id", conn))
+                                            {
+                                                cmdLevel.Parameters.AddWithValue("@title", profile.LevelTitle);
+                                                var result = cmdLevel.ExecuteScalar();
+                                                if (result != null)
+                                                {
+                                                    profileLevelId = Convert.ToInt32(result);
+                                                }
+                                            }
+                                        }
+
+                                        // Обновляем профиль через ResumesInsert
+                                        ResumesInsert(
+                                            conn,
+                                            link: record.UserLink ?? "",
+                                            title: profile.UserName ?? "",
+                                            code: profile.UserCode,
+                                            expert: profile.IsExpert,
+                                            workExperience: profile.WorkExperience,
+                                            mode: InsertMode.UpdateIfExists,
+                                            levelId: profileLevelId,
+                                            infoTech: profile.InfoTech,
+                                            salary: profile.Salary,
+                                            lastVisit: profile.LastVisit,
+                                            isPublic: profile.IsPublic,
+                                            jobSearchStatus: profile.JobSearchStatus,
+                                            isEmpty: profile.isEmpty
+                                        );
+                                    }
+                                    // Если это просто обновление статуса публичности
+                                    else if (record.Mode == InsertMode.UpdateIfExists && bool.TryParse(record.SecondaryValue, out var isPublic))
+                                    {
+                                        UpdateUserPublicStatus(conn, userLink: record.UserLink ?? "", isPublic: isPublic);
+                                    }
+                                    break;
+                                case DbRecordType.UserAbout:
+                                    // DbRecord field mapping for UserAbout type:
+                                    // UserLink = userLink (main identifier)
+                                    // About = aboutText (about information)
+                                    UpdateUserAbout(conn, userLink: record.UserLink ?? "", about: record.About ?? "");
+                                    break;
+                                case DbRecordType.UserSkills:
+                                    // DbRecord field mapping for UserSkills type:
+                                    // UserLink = userLink (main identifier) OR skillId (stored as string)
+                                    // SkillTitle = skillTitle (secondary data)
+                                    // Skills = list of skills (when UserLink is userLink)
+                                    if (int.TryParse(record.UserLink, out var skillId))
+                                    {
+                                        // Case: Adding skill with skill_id
+                                        InsertSkillWithId(conn, skillId, record.SkillTitle ?? "");
+                                    }
+                                    else if (record.Skills != null && record.Skills.Count > 0)
+                                    {
+                                        // Case: Adding user skills
+                                        InsertUserSkills(conn, userLink: record.UserLink ?? "", skills: record.Skills);
+                                    }
+                                    break;
+                                case DbRecordType.UserExperience:
+                                    if (record.UserExperience != null)
+                                    {
+                                        InsertUserExperience(conn, record.UserExperience);
+                                    }
+                                    break;
+                                case DbRecordType.UserAdditionalData:
+                                    // DbRecord field mapping for UserAdditionalData type:
+                                    // UserLink = userLink (main identifier)
+                                    // AdditionalData = dictionary of additional user data
+                                    if (record.AdditionalData != null)
+                                    {
+                                        UpdateUserAdditionalData(conn, userLink: record.UserLink ?? "", additionalData: record.AdditionalData);
+                                    }
+                                    break;
+                                case DbRecordType.UserCommunityParticipation:
+                                    // DbRecord field mapping for UserCommunityParticipation type:
+                                    // UserLink = userLink (main identifier)
+                                    // CommunityParticipation = list of community participation data
+                                    if (record.CommunityParticipation != null)
+                                    {
+                                        UpdateUserCommunityParticipation(conn, userLink: record.UserLink ?? "", communityParticipation: record.CommunityParticipation);
+                                    }
+                                    break;
+                                case DbRecordType.UserDeleted:
+                                    // DbRecord field mapping for UserDeleted type:
+                                    // UserLink = userLink (main identifier)
+                                    MarkProfileAsDeleted(conn, userLink: record.UserLink ?? "");
+                                    break;
+                                case DbRecordType.CompanyRating:
+                                    if (record.CompanyRating != null)
+                                    {
+                                        InsertOrUpdateCompanyRating(conn, record.CompanyRating);
+                                    }
+                                    break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"[DB Writer] Ошибка при обработке записи типа {record.Type}: {ex.Message}");
+                            Log($"[DB Writer] Stack trace: {ex.StackTrace}");
+                            // Продолжаем обработку следующих записей
+                        }
+                    }
+
+                    // Обрабатываем очереди университетов
+                    FlushUniversityQueue(conn);
+                    FlushUserUniversityQueue(conn);
+
+                    // Обрабатываем очередь дополнительного образования
+                    FlushAdditionalEducationQueue(conn);
+
+                    await Task.Delay(delayMs, linkedToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Log("[DB Writer] Фоновая задача записи в БД остановлена по запросу");
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB Writer] Критическая ошибка в фоновой задаче: {ex.Message}");
+                Log($"[DB Writer] Stack trace: {ex.StackTrace}");
+            }
+            finally
+            {
+                Log("[DB Writer] Фоновая задача записи в БД завершена");
+            }
+        }, linkedToken);
+    }
+
+    /// <summary>
+    /// Остановить задачу записи в базу данных
+    /// </summary>
+    /// <returns>Task, завершающийся после полной остановки записывающей задачи</returns>
+    public async Task StopWriterTask()
+    {
+        if (_writerCts != null)
+        {
+            // Отмечаем, что нужно завершить работу
+            if (!_writerCts.IsCancellationRequested)
+                _writerCts.Cancel();
+
+            // Дожидаемся завершения задачи, если она была запущена
+            if (_dbWriterTask != null)
+            {
+                try
+                {
+                    await _dbWriterTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Нормальное завершение при отмене
+                }
+                catch (Exception ex)
+                {
+                    Log($"Ошибка при остановке задачи записи в БД: {ex.Message}");
+                }
+                finally
+                {
+                    _dbWriterTask = null;
+                }
+            }
+
+            // Очищаем ресурсы
+            _writerCts.Dispose();
+            _writerCts = null;
+        }
+    }
+
+    /// <summary>
+    /// Проверить состояние фоновой задачи записи в БД
+    /// </summary>
+    public bool IsWriterTaskRunning()
+    {
+        if (_dbWriterTask == null) return false;
+
+        var isRunning = !_dbWriterTask.IsCompleted && !_dbWriterTask.IsCanceled && !_dbWriterTask.IsFaulted;
+
+        if (_dbWriterTask.IsFaulted)
+        {
+            Log($"[DB Writer] Задача завершилась с ошибкой: {_dbWriterTask.Exception?.Message}");
+        }
+
+        return isRunning;
+    }
+
+    /// <summary>
+    /// Получить размер очереди записи в БД
+    /// </summary>
+    public int GetQueueSize()
+    {
+        return _saveQueue?.Count ?? 0;
+    }
+
+    /// <summary>
+    /// Добавить резюме в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueResume(
+        string link,
+        string title,
+        string? slogan = null,
+        InsertMode mode = InsertMode.SkipIfExists,
+        string? code = null,
+        bool? expert = null,
+        string? workExperience = null)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.Resume,
+            Link: link,
+            Title: title,
+            Slogan: slogan,
+            Mode: mode,
+            Code: code,
+            Expert: expert,
+            WorkExperience: workExperience
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
+                          (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
+                          (expert == true ? " | ЭКСПЕРТ" : ""));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить компанию в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompany(string companyCode, string companyUrl, long? companyId = null, string? companyTitle = null)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.Company,
+            CompanyCode: companyCode,
+            CompanyUrl: companyUrl,
+            CompanyTitle: companyTitle,
+            CompanyId: companyId
+        );
+        _saveQueue.Enqueue(record);
+
+        var logMessage = $"[DB Queue] Company: {companyCode} -> {companyUrl}";
+        if (companyId.HasValue)
+            logMessage += $" (ID: {companyId})";
+        if (companyTitle != null)
+            logMessage += $" | {companyTitle}";
+        Log(logMessage);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить category_root_id в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCategoryRootId(string categoryId, string categoryName)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.CategoryRootId,
+            CategoryId: categoryId,
+            CategoryName: categoryName
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить company_id в очередь на обновление в базе данных
+    /// </summary>
+    public bool EnqueueCompanyId(string companyCode, long companyId)
+    {
+        if (_saveQueue == null) return false;
+
+        // Используем специальный тип записи для обновления company_id
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyId,
+            CompanyCode: companyCode,
+            CompanyIdString: companyId.ToString()
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
+    /// </summary>
+    public bool EnqueueCompanyDetails(string companyCode, string companyUrl, long? companyId, string? companyTitle,
+        string? companyAbout = null, string? companyDescription = null, string? companySite = null,
+        decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null,
+        int? wantWork = null, string? employeesCount = null, bool? habr = null)
+    {
+        if (_saveQueue == null) return false;
+
+        // Создаём структуру с данными компании
+        var companyDetails = new CompanyDetailsData(
+            Url: companyUrl,
+            CompanyId: companyId,
+            Title: companyTitle,
+            About: companyAbout,
+            Description: companyDescription,
+            Site: companySite,
+            Rating: companyRating,
+            CurrentEmployees: currentEmployees,
+            PastEmployees: pastEmployees,
+            Followers: followers,
+            WantWork: wantWork,
+            EmployeesCount: employeesCount,
+            Habr: habr
+        );
+
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyDetails,
+            CompanyCode: companyCode,
+            CompanyDetails: companyDetails
+        );
+        _saveQueue.Enqueue(record);
+
+        var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
+        Log(
+            $"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить элемент в очередь на запись в базу данных (устаревший метод для обратной совместимости)
+    /// </summary>
+    [Obsolete("Use EnqueueResume instead")]
+    public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
+
+    /// <summary>
+    /// Добавить навыки компании в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompanySkills(string companyCode, List<string> skills)
+    {
+        if (_saveQueue == null) return false;
+        if (skills == null || skills.Count == 0) return false;
+
+        var record = new DbRecord(DbRecordType.CompanySkills, companyCode, "", Skills: skills);
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить информацию о профиле пользователя в очередь на обновление
+    /// </summary>
+    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert,
+        string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null,
+        bool? isPublic = null)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // Создаём структуру с данными профиля
+        var profileData = new UserProfileData(
+            UserCode: userCode,
+            UserName: userName,
+            IsExpert: isExpert,
+            LevelTitle: levelTitle,
+            InfoTech: infoTech,
+            Salary: salary,
+            WorkExperience: workExperience,
+            LastVisit: lastVisit,
+            IsPublic: isPublic,
+            JobSearchStatus: null
+        );
+
+        var record = new DbRecord(
+            Type: DbRecordType.UserProfile,
+            UserLink: userLink,
+            UserProfile: profileData
+        );
+        _saveQueue.Enqueue(record);
+        Log(
+            $"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить детальную информацию о резюме пользователя в очередь
+    /// </summary>
+    public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
+    {
+        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    /// <summary>
+    /// Добавить детальную информацию о резюме пользователя в очередь (с дополнительными полями)
+    /// </summary>
+    public bool EnqueueUserResumeDetail(
+        string userLink,
+        string? about,
+        List<string>? skills,
+        string? age,
+        string? experienceText,
+        string? registration,
+        string? lastVisit,
+        string? citizenship,
+        bool? remoteWork,
+        string? userName = null,
+        string? infoTech = null,
+        string? levelTitle = null,
+        int? salary = null,
+        string? jobSearchStatus = null,
+        List<CommunityParticipationData>? communityParticipation = null,
+        bool? isEmpty = null)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // Обновляем основные данные профиля (имя, техническая информация, уровень, зарплата)
+        if (!string.IsNullOrWhiteSpace(userName) ||
+            !string.IsNullOrWhiteSpace(infoTech) ||
+            !string.IsNullOrWhiteSpace(levelTitle) ||
+            salary.HasValue ||
+            !string.IsNullOrWhiteSpace(lastVisit))
+        {
+            var profileRecord = new DbRecord(
+                Type: DbRecordType.UserProfile,
+                UserLink: userLink,
+                Mode: InsertMode.UpdateIfExists,
+                UserProfile: new UserProfileData(
+                    UserCode: null,
+                    UserName: userName,
+                    IsExpert: null,
+                    LevelTitle: levelTitle,
+                    InfoTech: infoTech,
+                    Salary: salary,
+                    WorkExperience: experienceText,
+                    LastVisit: lastVisit,
+                    IsPublic: null,
+                    JobSearchStatus: jobSearchStatus,
+                    isEmpty: isEmpty
+                )
+            );
+            _saveQueue.Enqueue(profileRecord);
+        }
+
+        // Обновляем about (записываем пустую строку если не найден)
+        var aboutRecord = new DbRecord(
+            Type: DbRecordType.UserAbout,
+            UserLink: userLink,
+            About: about ?? ""
+        );
+        _saveQueue.Enqueue(aboutRecord);
+
+        // Добавляем навыки
+        if (skills != null && skills.Count > 0)
+        {
+            var skillsRecord = new DbRecord(
+                Type: DbRecordType.UserSkills,
+                UserLink: userLink,
+                Skills: skills
+            );
+            _saveQueue.Enqueue(skillsRecord);
+        }
+
+        // Добавляем дополнительные данные профиля
+        if (!string.IsNullOrWhiteSpace(age) ||
+            !string.IsNullOrWhiteSpace(registration) ||
+            !string.IsNullOrWhiteSpace(citizenship) ||
+            remoteWork.HasValue ||
+            !string.IsNullOrWhiteSpace(jobSearchStatus))
+        {
+            var additionalDataRecord = new DbRecord(
+                Type: DbRecordType.UserAdditionalData,
+                UserLink: userLink,
+                AdditionalData: new Dictionary<string, string?>
+                {
+                    { "age", age },
+                    { "registration", registration },
+                    { "citizenship", citizenship },
+                    { "remote_work", remoteWork?.ToString() },
+                    { "job_search_status", jobSearchStatus }
+                }
+            );
+            _saveQueue.Enqueue(additionalDataRecord);
+        }
+
+        // Добавляем участие в профсообществах
+        if (communityParticipation != null && communityParticipation.Count > 0)
+        {
+            var communityRecord = new DbRecord(
+                Type: DbRecordType.UserCommunityParticipation,
+                UserLink: userLink,
+                CommunityParticipation: communityParticipation
+            );
+            _saveQueue.Enqueue(communityRecord);
+        }
+
+        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить информацию об удалённом профиле в очередь
+    /// </summary>
+    public bool EnqueueDeletedProfile(string userLink, string about)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true (upsert)
+        var deletedResumeRecord = new DbRecord(
+            Type: DbRecordType.Resume,
+            Link: userLink,
+            Title: "Профиль удален",
+            Mode: InsertMode.UpdateIfExists,
+            IsDeleted: true
+        );
+        _saveQueue.Enqueue(deletedResumeRecord);
+
+        // 2. Обновить about
+        _saveQueue.Enqueue(new DbRecord(
+            Type: DbRecordType.UserAbout,
+            UserLink: userLink,
+            About: about
+        ));
+
+        // 3. Для обратной совместимости: UserDeleted
+        _saveQueue.Enqueue(new DbRecord(
+            Type: DbRecordType.UserDeleted,
+            UserLink: userLink
+        ));
+
+        Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
+        return true;
+    }
+
+    /// <summary>
+    /// Обновить статус публичности профиля пользователя
+    /// </summary>
+    public bool EnqueueUpdateUserPublicStatus(string userLink, bool isPublic)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(userLink)) return false;
+
+        // Используем тип UserProfile для обновления is_public
+        var record = new DbRecord(
+            Type: DbRecordType.UserProfile,
+            UserLink: userLink,
+            IsPublic: isPublic,
+            Mode: InsertMode.UpdateIfExists
+        );
+        _saveQueue.Enqueue(record);
+
+        Log($"[DB Queue] UpdateUserPublicStatus: {userLink} -> public={isPublic}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить опыт работы пользователя в очередь
+    /// </summary>
+    public bool EnqueueUserExperience(UserExperienceData experienceData)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.UserExperience,
+            UserExperience: experienceData
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] UserExperience: {experienceData.UserLink} -> Company={experienceData.CompanyCode}, Position={experienceData.Position}, Skills={experienceData.Skills?.Count ?? 0}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить навык в очередь (с skill_id из URL)
+    /// </summary>
+    public bool EnqueueSkill(int skillId, string title)
+    {
+        if (_saveQueue == null) return false;
+
+        // Используем специальный тип для навыков
+        var record = new DbRecord(
+            Type: DbRecordType.UserSkills,
+            UserLink: skillId.ToString(),
+            SkillTitle: title
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] Skill: ID={skillId}, Title={title}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить детальный профиль резюме в очередь
+    /// </summary>
+    public bool EnqueueResumeProfile(ResumeProfileData profileData)
+    {
+        if (_saveQueue == null) return false;
+
+        // Создаём запись с профилем
+        var record = new DbRecord(
+            Type: DbRecordType.Resume,
+            Link: profileData.Link,
+            Title: profileData.Title,
+            Code: profileData.Code,
+            Expert: profileData.IsExpert,
+            Mode: InsertMode.UpdateIfExists,
+            UserProfile: new UserProfileData(
+                UserCode: profileData.Code,
+                UserName: profileData.Title,
+                IsExpert: profileData.IsExpert,
+                LevelTitle: profileData.LevelTitle,
+                InfoTech: profileData.InfoTech,
+                Salary: profileData.Salary,
+                WorkExperience: null,
+                LastVisit: null,
+                IsPublic: null,
+                JobSearchStatus: null
+            ),
+            Skills: profileData.Skills
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Добавить данные рейтинга компании в очередь на запись в базу данных
+    /// </summary>
+    public bool EnqueueCompanyRating(CompanyRatingData ratingData)
+    {
+        if (_saveQueue == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.CompanyRating,
+            CompanyCode: ratingData.Code,
+            CompanyRating: ratingData
+        );
+        _saveQueue.Enqueue(record);
+
+        Log($"[DB Queue] CompanyRating: {ratingData.Code} -> Title={ratingData.Title}, Rating={ratingData.Rating}, City={ratingData.City}, Scores={ratingData.Scores}");
+
+        return true;
+    }
+
+    #endregion
+
+    #region Database Table Operations Methods
 
     // Проверка существования записи по полю link
     public bool ResumesRecordExistsByLink(NpgsqlConnection conn, string link)
@@ -509,7 +1344,6 @@ public sealed class DatabaseClient
             _statistics.RecordError("habr_companies", companyCode);
         }
     }
-    }
 
     // Вставка category_root_id в таблицу category_root_ids
     public void CategoryRootIdsInsert(NpgsqlConnection conn, string categoryId, string categoryName)
@@ -555,450 +1389,6 @@ public sealed class DatabaseClient
             Log($"[DB] Category {categoryId}: ❌ ERROR - {ex.Message}");
             _statistics.RecordError("habr_category_root_ids", categoryId);
         }
-    }
-
-    /// <summary>
-    /// Запустить фоновую задачу по записи данных в базу данных с использованием внутренней очереди
-    /// </summary>
-    /// <param name="conn">Открытое соединение с базой данных</param>
-    /// <param name="token">Токен отмены операции</param>
-    /// <param name="delayMs">Задержка между циклами проверки очереди в миллисекундах</param>
-    public void StartWriterTask(NpgsqlConnection conn, CancellationToken token, int delayMs = 500)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-
-        // Создаем новую очередь
-        _saveQueue = new ConcurrentQueue<DbRecord>();
-
-        // Создаем внутренний токен отмены
-        _writerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var linkedToken = _writerCts.Token;
-
-        _dbWriterTask = Task.Run(async () =>
-        {
-            Log("[DB Writer] Фоновая задача записи в БД запущена");
-            var lastQueueSizeLog = DateTime.MinValue;
-            try
-            {
-                while (!linkedToken.IsCancellationRequested)
-                {
-                    var queueSize = _saveQueue.Count;
-
-                    // Логируем размер очереди каждые 30 секунд
-                    if ((DateTime.Now - lastQueueSizeLog).TotalSeconds >= 30)
-                    {
-                        Log($"[DB Writer] Размер очереди: {queueSize}");
-                        lastQueueSizeLog = DateTime.Now;
-                    }
-
-                    while (_saveQueue.TryDequeue(out var record))
-                    {
-                        try
-                        {
-                            switch (record.Type)
-                    {
-                        case DbRecordType.Resume:
-                            // DbRecord field mapping for Resume type:
-                            // Link = userLink (main identifier)
-                            // Title = resume title
-                            // Slogan = optional slogan
-
-                            // Получаем или создаём level_id если есть данные профиля
-                            int? levelId = null;
-                            if (record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.LevelTitle))
-                            {
-                                using (var cmdLevel = new NpgsqlCommand(@"
-                                    INSERT INTO habr_levels (title, created_at, updated_at)
-                                    VALUES (@title, NOW(), NOW())
-                                    ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                                    RETURNING id", conn))
-                                {
-                                    cmdLevel.Parameters.AddWithValue("@title", record.UserProfile.Value.LevelTitle);
-                                    var result = cmdLevel.ExecuteScalar();
-                                    if (result != null)
-                                    {
-                                        levelId = Convert.ToInt32(result);
-                                    }
-                                }
-                            }
-
-                            // Объединенная вставка/обновление всех полей
-                            ResumesInsert(conn,
-                                link: record.Link ?? "",
-                                title: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserName)
-                                    ? record.UserProfile.Value.UserName
-                                    : record.Title ?? "",
-                                slogan: record.Slogan,
-                                code: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.UserCode)
-                                    ? record.UserProfile.Value.UserCode
-                                    : record.Code,
-                                expert: record.UserProfile.HasValue && record.UserProfile.Value.IsExpert.HasValue
-                                    ? record.UserProfile.Value.IsExpert
-                                    : record.Expert,
-                                workExperience: record.UserProfile.HasValue && !string.IsNullOrWhiteSpace(record.UserProfile.Value.WorkExperience)
-                                    ? record.UserProfile.Value.WorkExperience
-                                    : record.WorkExperience,
-                                mode: record.Mode,
-                                levelId: levelId,
-                                infoTech: record.UserProfile?.InfoTech,
-                                salary: record.UserProfile?.Salary,
-                                lastVisit: record.UserProfile?.LastVisit,
-                                isPublic: record.UserProfile?.IsPublic,
-                                jobSearchStatus: record.UserProfile?.JobSearchStatus,
-                                isDeleted: record.IsDeleted
-                            );
-
-                            // Если есть навыки, добавляем их
-                            if (record.Skills != null && record.Skills.Count > 0)
-                            {
-                                InsertUserSkills(conn, userLink: record.Link ?? "", skills: record.Skills);
-                            }
-                            break;
-                        case DbRecordType.Company:
-                            // DbRecord field mapping for Company type:
-                            // CompanyCode = companyCode (main identifier)
-                            // CompanyUrl = companyUrl (company URL)
-                            // CompanyTitle = optional company title
-                            InsertCompany(
-                                conn,
-                                companyCode: record.CompanyCode ?? "",
-                                companyUrl: record.CompanyUrl ?? "",
-                                companyTitle: record.CompanyTitle,
-                                companyId: record.CompanyId
-                            );
-                            break;
-                        case DbRecordType.CategoryRootId:
-                            // DbRecord field mapping for CategoryRootId type:
-                            // CategoryId = categoryId (main identifier)
-                            // CategoryName = categoryName (category name)
-                            InsertCategoryRootId(conn, categoryId: record.CategoryId ?? "", categoryName: record.CategoryName ?? "");
-                            break;
-                        case DbRecordType.CompanyId:
-                            // DbRecord field mapping for CompanyId type:
-                            // CompanyCode = companyCode (main identifier)
-                            // CompanyIdString = numeric company ID as string
-                            if (long.TryParse(record.CompanyIdString, out var companyId))
-                            {
-                                UpdateCompanyId(conn, companyCode: record.CompanyCode ?? "", companyId: companyId);
-                            }
-                            break;
-                        case DbRecordType.CompanyDetails:
-                            // DbRecord field mapping for CompanyDetails type:
-                            // CompanyCode = companyCode (main identifier)
-                            // CompanyDetails = structured data with all company details
-                            if (record.CompanyDetails.HasValue)
-                            {
-                                var details = record.CompanyDetails.Value;
-                                UpdateCompanyDetails(
-                                    conn,
-                                    companyCode: record.CompanyCode ?? "",
-                                    companyUrl: details.Url,
-                                    companyId: details.CompanyId,
-                                    companyTitle: details.Title,
-                                    companyAbout: details.About,
-                                    companyDescription: details.Description,
-                                    companySite: details.Site,
-                                    companyRating: details.Rating,
-                                    currentEmployees: details.CurrentEmployees,
-                                    pastEmployees: details.PastEmployees,
-                                    followers: details.Followers,
-                                    wantWork: details.WantWork,
-                                    employeesCount: details.EmployeesCount,
-                                    habr: details.Habr
-                                );
-                            }
-                            break;
-                        case DbRecordType.CompanySkills:
-                            // DbRecord field mapping for CompanySkills type:
-                            // CompanyCode = companyCode (main identifier)
-                            // Skills = list of company skills
-                            if (record.Skills != null && record.Skills.Count > 0)
-                            {
-                                InsertCompanySkills(conn, companyCode: record.CompanyCode ?? "", skills: record.Skills);
-                            }
-                            break;
-                        case DbRecordType.UserProfile:
-                            // DbRecord field mapping for UserProfile type:
-                            // UserLink = userLink (main identifier)
-                            // UserProfile = structured user profile data
-                            if (record.UserProfile.HasValue)
-                            {
-                                var profile = record.UserProfile.Value;
-
-                                // Получаем или создаём level_id
-                                int? profileLevelId = null;
-                                if (!string.IsNullOrWhiteSpace(profile.LevelTitle))
-                                {
-                                    using (var cmdLevel = new NpgsqlCommand(@"
-                                        INSERT INTO habr_levels (title, created_at, updated_at)
-                                        VALUES (@title, NOW(), NOW())
-                                        ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                                        RETURNING id", conn))
-                                    {
-                                        cmdLevel.Parameters.AddWithValue("@title", profile.LevelTitle);
-                                        var result = cmdLevel.ExecuteScalar();
-                                        if (result != null)
-                                        {
-                                            profileLevelId = Convert.ToInt32(result);
-                                        }
-                                    }
-                                }
-
-                                // Обновляем профиль через ResumesInsert
-                                ResumesInsert(
-                                    conn,
-                                    link: record.UserLink ?? "",
-                                    title: profile.UserName ?? "",
-                                    code: profile.UserCode,
-                                    expert: profile.IsExpert,
-                                    workExperience: profile.WorkExperience,
-                                    mode: InsertMode.UpdateIfExists,
-                                    levelId: profileLevelId,
-                                    infoTech: profile.InfoTech,
-                                    salary: profile.Salary,
-                                    lastVisit: profile.LastVisit,
-                                    isPublic: profile.IsPublic,
-                                    jobSearchStatus: profile.JobSearchStatus,
-                                    isEmpty: profile.isEmpty
-                                );
-                            }
-                            // Если это просто обновление статуса публичности
-                            else if (record.Mode == InsertMode.UpdateIfExists && bool.TryParse(record.SecondaryValue, out var isPublic))
-                            {
-                                UpdateUserPublicStatus(conn, userLink: record.UserLink ?? "", isPublic: isPublic);
-                            }
-                            break;
-                        case DbRecordType.UserAbout:
-                            // DbRecord field mapping for UserAbout type:
-                            // UserLink = userLink (main identifier)
-                            // About = aboutText (about information)
-                            UpdateUserAbout(conn, userLink: record.UserLink ?? "", about: record.About ?? "");
-                            break;
-                        case DbRecordType.UserSkills:
-                            // DbRecord field mapping for UserSkills type:
-                            // UserLink = userLink (main identifier) OR skillId (stored as string)
-                            // SkillTitle = skillTitle (secondary data)
-                            // Skills = list of skills (when UserLink is userLink)
-                            if (int.TryParse(record.UserLink, out var skillId))
-                            {
-                                // Case: Adding skill with skill_id
-                                InsertSkillWithId(conn, skillId, record.SkillTitle ?? "");
-                            }
-                            else if (record.Skills != null && record.Skills.Count > 0)
-                            {
-                                // Case: Adding user skills
-                                InsertUserSkills(conn, userLink: record.UserLink ?? "", skills: record.Skills);
-                            }
-                            break;
-                        case DbRecordType.UserExperience:
-                            if (record.UserExperience != null)
-                            {
-                                InsertUserExperience(conn, record.UserExperience);
-                            }
-                            break;
-                        case DbRecordType.UserAdditionalData:
-                            // DbRecord field mapping for UserAdditionalData type:
-                            // UserLink = userLink (main identifier)
-                            // AdditionalData = dictionary of additional user data
-                            if (record.AdditionalData != null)
-                            {
-                                UpdateUserAdditionalData(conn, userLink: record.UserLink ?? "", additionalData: record.AdditionalData);
-                            }
-                            break;
-                        case DbRecordType.UserCommunityParticipation:
-                            // DbRecord field mapping for UserCommunityParticipation type:
-                            // UserLink = userLink (main identifier)
-                            // CommunityParticipation = list of community participation data
-                            if (record.CommunityParticipation != null)
-                            {
-                                UpdateUserCommunityParticipation(conn, userLink: record.UserLink ?? "", communityParticipation: record.CommunityParticipation);
-                            }
-                            break;
-                        case DbRecordType.UserDeleted:
-                            // DbRecord field mapping for UserDeleted type:
-                            // UserLink = userLink (main identifier)
-                            MarkProfileAsDeleted(conn, userLink: record.UserLink ?? "");
-                            break;
-                        case DbRecordType.CompanyRating:
-                            if (record.CompanyRating != null)
-                            {
-                                InsertOrUpdateCompanyRating(conn, record.CompanyRating);
-                            }
-                            break;
-                        }
-                    }
-                        catch (Exception ex)
-                        {
-                            Log($"[DB Writer] Ошибка при обработке записи типа {record.Type}: {ex.Message}");
-                            Log($"[DB Writer] Stack trace: {ex.StackTrace}");
-                            // Продолжаем обработку следующих записей
-                        }
-                    }
-
-                    // Обрабатываем очереди университетов
-                    FlushUniversityQueue(conn);
-                    FlushUserUniversityQueue(conn);
-
-                    // Обрабатываем очередь дополнительного образования
-                    FlushAdditionalEducationQueue(conn);
-
-                    await Task.Delay(delayMs, linkedToken);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Log("[DB Writer] Фоновая задача записи в БД остановлена по запросу");
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB Writer] Критическая ошибка в фоновой задаче: {ex.Message}");
-                Log($"[DB Writer] Stack trace: {ex.StackTrace}");
-            }
-            finally
-            {
-                Log("[DB Writer] Фоновая задача записи в БД завершена");
-            }
-        }, linkedToken);
-    }
-
-    /// <summary>
-    /// Остановить задачу записи в базу данных
-    /// </summary>
-    /// <returns>Task, завершающийся после полной остановки записывающей задачи</returns>
-    public async Task StopWriterTask()
-    {
-        if (_writerCts != null)
-        {
-            // Отмечаем, что нужно завершить работу
-            if (!_writerCts.IsCancellationRequested)
-                _writerCts.Cancel();
-
-            // Дожидаемся завершения задачи, если она была запущена
-            if (_dbWriterTask != null)
-            {
-                try
-                {
-                    await _dbWriterTask;
-                }
-                catch (OperationCanceledException)
-                {
-                    // Нормальное завершение при отмене
-                }
-                catch (Exception ex)
-                {
-                    Log($"Ошибка при остановке задачи записи в БД: {ex.Message}");
-                }
-                finally
-                {
-                    _dbWriterTask = null;
-                }
-            }
-
-            // Очищаем ресурсы
-            _writerCts.Dispose();
-            _writerCts = null;
-        }
-    }
-
-    /// <summary>
-    /// Проверить состояние фоновой задачи записи в БД
-    /// </summary>
-    public bool IsWriterTaskRunning()
-    {
-        if (_dbWriterTask == null) return false;
-
-        var isRunning = !_dbWriterTask.IsCompleted && !_dbWriterTask.IsCanceled && !_dbWriterTask.IsFaulted;
-
-        if (_dbWriterTask.IsFaulted)
-        {
-            Log($"[DB Writer] Задача завершилась с ошибкой: {_dbWriterTask.Exception?.Message}");
-        }
-
-        return isRunning;
-    }
-
-    /// <summary>
-    /// Получить размер очереди записи в БД
-    /// </summary>
-    public int GetQueueSize()
-    {
-        return _saveQueue?.Count ?? 0;
-    }
-
-    /// <summary>
-    /// Добавить резюме в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueResume(
-        string link,
-        string title,
-        string? slogan = null,
-        InsertMode mode = InsertMode.SkipIfExists,
-        string? code = null,
-        bool? expert = null,
-        string? workExperience = null)
-    {
-        if (_saveQueue == null) return false;
-
-        var record = new DbRecord(
-            Type: DbRecordType.Resume,
-            Link: link,
-            Title: title,
-            Slogan: slogan,
-            Mode: mode,
-            Code: code,
-            Expert: expert,
-            WorkExperience: workExperience
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
-                          (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                          (expert == true ? " | ЭКСПЕРТ" : ""));
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить компанию в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCompany(string companyCode, string companyUrl, long? companyId = null, string? companyTitle = null)
-    {
-        if (_saveQueue == null) return false;
-
-        var record = new DbRecord(
-            Type: DbRecordType.Company,
-            CompanyCode: companyCode,
-            CompanyUrl: companyUrl,
-            CompanyTitle: companyTitle,
-            CompanyId: companyId
-        );
-        _saveQueue.Enqueue(record);
-
-        var logMessage = $"[DB Queue] Company: {companyCode} -> {companyUrl}";
-        if (companyId.HasValue)
-            logMessage += $" (ID: {companyId})";
-        if (companyTitle != null)
-            logMessage += $" | {companyTitle}";
-        Log(logMessage);
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить category_root_id в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCategoryRootId(string categoryId, string categoryName)
-    {
-        if (_saveQueue == null) return false;
-
-        var record = new DbRecord(
-            Type: DbRecordType.CategoryRootId,
-            CategoryId: categoryId,
-            CategoryName: categoryName
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
-
-        return true;
     }
 
     /// <summary>
@@ -1174,66 +1564,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить company_id в очередь на обновление в базе данных
-    /// </summary>
-    public bool EnqueueCompanyId(string companyCode, long companyId)
-    {
-        if (_saveQueue == null) return false;
-
-        // Используем специальный тип записи для обновления company_id
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyId,
-            CompanyCode: companyCode,
-            CompanyIdString: companyId.ToString()
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
-    /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, string companyUrl, long? companyId, string? companyTitle,
-        string? companyAbout = null, string? companyDescription = null, string? companySite = null,
-        decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null,
-        int? wantWork = null, string? employeesCount = null, bool? habr = null)
-    {
-        if (_saveQueue == null) return false;
-
-        // Создаём структуру с данными компании
-        var companyDetails = new CompanyDetailsData(
-            Url: companyUrl,
-            CompanyId: companyId,
-            Title: companyTitle,
-            About: companyAbout,
-            Description: companyDescription,
-            Site: companySite,
-            Rating: companyRating,
-            CurrentEmployees: currentEmployees,
-            PastEmployees: pastEmployees,
-            Followers: followers,
-            WantWork: wantWork,
-            EmployeesCount: employeesCount,
-            Habr: habr
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyDetails,
-            CompanyCode: companyCode,
-            CompanyDetails: companyDetails
-        );
-        _saveQueue.Enqueue(record);
-
-        var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Log(
-            $"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Обновить company_id для компании
     /// </summary>
     public void CompaniesUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
@@ -1400,27 +1730,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить элемент в очередь на запись в базу данных (устаревший метод для обратной совместимости)
-    /// </summary>
-    [Obsolete("Use EnqueueResume instead")]
-    public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
-
-    /// <summary>
-    /// Добавить навыки компании в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCompanySkills(string companyCode, List<string> skills)
-    {
-        if (_saveQueue == null) return false;
-        if (skills == null || skills.Count == 0) return false;
-
-        var record = new DbRecord(DbRecordType.CompanySkills, companyCode, "", Skills: skills);
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
-
-        return true;
-    }
-
-    /// <summary>
     /// Вставить или обновить навыки компании
     /// </summary>
     public void CompanySkillsInsert(NpgsqlConnection conn, string companyCode, List<string> skills)
@@ -1554,42 +1863,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить информацию о профиле пользователя в очередь на обновление
-    /// </summary>
-    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert,
-        string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null,
-        bool? isPublic = null)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        // Создаём структуру с данными профиля
-        var profileData = new UserProfileData(
-            UserCode: userCode,
-            UserName: userName,
-            IsExpert: isExpert,
-            LevelTitle: levelTitle,
-            InfoTech: infoTech,
-            Salary: salary,
-            WorkExperience: workExperience,
-            LastVisit: lastVisit,
-            IsPublic: isPublic,
-            JobSearchStatus: null
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.UserProfile,
-            UserLink: userLink,
-            UserProfile: profileData
-        );
-        _saveQueue.Enqueue(record);
-        Log(
-            $"[DB Queue] UserProfile: {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Получить ссылки пользователей с опциональным фильтром по публичности
     /// </summary>
     public List<string> ResumesGetAllUserLinks(NpgsqlConnection conn, bool onlyPublic = false)
@@ -1690,181 +1963,6 @@ public sealed class DatabaseClient
         }
 
         return userLinks;
-    }
-
-
-    /// <summary>
-    /// Добавить детальную информацию о резюме пользователя в очередь
-    /// </summary>
-    public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
-    {
-        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null, null, null, null, null, null, null);
-    }
-
-    /// <summary>
-    /// Добавить детальную информацию о резюме пользователя в очередь (с дополнительными полями)
-    /// </summary>
-    public bool EnqueueUserResumeDetail(
-        string userLink,
-        string? about,
-        List<string>? skills,
-        string? age,
-        string? experienceText,
-        string? registration,
-        string? lastVisit,
-        string? citizenship,
-        bool? remoteWork,
-        string? userName = null,
-        string? infoTech = null,
-        string? levelTitle = null,
-        int? salary = null,
-        string? jobSearchStatus = null,
-        List<CommunityParticipationData>? communityParticipation = null,
-        bool? isEmpty = null)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        // Обновляем основные данные профиля (имя, техническая информация, уровень, зарплата)
-        if (!string.IsNullOrWhiteSpace(userName) ||
-            !string.IsNullOrWhiteSpace(infoTech) ||
-            !string.IsNullOrWhiteSpace(levelTitle) ||
-            salary.HasValue ||
-            !string.IsNullOrWhiteSpace(lastVisit))
-        {
-            var profileRecord = new DbRecord(
-                Type: DbRecordType.UserProfile,
-                UserLink: userLink,
-                Mode: InsertMode.UpdateIfExists,
-                UserProfile: new UserProfileData(
-                    UserCode: null,
-                    UserName: userName,
-                    IsExpert: null,
-                    LevelTitle: levelTitle,
-                    InfoTech: infoTech,
-                    Salary: salary,
-                    WorkExperience: experienceText,
-                    LastVisit: lastVisit,
-                    IsPublic: null,
-                    JobSearchStatus: jobSearchStatus,
-                    isEmpty: isEmpty
-                )
-            );
-            _saveQueue.Enqueue(profileRecord);
-        }
-
-        // Обновляем about (записываем пустую строку если не найден)
-        var aboutRecord = new DbRecord(
-            Type: DbRecordType.UserAbout,
-            UserLink: userLink,
-            About: about ?? ""
-        );
-        _saveQueue.Enqueue(aboutRecord);
-
-        // Добавляем навыки
-        if (skills != null && skills.Count > 0)
-        {
-            var skillsRecord = new DbRecord(
-                Type: DbRecordType.UserSkills,
-                UserLink: userLink,
-                Skills: skills
-            );
-            _saveQueue.Enqueue(skillsRecord);
-        }
-
-        // Добавляем дополнительные данные профиля
-        if (!string.IsNullOrWhiteSpace(age) ||
-            !string.IsNullOrWhiteSpace(registration) ||
-            !string.IsNullOrWhiteSpace(citizenship) ||
-            remoteWork.HasValue ||
-            !string.IsNullOrWhiteSpace(jobSearchStatus))
-        {
-            var additionalDataRecord = new DbRecord(
-                Type: DbRecordType.UserAdditionalData,
-                UserLink: userLink,
-                AdditionalData: new Dictionary<string, string?>
-                {
-                    { "age", age },
-                    { "registration", registration },
-                    { "citizenship", citizenship },
-                    { "remote_work", remoteWork?.ToString() },
-                    { "job_search_status", jobSearchStatus }
-                }
-            );
-            _saveQueue.Enqueue(additionalDataRecord);
-        }
-
-        // Добавляем участие в профсообществах
-        if (communityParticipation != null && communityParticipation.Count > 0)
-        {
-            var communityRecord = new DbRecord(
-                Type: DbRecordType.UserCommunityParticipation,
-                UserLink: userLink,
-                CommunityParticipation: communityParticipation
-            );
-            _saveQueue.Enqueue(communityRecord);
-        }
-
-        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить информацию об удалённом профиле в очередь
-    /// </summary>
-    public bool EnqueueDeletedProfile(string userLink, string about)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true (upsert)
-        var deletedResumeRecord = new DbRecord(
-            Type: DbRecordType.Resume,
-            Link: userLink,
-            Title: "Профиль удален",
-            Mode: InsertMode.UpdateIfExists,
-            IsDeleted: true
-        );
-        _saveQueue.Enqueue(deletedResumeRecord);
-
-        // 2. Обновить about
-        _saveQueue.Enqueue(new DbRecord(
-            Type: DbRecordType.UserAbout,
-            UserLink: userLink,
-            About: about
-        ));
-
-        // 3. Для обратной совместимости: UserDeleted
-        _saveQueue.Enqueue(new DbRecord(
-            Type: DbRecordType.UserDeleted,
-            UserLink: userLink
-        ));
-
-        Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
-        return true;
-    }
-
-    /// <summary>
-    /// Обновить статус публичности профиля пользователя
-    /// </summary>
-    public bool EnqueueUpdateUserPublicStatus(string userLink, bool isPublic)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        // Используем тип UserProfile для обновления is_public
-        var record = new DbRecord(
-            Type: DbRecordType.UserProfile,
-            UserLink: userLink,
-            IsPublic: isPublic,
-            Mode: InsertMode.UpdateIfExists
-        );
-        _saveQueue.Enqueue(record);
-
-        Log($"[DB Queue] UpdateUserPublicStatus: {userLink} -> public={isPublic}");
-
-        return true;
     }
 
     /// <summary>
@@ -2320,23 +2418,6 @@ public sealed class DatabaseClient
 
 
     /// <summary>
-    /// Добавить опыт работы пользователя в очередь
-    /// </summary>
-    public bool EnqueueUserExperience(UserExperienceData experienceData)
-    {
-        if (_saveQueue == null) return false;
-
-        var record = new DbRecord(
-            Type: DbRecordType.UserExperience,
-            UserExperience: experienceData
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] UserExperience: {experienceData.UserLink} -> Company={experienceData.CompanyCode}, Position={experienceData.Position}, Skills={experienceData.Skills?.Count ?? 0}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Вставить опыт работы пользователя
     /// </summary>
     public void UserExperienceInsert(NpgsqlConnection conn, UserExperienceData exp)
@@ -2515,60 +2596,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить навык в очередь (с skill_id из URL)
-    /// </summary>
-    public bool EnqueueSkill(int skillId, string title)
-    {
-        if (_saveQueue == null) return false;
-
-        // Используем специальный тип для навыков
-        var record = new DbRecord(
-            Type: DbRecordType.UserSkills,
-            UserLink: skillId.ToString(),
-            SkillTitle: title
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] Skill: ID={skillId}, Title={title}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить детальный профиль резюме в очередь
-    /// </summary>
-    public bool EnqueueResumeProfile(ResumeProfileData profileData)
-    {
-        if (_saveQueue == null) return false;
-
-        // Создаём запись с профилем
-        var record = new DbRecord(
-            Type: DbRecordType.Resume,
-            Link: profileData.Link,
-            Title: profileData.Title,
-            Code: profileData.Code,
-            Expert: profileData.IsExpert,
-            Mode: InsertMode.UpdateIfExists,
-            UserProfile: new UserProfileData(
-                UserCode: profileData.Code,
-                UserName: profileData.Title,
-                IsExpert: profileData.IsExpert,
-                LevelTitle: profileData.LevelTitle,
-                InfoTech: profileData.InfoTech,
-                Salary: profileData.Salary,
-                WorkExperience: null,
-                LastVisit: null,
-                IsPublic: null,
-                JobSearchStatus: null
-            ),
-            Skills: profileData.Skills
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Вставить навык с skill_id (только если его еще нет)
     /// </summary>
     public void SkillsInsert(NpgsqlConnection conn, int skillId, string? title)
@@ -2613,25 +2640,6 @@ public sealed class DatabaseClient
         {
             Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// Добавить данные рейтинга компании в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCompanyRating(CompanyRatingData ratingData)
-    {
-        if (_saveQueue == null) return false;
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyRating,
-            CompanyCode: ratingData.Code,
-            CompanyRating: ratingData
-        );
-        _saveQueue.Enqueue(record);
-
-        Log($"[DB Queue] CompanyRating: {ratingData.Code} -> Title={ratingData.Title}, Rating={ratingData.Rating}, City={ratingData.City}, Scores={ratingData.Scores}");
-
-        return true;
     }
 
     /// <summary>
@@ -2759,6 +2767,8 @@ public sealed class DatabaseClient
             Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
         }
     }
+
+    #endregion
 
     #region University Education Methods
 
@@ -3042,6 +3052,119 @@ public sealed class DatabaseClient
             Log($"[DB] Ошибка при очистке 404: {ex.Message}");
             return 0;
         }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Вставить или обновить навыки пользователя (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertUserSkills(NpgsqlConnection conn, string userLink, List<string> skills)
+    {
+        UserSkillsInsert(conn, userLink, skills);
+    }
+
+    /// <summary>
+    /// Вставить или обновить детали компании (вспомогательный метод для очереди)
+    /// </summary>
+    private void UpdateCompanyDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
+        string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
+        decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
+        string? employeesCount, bool? habr)
+    {
+        CompaniesUpdateDetails(conn, companyCode, companyUrl, companyId, companyTitle, companyAbout, 
+            companyDescription, companySite, companyRating, currentEmployees, pastEmployees, 
+            followers, wantWork, employeesCount, habr);
+    }
+
+    /// <summary>
+    /// Вставить или обновить навыки компании (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
+    {
+        CompanySkillsInsert(conn, companyCode, skills);
+    }
+
+    /// <summary>
+    /// Вставить навык с skill_id (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertSkillWithId(NpgsqlConnection conn, int skillId, string title)
+    {
+        SkillsInsert(conn, skillId, title);
+    }
+
+    /// <summary>
+    /// Вставить или обновить рейтинг компании (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertOrUpdateCompanyRating(NpgsqlConnection conn, CompanyRatingData ratingData)
+    {
+        CompaniesInsertOrUpdate(conn, ratingData);
+    }
+
+    /// <summary>
+    /// Обновить company_id для компании (вспомогательный метод для очереди)
+    /// </summary>
+    private void UpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
+    {
+        CompaniesUpdateCompanyId(conn, companyCode, companyId);
+    }
+
+    /// <summary>
+    /// Обновить информацию "О себе" для пользователя (вспомогательный метод для очереди)
+    /// </summary>
+    private void UpdateUserAbout(NpgsqlConnection conn, string userLink, string about)
+    {
+        ResumesUpdateUserAbout(conn, userLink, about);
+    }
+
+    /// <summary>
+    /// Обновить дополнительные данные профиля пользователя (вспомогательный метод для очереди)
+    /// </summary>
+    private void UpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
+    {
+        ResumesUpdateUserAdditionalData(conn, userLink, additionalData);
+    }
+
+    /// <summary>
+    /// Обновить участие в профсообществах для пользователя (вспомогательный метод для очереди)
+    /// </summary>
+    private void UpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
+    {
+        ResumesUpdateUserCommunityParticipation(conn, userLink, communityParticipation);
+    }
+
+    /// <summary>
+    /// Пометить профиль как удалённый (вспомогательный метод для очереди)
+    /// </summary>
+    private void MarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
+    {
+        ResumesMarkProfileAsDeleted(conn, userLink);
+    }
+
+    /// <summary>
+    /// Вставить опыт работы пользователя (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertUserExperience(NpgsqlConnection conn, UserExperienceData experience)
+    {
+        UserExperienceInsert(conn, experience);
+    }
+
+    /// <summary>
+    /// Вставить компанию (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl, string? companyTitle, long? companyId)
+    {
+        CompaniesInsert(conn, companyCode, companyUrl, companyTitle, companyId);
+    }
+
+    /// <summary>
+    /// Вставить category_root_id (вспомогательный метод для очереди)
+    /// </summary>
+    private void InsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
+    {
+        CategoryRootIdsInsert(conn, categoryId, categoryName);
     }
 
     #endregion
