@@ -11,8 +11,34 @@ JobBoardScraper - .NET 9 консольное приложение для сбо
 - **[Coding Standards](docs/CODING_STANDARDS.md)** - Руководство по форматированию кода и соглашениям о наименовании
 - **[Architecture](docs/ARCHITECTURE.md)** - Общее описание архитектуры проекта
 - **[Configuration](docs/CONFIGURATION.md)** - Настройка параметров и конфигурации
-- **[Statistics](docs/STATISTICS.md)** - Система статистики и мониторинга операций с базой данных
 - **[Quickstart](docs/QUICKSTART.md)** - Быстрый старт и основные команды
+
+Основные документы:
+
+- [STATISTICS.md](docs/STATISTICS.md) - система статистики и мониторинга операций с базой данных.
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - архитектура.
+- [QUICKSTART.md](docs/QUICKSTART.md) - быстрый старт.
+- [CONFIGURATION.md](docs/CONFIGURATION.md) - конфигурация.
+- [BUILD.md](docs/BUILD.md) - сборка и публикация.
+- [EXAMPLES.md](docs/EXAMPLES.md) - практические примеры.
+- [TESTING_AND_DEPLOYMENT.md](docs/TESTING_AND_DEPLOYMENT.md) - тестирование и деплой.
+
+Модули:
+
+- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md)
+- [USER_PROFILE_SCRAPER.md](docs/USER_PROFILE_SCRAPER.md)
+- [UNIVERSITY_EDUCATION_SCRAPER.md](docs/UNIVERSITY_EDUCATION_SCRAPER.md)
+- [COMPANY_DETAIL_SCRAPER.md](docs/COMPANY_DETAIL_SCRAPER.md)
+- [COMPANY_RATING_SCRAPER.md](docs/COMPANY_RATING_SCRAPER.md)
+- [EMPTY_PROFILE.md](docs/EMPTY_PROFILE.md)
+
+Инфраструктура:
+
+- [HTTP_ERROR_RETRY_STRATEGY.md](docs/HTTP_ERROR_RETRY_STRATEGY.md)
+- [BACKOFF_ALGORITHMS.md](docs/BACKOFF_ALGORITHMS.md)
+- [TRAFFIC_OPTIMIZATION.md](docs/TRAFFIC_OPTIMIZATION.md)
+- [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md)
+- [USERRESUME_WITH_PROXY.md](docs/USERRESUME_WITH_PROXY.md)
 
 ## Реализованная Функциональность
 
@@ -287,34 +313,6 @@ ORDER BY review_count DESC;
 - `sql/list_filled_profiles_detailed.sql`
 - `sql/select_resumes_without_data.sql`
 - `sql/verify_empty_profile_logic.sql`
-
-## Документация
-
-Основные документы:
-
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - архитектура.
-- [QUICKSTART.md](docs/QUICKSTART.md) - быстрый старт.
-- [CONFIGURATION.md](docs/CONFIGURATION.md) - конфигурация.
-- [BUILD.md](docs/BUILD.md) - сборка и публикация.
-- [EXAMPLES.md](docs/EXAMPLES.md) - практические примеры.
-- [TESTING_AND_DEPLOYMENT.md](docs/TESTING_AND_DEPLOYMENT.md) - тестирование и деплой.
-
-Модули:
-
-- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md)
-- [USER_PROFILE_SCRAPER.md](docs/USER_PROFILE_SCRAPER.md)
-- [UNIVERSITY_EDUCATION_SCRAPER.md](docs/UNIVERSITY_EDUCATION_SCRAPER.md)
-- [COMPANY_DETAIL_SCRAPER.md](docs/COMPANY_DETAIL_SCRAPER.md)
-- [COMPANY_RATING_SCRAPER.md](docs/COMPANY_RATING_SCRAPER.md)
-- [EMPTY_PROFILE.md](docs/EMPTY_PROFILE.md)
-
-Инфраструктура:
-
-- [HTTP_ERROR_RETRY_STRATEGY.md](docs/HTTP_ERROR_RETRY_STRATEGY.md)
-- [BACKOFF_ALGORITHMS.md](docs/BACKOFF_ALGORITHMS.md)
-- [TRAFFIC_OPTIMIZATION.md](docs/TRAFFIC_OPTIMIZATION.md)
-- [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md)
-- [USERRESUME_WITH_PROXY.md](docs/USERRESUME_WITH_PROXY.md)
 
 ## Логи и Артефакты
 
