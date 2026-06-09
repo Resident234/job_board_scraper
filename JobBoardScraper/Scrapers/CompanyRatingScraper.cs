@@ -207,11 +207,9 @@ public sealed class CompanyRatingScraper : IDisposable
         {
             try
             {
-                var companyData = ExtractCompanyData(section);
-                if (companyData != null)
+                if (ExtractCompanyData(section) is { } record)
                 {
-                    // Сохраняем данные компании в БД
-                    _db.EnqueueCompanyRating(companyData);
+                    _db.EnqueueCompanyRating(record.Code, record.Url, record.Title, record.Rating, record.About, record.City, record.Awards, record.Scores, record.ReviewText);
                     companiesCount++;
                 }
             }
@@ -224,7 +222,7 @@ public sealed class CompanyRatingScraper : IDisposable
         return companiesCount;
     }
 
-    private CompanyRatingData? ExtractCompanyData(AngleSharp.Dom.IElement section)
+    private CompanyRatingRecord? ExtractCompanyData(AngleSharp.Dom.IElement section)
     {
         // 1. Извлекаем код компании из ссылки
         var titleLink = section.QuerySelector(AppConfig.CompanyRatingTitleLinkSelector);
@@ -315,7 +313,7 @@ public sealed class CompanyRatingScraper : IDisposable
             reviewText = reviewElement.TextContent?.Trim();
         }
 
-        return new CompanyRatingData(
+        return new CompanyRatingRecord(
             Code: code,
             Url: url,
             Title: title,

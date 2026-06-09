@@ -699,21 +699,19 @@ public sealed class UserResumeDetailScraper : IDisposable
                             }
 
                             // Создаём структуру данных и добавляем в очередь
-                            var experienceData = new UserExperienceData(
-                                UserLink: userLink,
-                                CompanyCode: companyCode,
-                                CompanyUrl: companyUrl,
-                                CompanyTitle: companyTitle,
-                                CompanyAbout: companyAbout,
-                                CompanySize: companySize,
-                                Position: position,
-                                Duration: duration,
-                                Description: description,
-                                Skills: experienceSkills,
-                                IsFirstRecord: isFirstExperience
+                            _db.EnqueueUserExperience(
+                                userLink: userLink,
+                                companyCode: companyCode,
+                                companyUrl: companyUrl,
+                                companyTitle: companyTitle,
+                                companyAbout: companyAbout,
+                                companySize: companySize,
+                                position: position,
+                                duration: duration,
+                                description: description,
+                                skills: experienceSkills,
+                                isFirstRecord: isFirstExperience
                             );
-
-                            _db.EnqueueUserExperience(experienceData);
                             experienceCount++;
                             isFirstExperience = false;
                         }
