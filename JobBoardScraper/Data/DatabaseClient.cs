@@ -382,7 +382,7 @@ public sealed class DatabaseClient
                                         // Если есть навыки, добавляем их
                                         if (resume.Skills != null && resume.Skills.Count > 0)
                                         {
-                                            InsertUserSkills(conn, userLink: resume.Link, skills: resume.Skills);
+                                            UserSkillsInsert(conn, userLink: resume.Link, skills: resume.Skills);
                                         }
                                     }
                                     break;
@@ -390,7 +390,7 @@ public sealed class DatabaseClient
                                     if (record.Company.HasValue)
                                     {
                                         var company = record.Company.Value;
-                                        InsertCompany(
+                                        CompaniesInsert(
                                             conn,
                                             companyCode: company.CompanyCode,
                                             companyUrl: company.CompanyUrl,
@@ -403,21 +403,21 @@ public sealed class DatabaseClient
                                     if (record.CategoryRootId.HasValue)
                                     {
                                         var category = record.CategoryRootId.Value;
-                                        InsertCategoryRootId(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
+                                        CategoryRootIdsInsert(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
                                     }
                                     break;
                                 case DbRecordType.CompanyId:
                                     if (record.CompanyId.HasValue)
                                     {
                                         var companyIdRecord = record.CompanyId.Value;
-                                        UpdateCompanyId(conn, companyCode: companyIdRecord.CompanyCode, companyId: companyIdRecord.CompanyId);
+                                        CompaniesUpdateCompanyId(conn, companyCode: companyIdRecord.CompanyCode, companyId: companyIdRecord.CompanyId);
                                     }
                                     break;
                                 case DbRecordType.CompanyDetails:
                                     if (record.CompanyDetails.HasValue)
                                     {
                                         var details = record.CompanyDetails.Value;
-                                        UpdateCompanyDetails(
+                                        CompaniesUpdateDetails(
                                             conn,
                                             companyCode: details.CompanyCode,
                                             companyUrl: details.Url,
@@ -440,20 +440,29 @@ public sealed class DatabaseClient
                                     if (record.CompanySkills.HasValue)
                                     {
                                         var skills = record.CompanySkills.Value;
-                                        InsertCompanySkills(conn, companyCode: skills.CompanyCode, skills: skills.Skills);
+                                        CompanySkillsInsert(conn, companyCode: skills.CompanyCode, skills: skills.Skills);
                                     }
                                     break;
                                 case DbRecordType.CompanyRating:
                                     if (record.CompanyRating.HasValue)
                                     {
-                                        InsertOrUpdateCompanyRating(conn, record.CompanyRating.Value);
+                                        CompaniesInsertOrUpdate(conn,
+                                            code: record.CompanyRating.Value.Code,
+                                            url: record.CompanyRating.Value.Url,
+                                            title: record.CompanyRating.Value.Title,
+                                            rating: record.CompanyRating.Value.Rating,
+                                            about: record.CompanyRating.Value.About,
+                                            city: record.CompanyRating.Value.City,
+                                            awards: record.CompanyRating.Value.Awards,
+                                            scores: record.CompanyRating.Value.Scores,
+                                            reviewText: record.CompanyRating.Value.ReviewText);
                                     }
                                     break;
                                 case DbRecordType.UserAbout:
                                     if (record.UserAbout.HasValue)
                                     {
                                         var about = record.UserAbout.Value;
-                                        UpdateUserAbout(conn, userLink: about.UserLink, about: about.About);
+                                        ResumesUpdateUserAbout(conn, userLink: about.UserLink, about: about.About);
                                     }
                                     break;
                                 case DbRecordType.UserSkills:
@@ -463,39 +472,39 @@ public sealed class DatabaseClient
                                         if (skills.SkillId.HasValue)
                                         {
                                             // Case: Adding skill with skill_id
-                                            InsertSkillWithId(conn, skills.SkillId.Value, skills.SkillTitle ?? "");
+                                            SkillsInsert(conn, skills.SkillId.Value, skills.SkillTitle ?? "");
                                         }
                                         else if (skills.Skills != null && skills.Skills.Count > 0)
                                         {
                                             // Case: Adding user skills
-                                            InsertUserSkills(conn, userLink: skills.UserLink, skills: skills.Skills);
+                                            UserSkillsInsert(conn, userLink: skills.UserLink, skills: skills.Skills);
                                         }
                                     }
                                     break;
                                 case DbRecordType.UserExperience:
                                     if (record.UserExperience.HasValue)
                                     {
-                                        InsertUserExperience(conn, record.UserExperience.Value);
+                                        UserExperienceInsert(conn, record.UserExperience.Value);
                                     }
                                     break;
                                 case DbRecordType.UserAdditionalData:
                                     if (record.UserAdditionalData.HasValue)
                                     {
                                         var additionalData = record.UserAdditionalData.Value;
-                                        UpdateUserAdditionalData(conn, userLink: additionalData.UserLink, additionalData: additionalData.AdditionalData);
+                                        ResumesUpdateUserAdditionalData(conn, userLink: additionalData.UserLink, additionalData: additionalData.AdditionalData);
                                     }
                                     break;
                                 case DbRecordType.UserCommunityParticipation:
                                     if (record.UserCommunityParticipation.HasValue)
                                     {
                                         var community = record.UserCommunityParticipation.Value;
-                                        UpdateUserCommunityParticipation(conn, userLink: community.UserLink, communityParticipation: community.CommunityParticipation);
+                                        ResumesUpdateUserCommunityParticipation(conn, userLink: community.UserLink, communityParticipation: community.CommunityParticipation);
                                     }
                                     break;
                                 case DbRecordType.UserDeleted:
                                     if (record.UserDeleted.HasValue)
                                     {
-                                        MarkProfileAsDeleted(conn, userLink: record.UserDeleted.Value.UserLink);
+                                        ResumesMarkProfileAsDeleted(conn, userLink: record.UserDeleted.Value.UserLink);
                                     }
                                     break;
                             }
@@ -3212,118 +3221,4 @@ public sealed class DatabaseClient
 
     #endregion
 
-    #region Helper Methods
-
-    /// <summary>
-    /// Вставить или обновить навыки пользователя (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertUserSkills(NpgsqlConnection conn, string userLink, List<string> skills)
-    {
-        UserSkillsInsert(conn, userLink, skills);
-    }
-
-    /// <summary>
-    /// Вставить или обновить детали компании (вспомогательный метод для очереди)
-    /// </summary>
-    private void UpdateCompanyDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
-        string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
-        decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
-        string? employeesCount, bool? habr)
-    {
-        CompaniesUpdateDetails(conn, companyCode, companyUrl, companyId, companyTitle, companyAbout, 
-            companyDescription, companySite, companyRating, currentEmployees, pastEmployees, 
-            followers, wantWork, employeesCount, habr);
-    }
-
-    /// <summary>
-    /// Вставить или обновить навыки компании (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertCompanySkills(NpgsqlConnection conn, string companyCode, List<string> skills)
-    {
-        CompanySkillsInsert(conn, companyCode, skills);
-    }
-
-    /// <summary>
-    /// Вставить навык с skill_id (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertSkillWithId(NpgsqlConnection conn, int skillId, string title)
-    {
-        SkillsInsert(conn, skillId, title);
-    }
-
-    /// <summary>
-    /// Вставить или обновить рейтинг компании (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertOrUpdateCompanyRating(NpgsqlConnection conn, CompanyRatingRecord ratingRecord)
-    {
-        CompaniesInsertOrUpdate(conn, ratingRecord.Code, ratingRecord.Url, ratingRecord.Title,
-            ratingRecord.Rating, ratingRecord.About, ratingRecord.City, ratingRecord.Awards,
-            ratingRecord.Scores, ratingRecord.ReviewText);
-    }
-
-    /// <summary>
-    /// Обновить company_id для компании (вспомогательный метод для очереди)
-    /// </summary>
-    private void UpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
-    {
-        CompaniesUpdateCompanyId(conn, companyCode, companyId);
-    }
-
-    /// <summary>
-    /// Обновить информацию "О себе" для пользователя (вспомогательный метод для очереди)
-    /// </summary>
-    private void UpdateUserAbout(NpgsqlConnection conn, string userLink, string about)
-    {
-        ResumesUpdateUserAbout(conn, userLink, about);
-    }
-
-    /// <summary>
-    /// Обновить дополнительные данные профиля пользователя (вспомогательный метод для очереди)
-    /// </summary>
-    private void UpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
-    {
-        ResumesUpdateUserAdditionalData(conn, userLink, additionalData);
-    }
-
-    /// <summary>
-    /// Обновить участие в профсообществах для пользователя (вспомогательный метод для очереди)
-    /// </summary>
-    private void UpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
-    {
-        ResumesUpdateUserCommunityParticipation(conn, userLink, communityParticipation);
-    }
-
-    /// <summary>
-    /// Пометить профиль как удалённый (вспомогательный метод для очереди)
-    /// </summary>
-    private void MarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
-    {
-        ResumesMarkProfileAsDeleted(conn, userLink);
-    }
-
-    /// <summary>
-    /// Вставить опыт работы пользователя (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertUserExperience(NpgsqlConnection conn, UserExperienceRecord exp)
-    {
-        UserExperienceInsert(conn, exp);
-    }
-
-    /// <summary>
-    /// Вставить компанию (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertCompany(NpgsqlConnection conn, string companyCode, string companyUrl, string? companyTitle, long? companyId)
-    {
-        CompaniesInsert(conn, companyCode, companyUrl, companyTitle, companyId);
-    }
-
-    /// <summary>
-    /// Вставить category_root_id (вспомогательный метод для очереди)
-    /// </summary>
-    private void InsertCategoryRootId(NpgsqlConnection conn, string categoryId, string categoryName)
-    {
-        CategoryRootIdsInsert(conn, categoryId, categoryName);
-    }
-
-    #endregion
 }
