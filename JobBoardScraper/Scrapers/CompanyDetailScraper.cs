@@ -558,8 +558,8 @@ public sealed class CompanyDetailScraper : IDisposable
                         }
                     }
 
-                    // Сохраняем company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в БД
-                    _db.EnqueueCompanyDetails(code, url, companyId, companyTitle, companyAbout, companyDescription,
+                    // Сохраняем данные компании в БД
+                    _db.EnqueueCompany(code, url, companyId, companyTitle, companyAbout, companyDescription,
                         companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
                         employeesCount, habr);
 

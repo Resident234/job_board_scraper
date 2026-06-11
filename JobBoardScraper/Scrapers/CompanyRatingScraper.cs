@@ -207,9 +207,23 @@ public sealed class CompanyRatingScraper : IDisposable
         {
             try
             {
-                if (ExtractCompanyData(section) is { } record)
+                if (ExtractCompanyData(section) is (var company, var review))
                 {
-                    _db.EnqueueCompanyRating(record.Code, record.Url, record.Title, record.Rating, record.About, record.City, record.Awards, record.Scores, record.ReviewText);
+                    _db.EnqueueCompany(
+                        companyCode: company.CompanyCode,
+                        companyUrl: company.CompanyUrl,
+                        companyTitle: company.CompanyTitle,
+                        companyRating: company.Rating,
+                        companyAbout: company.About,
+                        city: company.City,
+                        awards: company.Awards,
+                        scores: company.Scores);
+
+                    if (review.HasValue)
+                    {
+                        _db.EnqueueCompanyReview(review.Value.CompanyCode, review.Value.ReviewText);
+                    }
+
                     companiesCount++;
                 }
             }
@@ -222,7 +236,7 @@ public sealed class CompanyRatingScraper : IDisposable
         return companiesCount;
     }
 
-    private CompanyRatingRecord? ExtractCompanyData(AngleSharp.Dom.IElement section)
+    private (CompanyRecord Company, CompanyReviewRecord? Review)? ExtractCompanyData(AngleSharp.Dom.IElement section)
     {
         // 1. Извлекаем код компании из ссылки
         var titleLink = section.QuerySelector(AppConfig.CompanyRatingTitleLinkSelector);
@@ -313,17 +327,27 @@ public sealed class CompanyRatingScraper : IDisposable
             reviewText = reviewElement.TextContent?.Trim();
         }
 
-        return new CompanyRatingRecord(
-            Code: code,
-            Url: url,
-            Title: title,
+        var company = new CompanyRecord(
+            CompanyCode: code,
+            CompanyUrl: url,
+            CompanyTitle: title,
             Rating: rating,
             About: about,
             City: city,
             Awards: awards.Count > 0 ? awards : null,
-            Scores: scores,
-            ReviewText: reviewText
+            Scores: scores
         );
+
+        CompanyReviewRecord? review = null;
+        if (!string.IsNullOrWhiteSpace(reviewText))
+        {
+            review = new CompanyReviewRecord(
+                CompanyCode: code,
+                ReviewText: reviewText
+            );
+        }
+
+        return (company, review);
     }
 
     /// <summary>

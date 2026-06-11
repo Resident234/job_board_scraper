@@ -15,10 +15,8 @@ public enum DbRecordType
     Resume,
     Company,
     CategoryRootId,
-    CompanyId,
-    CompanyDetails,
     CompanySkills,
-    CompanyRating,
+    CompanyReview,
     UserAbout,
     UserSkills,
     UserExperience,
@@ -71,30 +69,7 @@ public readonly record struct CompanyRecord(
     string CompanyCode,
     string CompanyUrl,
     string? CompanyTitle = null,
-    long? CompanyId = null);
-
-/// <summary>
-/// Data structure for CategoryRootId record type.
-/// </summary>
-public readonly record struct CategoryRootIdRecord(
-    string CategoryId,
-    string CategoryName);
-
-/// <summary>
-/// Data structure for CompanyId record type.
-/// </summary>
-public readonly record struct CompanyIdRecord(
-    string CompanyCode,
-    long CompanyId);
-
-/// <summary>
-/// Data structure for CompanyDetails record type.
-/// </summary>
-public readonly record struct CompanyDetailsRecord(
-    string CompanyCode,
-    string Url,
     long? CompanyId = null,
-    string? Title = null,
     string? About = null,
     string? Description = null,
     string? Site = null,
@@ -104,7 +79,17 @@ public readonly record struct CompanyDetailsRecord(
     int? Followers = null,
     int? WantWork = null,
     string? EmployeesCount = null,
-    bool? Habr = null);
+    bool? Habr = null,
+    string? City = null,
+    List<string>? Awards = null,
+    decimal? Scores = null);
+
+/// <summary>
+/// Data structure for CategoryRootId record type.
+/// </summary>
+public readonly record struct CategoryRootIdRecord(
+    string CategoryId,
+    string CategoryName);
 
 /// <summary>
 /// Data structure for CompanySkills record type.
@@ -114,18 +99,11 @@ public readonly record struct CompanySkillsRecord(
     List<string> Skills);
 
 /// <summary>
-/// Data structure for CompanyRating record type.
+/// Data structure for CompanyReview record type.
 /// </summary>
-public readonly record struct CompanyRatingRecord(
-    string Code,
-    string Url,
-    string? Title = null,
-    decimal? Rating = null,
-    string? About = null,
-    string? City = null,
-    List<string>? Awards = null,
-    decimal? Scores = null,
-    string? ReviewText = null);
+public readonly record struct CompanyReviewRecord(
+    string CompanyCode,
+    string ReviewText);
 
 /// <summary>
 /// Data structure for UserAbout record type.
@@ -189,10 +167,8 @@ public readonly record struct DbRecord(
     ResumeRecord? Resume = null,
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
-    CompanyIdRecord? CompanyId = null,
-    CompanyDetailsRecord? CompanyDetails = null,
     CompanySkillsRecord? CompanySkills = null,
-    CompanyRatingRecord? CompanyRating = null,
+    CompanyReviewRecord? CompanyReview = null,
     UserAboutRecord? UserAbout = null,
     UserSkillsRecord? UserSkills = null,
     UserExperienceRecord? UserExperience = null,
@@ -382,7 +358,20 @@ public sealed class DatabaseClient
                                             companyCode: company.CompanyCode,
                                             companyUrl: company.CompanyUrl,
                                             companyTitle: company.CompanyTitle,
-                                            companyId: company.CompanyId
+                                            companyId: company.CompanyId,
+                                            companyAbout: company.About,
+                                            companyDescription: company.Description,
+                                            companySite: company.Site,
+                                            companyRating: company.Rating,
+                                            currentEmployees: company.CurrentEmployees,
+                                            pastEmployees: company.PastEmployees,
+                                            followers: company.Followers,
+                                            wantWork: company.WantWork,
+                                            employeesCount: company.EmployeesCount,
+                                            habr: company.Habr,
+                                            city: company.City,
+                                            awards: company.Awards,
+                                            scores: company.Scores
                                         );
                                     }
                                     break;
@@ -393,36 +382,6 @@ public sealed class DatabaseClient
                                         CategoryRootIdsInsert(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
                                     }
                                     break;
-                                case DbRecordType.CompanyId:
-                                    if (record.CompanyId.HasValue)
-                                    {
-                                        var companyIdRecord = record.CompanyId.Value;
-                                        CompaniesInsert(conn, companyCode: companyIdRecord.CompanyCode, companyId: companyIdRecord.CompanyId);
-                                    }
-                                    break;
-                                case DbRecordType.CompanyDetails:
-                                    if (record.CompanyDetails.HasValue)
-                                    {
-                                        var details = record.CompanyDetails.Value;
-                                        CompaniesInsert(
-                                            conn,
-                                            companyCode: details.CompanyCode,
-                                            companyUrl: details.Url,
-                                            companyId: details.CompanyId,
-                                            companyTitle: details.Title,
-                                            companyAbout: details.About,
-                                            companyDescription: details.Description,
-                                            companySite: details.Site,
-                                            companyRating: details.Rating,
-                                            currentEmployees: details.CurrentEmployees,
-                                            pastEmployees: details.PastEmployees,
-                                            followers: details.Followers,
-                                            wantWork: details.WantWork,
-                                            employeesCount: details.EmployeesCount,
-                                            habr: details.Habr
-                                        );
-                                    }
-                                    break;
                                 case DbRecordType.CompanySkills:
                                     if (record.CompanySkills.HasValue)
                                     {
@@ -430,24 +389,18 @@ public sealed class DatabaseClient
                                         CompanySkillsInsert(conn, companyCode: skills.CompanyCode, skills: skills.Skills);
                                     }
                                     break;
-                                case DbRecordType.CompanyRating:
-                                    if (record.CompanyRating.HasValue)
+                                case DbRecordType.CompanyReview:
+                                    if (record.CompanyReview.HasValue)
                                     {
-                                        var ratingRecord = record.CompanyRating.Value;
-                                        var companyInternalId = CompaniesInsert(conn,
-                                            companyCode: ratingRecord.Code,
-                                            companyUrl: ratingRecord.Url,
-                                            companyTitle: ratingRecord.Title,
-                                            companyRating: ratingRecord.Rating,
-                                            companyAbout: ratingRecord.About,
-                                            city: ratingRecord.City,
-                                            awards: ratingRecord.Awards,
-                                            scores: ratingRecord.Scores);
-
-                                        if (companyInternalId.HasValue &&
-                                            !string.IsNullOrWhiteSpace(ratingRecord.ReviewText))
+                                        var review = record.CompanyReview.Value;
+                                        var companyInternalId = CompaniesGetInternalId(conn, review.CompanyCode);
+                                        if (companyInternalId.HasValue)
                                         {
-                                            CompanyReviewsInsert(conn, companyInternalId.Value, ratingRecord.ReviewText);
+                                            CompanyReviewsInsert(conn, companyInternalId.Value, review.ReviewText);
+                                        }
+                                        else
+                                        {
+                                            Log($"[DB] Отзыв для компании {review.CompanyCode}: SKIP (компания не найдена в БД)");
                                         }
                                     }
                                     break;
@@ -455,7 +408,10 @@ public sealed class DatabaseClient
                                     if (record.UserAbout.HasValue)
                                     {
                                         var about = record.UserAbout.Value;
-                                        ResumesUpdateUserAbout(conn, userLink: about.UserLink, about: about.About);
+                                        ResumesInsert(conn,
+                                            link: about.UserLink,
+                                            about: about.About,
+                                            mode: InsertMode.UpdateIfExists);
                                     }
                                     break;
                                 case DbRecordType.UserSkills:
@@ -639,7 +595,24 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить компанию в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueCompany(string companyCode, string companyUrl, long? companyId = null, string? companyTitle = null)
+    public bool EnqueueCompany(
+        string companyCode,
+        string companyUrl,
+        long? companyId = null,
+        string? companyTitle = null,
+        string? companyAbout = null,
+        string? companyDescription = null,
+        string? companySite = null,
+        decimal? companyRating = null,
+        int? currentEmployees = null,
+        int? pastEmployees = null,
+        int? followers = null,
+        int? wantWork = null,
+        string? employeesCount = null,
+        bool? habr = null,
+        string? city = null,
+        List<string>? awards = null,
+        decimal? scores = null)
     {
         if (_saveQueue == null) return false;
 
@@ -647,7 +620,20 @@ public sealed class DatabaseClient
             CompanyCode: companyCode,
             CompanyUrl: companyUrl,
             CompanyTitle: companyTitle,
-            CompanyId: companyId
+            CompanyId: companyId,
+            About: companyAbout,
+            Description: companyDescription,
+            Site: companySite,
+            Rating: companyRating,
+            CurrentEmployees: currentEmployees,
+            PastEmployees: pastEmployees,
+            Followers: followers,
+            WantWork: wantWork,
+            EmployeesCount: employeesCount,
+            Habr: habr,
+            City: city,
+            Awards: awards,
+            Scores: scores
         );
 
         var record = new DbRecord(
@@ -684,68 +670,6 @@ public sealed class DatabaseClient
         );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить company_id в очередь на обновление в базе данных
-    /// </summary>
-    public bool EnqueueCompanyId(string companyCode, long companyId)
-    {
-        if (_saveQueue == null) return false;
-
-        var companyIdRecord = new CompanyIdRecord(
-            CompanyCode: companyCode,
-            CompanyId: companyId
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyId,
-            CompanyId: companyIdRecord
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CompanyId: {companyCode} -> {companyId}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr в очередь на обновление в базе данных
-    /// </summary>
-    public bool EnqueueCompanyDetails(string companyCode, string companyUrl, long? companyId, string? companyTitle,
-        string? companyAbout = null, string? companyDescription = null, string? companySite = null,
-        decimal? companyRating = null, int? currentEmployees = null, int? pastEmployees = null, int? followers = null,
-        int? wantWork = null, string? employeesCount = null, bool? habr = null)
-    {
-        if (_saveQueue == null) return false;
-
-        var companyDetailsRecord = new CompanyDetailsRecord(
-            CompanyCode: companyCode,
-            Url: companyUrl,
-            CompanyId: companyId,
-            Title: companyTitle,
-            About: companyAbout,
-            Description: companyDescription,
-            Site: companySite,
-            Rating: companyRating,
-            CurrentEmployees: currentEmployees,
-            PastEmployees: pastEmployees,
-            Followers: followers,
-            WantWork: wantWork,
-            EmployeesCount: employeesCount,
-            Habr: habr
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyDetails,
-            CompanyDetails: companyDetailsRecord
-        );
-        _saveQueue.Enqueue(record);
-
-        var aboutPreview = companyAbout?.Substring(0, Math.Min(50, companyAbout?.Length ?? 0)) ?? "";
-        Log(
-            $"[DB Queue] CompanyDetails: {companyCode} -> ID={companyId}, Title={companyTitle}, About={aboutPreview}..., Site={companySite}, Rating={companyRating}, Employees={currentEmployees}/{pastEmployees}, Followers={followers}/{wantWork}, Size={employeesCount}");
 
         return true;
     }
@@ -1116,33 +1040,24 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить данные рейтинга компании в очередь на запись в базу данных
+    /// Добавить отзыв о компании в очередь на запись в базу данных
     /// </summary>
-    public bool EnqueueCompanyRating(string code, string url,
-        string? title = null, decimal? rating = null, string? about = null,
-        string? city = null, List<string>? awards = null, decimal? scores = null, string? reviewText = null)
+    public bool EnqueueCompanyReview(string companyCode, string reviewText)
     {
         if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(reviewText)) return false;
 
-        var companyRatingRecord = new CompanyRatingRecord(
-            Code: code,
-            Url: url,
-            Title: title,
-            Rating: rating,
-            About: about,
-            City: city,
-            Awards: awards,
-            Scores: scores,
+        var reviewRecord = new CompanyReviewRecord(
+            CompanyCode: companyCode,
             ReviewText: reviewText
         );
 
         var record = new DbRecord(
-            Type: DbRecordType.CompanyRating,
-            CompanyRating: companyRatingRecord
+            Type: DbRecordType.CompanyReview,
+            CompanyReview: reviewRecord
         );
         _saveQueue.Enqueue(record);
-
-        Log($"[DB Queue] CompanyRating: {code} -> Title={title}, Rating={rating}, City={city}, Scores={scores}");
+        Log($"[DB Queue] CompanyReview: {companyCode}");
 
         return true;
     }
@@ -1266,7 +1181,7 @@ public sealed class DatabaseClient
     public void ResumesInsert(
         NpgsqlConnection conn,
         string link,
-        string title,
+        string? title = null,
         string? slogan = null,
         string? code = null,
         bool? expert = null,
@@ -1279,7 +1194,8 @@ public sealed class DatabaseClient
         bool? isPublic = null,
         string? jobSearchStatus = null,
         bool? isEmpty = null,
-        bool? isDeleted = null)
+        bool? isDeleted = null,
+        string? about = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -1298,7 +1214,7 @@ public sealed class DatabaseClient
                     return;
                 }
 
-                if (title.Contains("Ошибка 404"))
+                if (title != null && title.Contains("Ошибка 404"))
                 {
                     Log($"[DB] Resume {link}: ? SKIP (404 страница)");
                     _statistics.RecordSkipped("habr_resumes", link);
@@ -1308,10 +1224,10 @@ public sealed class DatabaseClient
 
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
-                cmd.Parameters.AddWithValue("@title", title);
+                cmd.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
@@ -1324,6 +1240,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
 
                 cmd.ExecuteNonQuery();
                 _statistics.RecordInsert("habr_resumes", link);
@@ -1371,22 +1288,22 @@ public sealed class DatabaseClient
             }
             else // UpdateIfExists
             {
-                if (title.Contains("Ошибка 404"))
+                if (title != null && title.Contains("Ошибка 404"))
                 {
                     Log($"[DB] Resume {link}: ? SKIP (404 страница)");
                     _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
 
-                if (title.Contains("Профиль удален") && isDeleted == true)
+                if (title != null && title.Contains("Профиль удален") && isDeleted == true)
                 {
                     Log($"[DB] Resume {link}: ? Обработка удалённого профиля");
                 }
 
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, created_at, updated_at)
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, NOW(), NOW())
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at)
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())
                     ON CONFLICT (link)
                     DO UPDATE SET
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
@@ -1402,10 +1319,11 @@ public sealed class DatabaseClient
                         job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
                         is_empty = COALESCE(EXCLUDED.is_empty, habr_resumes.is_empty),
                         is_deleted = COALESCE(EXCLUDED.is_deleted, habr_resumes.is_deleted),
+                        about = COALESCE(EXCLUDED.about, habr_resumes.about),
                         updated_at = NOW()
                     RETURNING xmax", conn);
                 cmd.Parameters.AddWithValue("@link", link);
-                cmd.Parameters.AddWithValue("@title", title);
+                cmd.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@slogan", slogan ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@code", code ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@expert", expert ?? (object)DBNull.Value);
@@ -1418,6 +1336,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
 
                 var xmaxResult = cmd.ExecuteScalar();
                 var xmax = Convert.ToUInt32(xmaxResult);
@@ -2146,54 +2065,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Обновить информацию "О себе" для пользователя
-    /// </summary>
-    public void ResumesUpdateUserAbout(NpgsqlConnection conn, string userLink, string? about)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes
-                SET about = @about
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                var aboutPreview = about?.Substring(0, Math.Min(50, about.Length)) ?? "";
-                Log($"[DB] UserAbout {userLink}: ? UPDATE ({aboutPreview}...)");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] UserAbout {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] UserAbout {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] UserAbout {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
-
-    /// <summary>
     /// Обновить флаг пустого профиля для пользователя
     /// </summary>
     public void ResumesUpdateUserEmptyProfile(NpgsqlConnection conn, string userLink, bool isEmpty)
@@ -2820,6 +2691,19 @@ public sealed class DatabaseClient
         {
             Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Получить внутренний id компании по её коду
+    /// </summary>
+    private int? CompaniesGetInternalId(NpgsqlConnection conn, string companyCode)
+    {
+        EnsureConnectionOpen(conn);
+        using var cmd = new NpgsqlCommand(
+            "SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn);
+        cmd.Parameters.AddWithValue("@code", companyCode);
+        var result = cmd.ExecuteScalar();
+        return result != null ? Convert.ToInt32(result) : null;
     }
 
     /// <summary>
