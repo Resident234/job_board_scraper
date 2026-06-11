@@ -210,6 +210,9 @@ public sealed class DatabaseClient
     private readonly DatabaseStatistics _statistics = new();
     private DateTime _lastStatsDump = DateTime.Now;
     private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
+    private readonly ConcurrentQueue<UniversityData> _universityQueue = new();
+    private readonly ConcurrentQueue<UserUniversityData> _userUniversityQueue = new();
+    private readonly ConcurrentQueue<AdditionalEducationData> _additionalEducationQueue = new();
 
     /// <summary>
     /// Статистика операций с БД
@@ -1136,6 +1139,84 @@ public sealed class DatabaseClient
         Log($"[DB Queue] CompanyRating: {code} -> Title={title}, Rating={rating}, City={city}, Scores={scores}");
 
         return true;
+    }
+
+    /// <summary>
+    /// Добавить университет в очередь на сохранение
+    /// </summary>
+    public void EnqueueUniversity(UniversityData data)
+    {
+        _universityQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Добавить связь пользователь-университет в очередь на сохранение
+    /// </summary>
+    public void EnqueueUserUniversity(UserUniversityData data)
+    {
+        _userUniversityQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Сохранить все университеты из очереди в БД
+    /// </summary>
+    public void FlushUniversityQueue(NpgsqlConnection conn)
+    {
+        while (_universityQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                UniversitiesInsert(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении университета {data.Name}: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Сохранить все связи пользователь-университет из очереди в БД
+    /// </summary>
+    public void FlushUserUniversityQueue(NpgsqlConnection conn)
+    {
+        while (_userUniversityQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                ResumesUniversitiesInsert(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении связи пользователь-университет: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Добавить дополнительное образование в очередь на сохранение
+    /// </summary>
+    public void EnqueueAdditionalEducation(AdditionalEducationData data)
+    {
+        _additionalEducationQueue.Enqueue(data);
+    }
+
+    /// <summary>
+    /// Сохранить все записи дополнительного образования из очереди в БД
+    /// </summary>
+    public void FlushAdditionalEducationQueue(NpgsqlConnection conn)
+    {
+        while (_additionalEducationQueue.TryDequeue(out var data))
+        {
+            try
+            {
+                ResumesEducationsInsert(conn, data);
+            }
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении дополнительного образования: {ex.Message}");
+            }
+        }
     }
 
     #endregion
@@ -2937,65 +3018,6 @@ public sealed class DatabaseClient
         }
     }
 
-    #endregion
-
-    #region University Education Methods
-
-    private readonly ConcurrentQueue<UniversityData> _universityQueue = new();
-    private readonly ConcurrentQueue<UserUniversityData> _userUniversityQueue = new();
-
-    /// <summary>
-    /// Добавить университет в очередь на сохранение
-    /// </summary>
-    public void EnqueueUniversity(UniversityData data)
-    {
-        _universityQueue.Enqueue(data);
-    }
-
-    /// <summary>
-    /// Добавить связь пользователь-университет в очередь на сохранение
-    /// </summary>
-    public void EnqueueUserUniversity(UserUniversityData data)
-    {
-        _userUniversityQueue.Enqueue(data);
-    }
-
-    /// <summary>
-    /// Сохранить все университеты из очереди в БД
-    /// </summary>
-    public void FlushUniversityQueue(NpgsqlConnection conn)
-    {
-        while (_universityQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                UniversitiesInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении университета {data.Name}: {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Сохранить все связи пользователь-университет из очереди в БД
-    /// </summary>
-    public void FlushUserUniversityQueue(NpgsqlConnection conn)
-    {
-        while (_userUniversityQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                ResumesUniversitiesInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении связи пользователь-университет: {ex.Message}");
-            }
-        }
-    }
-
     /// <summary>
     /// Вставить или обновить университет в БД
     /// </summary>
@@ -3093,38 +3115,6 @@ public sealed class DatabaseClient
         if (rowsAffected > 0)
             _statistics.RecordUpdate("habr_resumes_universities", $"{userId}-{universityId}");
         Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}: ? UPSERT");
-    }
-
-    #endregion
-
-    #region Additional Education Methods
-
-    private readonly ConcurrentQueue<AdditionalEducationData> _additionalEducationQueue = new();
-
-    /// <summary>
-    /// Добавить дополнительное образование в очередь на сохранение
-    /// </summary>
-    public void EnqueueAdditionalEducation(AdditionalEducationData data)
-    {
-        _additionalEducationQueue.Enqueue(data);
-    }
-
-    /// <summary>
-    /// Сохранить все записи дополнительного образования из очереди в БД
-    /// </summary>
-    public void FlushAdditionalEducationQueue(NpgsqlConnection conn)
-    {
-        while (_additionalEducationQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                ResumesEducationsInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении дополнительного образования: {ex.Message}");
-            }
-        }
     }
 
     /// <summary>
