@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -335,24 +335,8 @@ public sealed class DatabaseClient
                                     {
                                         var resume = record.Resume.Value;
                                         
-                                    // Получаем или создаём level_id если есть данные профиля
-                                        int? levelId = null;
-                                        if (!string.IsNullOrWhiteSpace(resume.LevelTitle))
-                                        {
-                                            using (var cmdLevel = new NpgsqlCommand(@"
-                                                INSERT INTO habr_levels (title, created_at, updated_at)
-                                                VALUES (@title, NOW(), NOW())
-                                                ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                                                RETURNING id", conn))
-                                            {
-                                                cmdLevel.Parameters.AddWithValue("@title", resume.LevelTitle);
-                                                var result = cmdLevel.ExecuteScalar();
-                                                if (result != null)
-                                                {
-                                                    levelId = Convert.ToInt32(result);
-                                                }
-                                            }
-                                        }
+                                        // Получаем или создаём level_id если есть данные профиля
+                                        int? levelId = LevelsInsert(conn, resume.LevelTitle);
 
                                         // Объединенная вставка/обновление всех полей
                                         ResumesInsert(conn,
@@ -1157,6 +1141,26 @@ public sealed class DatabaseClient
     #endregion
 
     #region Database Table Operations Methods
+
+    /// <summary>
+    /// Получает или создаёт идентификатор уровня (habr_levels) по названию.
+    /// Возвращает null, если title пустой или не задан.
+    /// </summary>
+    private int? LevelsInsert(NpgsqlConnection conn, string? levelTitle)
+    {
+        if (string.IsNullOrWhiteSpace(levelTitle))
+            return null;
+
+        EnsureConnectionOpen(conn);
+        using var cmd = new NpgsqlCommand(@"
+            INSERT INTO habr_levels (title, created_at, updated_at)
+            VALUES (@title, NOW(), NOW())
+            ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+            RETURNING id", conn);
+        cmd.Parameters.AddWithValue("@title", levelTitle);
+        var result = cmd.ExecuteScalar();
+        return result != null ? Convert.ToInt32(result) : null;
+    }
 
     // Проверка существования записи по полю link
     public bool ResumesRecordExistsByLink(NpgsqlConnection conn, string link)
