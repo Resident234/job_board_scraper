@@ -397,14 +397,14 @@ public sealed class DatabaseClient
                                     if (record.CompanyId.HasValue)
                                     {
                                         var companyIdRecord = record.CompanyId.Value;
-                                        CompaniesUpdateCompanyId(conn, companyCode: companyIdRecord.CompanyCode, companyId: companyIdRecord.CompanyId);
+                                        CompaniesInsert(conn, companyCode: companyIdRecord.CompanyCode, companyId: companyIdRecord.CompanyId);
                                     }
                                     break;
                                 case DbRecordType.CompanyDetails:
                                     if (record.CompanyDetails.HasValue)
                                     {
                                         var details = record.CompanyDetails.Value;
-                                        CompaniesUpdateDetails(
+                                        CompaniesInsert(
                                             conn,
                                             companyCode: details.CompanyCode,
                                             companyUrl: details.Url,
@@ -433,16 +433,22 @@ public sealed class DatabaseClient
                                 case DbRecordType.CompanyRating:
                                     if (record.CompanyRating.HasValue)
                                     {
-                                        CompaniesInsertOrUpdate(conn,
-                                            code: record.CompanyRating.Value.Code,
-                                            url: record.CompanyRating.Value.Url,
-                                            title: record.CompanyRating.Value.Title,
-                                            rating: record.CompanyRating.Value.Rating,
-                                            about: record.CompanyRating.Value.About,
-                                            city: record.CompanyRating.Value.City,
-                                            awards: record.CompanyRating.Value.Awards,
-                                            scores: record.CompanyRating.Value.Scores,
-                                            reviewText: record.CompanyRating.Value.ReviewText);
+                                        var ratingRecord = record.CompanyRating.Value;
+                                        var companyInternalId = CompaniesInsert(conn,
+                                            companyCode: ratingRecord.Code,
+                                            companyUrl: ratingRecord.Url,
+                                            companyTitle: ratingRecord.Title,
+                                            companyRating: ratingRecord.Rating,
+                                            companyAbout: ratingRecord.About,
+                                            city: ratingRecord.City,
+                                            awards: ratingRecord.Awards,
+                                            scores: ratingRecord.Scores);
+
+                                        if (companyInternalId.HasValue &&
+                                            !string.IsNullOrWhiteSpace(ratingRecord.ReviewText))
+                                        {
+                                            CompanyReviewsInsert(conn, companyInternalId.Value, ratingRecord.ReviewText);
+                                        }
                                     }
                                     break;
                                 case DbRecordType.UserAbout:
@@ -1523,12 +1529,25 @@ public sealed class DatabaseClient
     }
 
     // Вставка компании в таблицу companies
-    public void CompaniesInsert(
+    public int? CompaniesInsert(
         NpgsqlConnection conn,
         string companyCode,
-        string companyUrl,
+        string? companyUrl = null,
         string? companyTitle = null,
-        long? companyId = null)
+        long? companyId = null,
+        string? companyAbout = null,
+        string? companyDescription = null,
+        string? companySite = null,
+        decimal? companyRating = null,
+        int? currentEmployees = null,
+        int? pastEmployees = null,
+        int? followers = null,
+        int? wantWork = null,
+        string? employeesCount = null,
+        bool? habr = null,
+        string? city = null,
+        List<string>? awards = null,
+        decimal? scores = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode))
@@ -1539,23 +1558,60 @@ public sealed class DatabaseClient
             EnsureConnectionOpen(conn);
 
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_companies (code, url, title, company_id, created_at, updated_at)
-                VALUES (@code, @url, @title, @company_id, NOW(), NOW())
+                INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating,
+                    current_employees, past_employees, followers, want_work, employees_count, habr,
+                    city, awards, scores, created_at, updated_at)
+                VALUES (@code, @url, @company_id, @title, @about, @description, @site, @rating,
+                    @current_employees, @past_employees, @followers, @want_work, @employees_count, @habr,
+                    @city, @awards, @scores, NOW(), NOW())
                 ON CONFLICT (code)
                 DO UPDATE SET
-                    url = EXCLUDED.url,
-                    title = EXCLUDED.title,
+                    url = COALESCE(EXCLUDED.url, habr_companies.url),
                     company_id = COALESCE(EXCLUDED.company_id, habr_companies.company_id),
+                    title = COALESCE(EXCLUDED.title, habr_companies.title),
+                    about = COALESCE(EXCLUDED.about, habr_companies.about),
+                    description = COALESCE(EXCLUDED.description, habr_companies.description),
+                    site = COALESCE(EXCLUDED.site, habr_companies.site),
+                    rating = COALESCE(EXCLUDED.rating, habr_companies.rating),
+                    current_employees = COALESCE(EXCLUDED.current_employees, habr_companies.current_employees),
+                    past_employees = COALESCE(EXCLUDED.past_employees, habr_companies.past_employees),
+                    followers = COALESCE(EXCLUDED.followers, habr_companies.followers),
+                    want_work = COALESCE(EXCLUDED.want_work, habr_companies.want_work),
+                    employees_count = COALESCE(EXCLUDED.employees_count, habr_companies.employees_count),
+                    habr = COALESCE(EXCLUDED.habr, habr_companies.habr),
+                    city = COALESCE(EXCLUDED.city, habr_companies.city),
+                    awards = COALESCE(EXCLUDED.awards, habr_companies.awards),
+                    scores = COALESCE(EXCLUDED.scores, habr_companies.scores),
                     updated_at = NOW()
-                RETURNING xmax", conn);
+                RETURNING id, xmax", conn);
 
             cmd.Parameters.AddWithValue("@code", companyCode);
-            cmd.Parameters.AddWithValue("@url", companyUrl);
-            cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@url", companyUrl ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@description", companyDescription ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@current_employees",
+                currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@past_employees",
+                pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@followers", followers.HasValue ? (object)followers.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@want_work", wantWork.HasValue ? (object)wantWork.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@employees_count",
+                !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
+            cmd.Parameters.AddWithValue("@habr", habr.HasValue ? (object)habr.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@awards", awards?.ToArray() ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@scores", scores ?? (object)DBNull.Value);
 
-            var xmaxResult = cmd.ExecuteScalar();
-            var xmax = Convert.ToUInt32(xmaxResult);
+            using var reader = cmd.ExecuteReader();
+            reader.Read();
+            var internalId = reader.GetInt32(0);
+            var xmax = Convert.ToUInt32(reader.GetValue(1));
+            reader.Close();
+
             var isInsert = xmax == 0;
 
             if (isInsert)
@@ -1564,11 +1620,10 @@ public sealed class DatabaseClient
                 _statistics.RecordUpdate("habr_companies", companyCode);
 
             // Подробное логирование
-            var logParts = new List<string>
-            {
-                $"[DB] Компания {companyCode}:",
-                $"URL={companyUrl}"
-            };
+            var logParts = new List<string> { $"[DB] Компания {companyCode}:" };
+
+            if (companyUrl != null)
+                logParts.Add($"URL={companyUrl}");
 
             if (companyTitle != null)
                 logParts.Add($"Title={companyTitle}");
@@ -1576,20 +1631,63 @@ public sealed class DatabaseClient
             if (companyId.HasValue)
                 logParts.Add($"CompanyID={companyId.Value}");
 
+            if (companyAbout != null)
+            {
+                var aboutPreview = companyAbout.Length > 50 ? companyAbout.Substring(0, 50) + "..." : companyAbout;
+                logParts.Add($"About={aboutPreview}");
+            }
+
+            if (companyDescription != null)
+            {
+                var descPreview = companyDescription.Length > 50 ? companyDescription.Substring(0, 50) + "..." : companyDescription;
+                logParts.Add($"Description={descPreview}");
+            }
+
+            if (companySite != null)
+                logParts.Add($"Site={companySite}");
+
+            if (companyRating.HasValue)
+                logParts.Add($"Rating={companyRating.Value:F2}");
+
+            if (currentEmployees.HasValue || pastEmployees.HasValue)
+                logParts.Add($"Employees={currentEmployees?.ToString() ?? "?"}/{pastEmployees?.ToString() ?? "?"}");
+
+            if (followers.HasValue || wantWork.HasValue)
+                logParts.Add($"Followers={followers?.ToString() ?? "?"}/{wantWork?.ToString() ?? "?"}");
+
+            if (employeesCount != null)
+                logParts.Add($"Size={employeesCount}");
+
+            if (habr.HasValue)
+                logParts.Add($"Habr={habr.Value}");
+
+            if (city != null)
+                logParts.Add($"City={city}");
+
+            if (awards != null && awards.Count > 0)
+                logParts.Add($"Awards={awards.Count}");
+
+            if (scores.HasValue)
+                logParts.Add($"Scores={scores.Value:F2}");
+
             logParts.Add(isInsert ? "? INSERT" : "? UPDATE");
 
             Log(string.Join(" | ", logParts));
             TryDumpStatistics();
+
+            return internalId;
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Компания {companyCode}: ? ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_companies", companyCode);
+            return null;
         }
         catch (Exception ex)
         {
             Log($"[DB] Компания {companyCode}: ? ERROR - {ex.Message}");
             _statistics.RecordError("habr_companies", companyCode);
+            return null;
         }
     }
 
@@ -1809,172 +1907,6 @@ public sealed class DatabaseClient
         }
 
         return companies;
-    }
-
-    /// <summary>
-    /// Обновить company_id для компании
-    /// </summary>
-    public void CompaniesUpdateCompanyId(NpgsqlConnection conn, string companyCode, long companyId)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode))
-            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_companies
-                SET company_id = @company_id, updated_at = NOW()
-                WHERE code = @code", conn);
-
-            cmd.Parameters.AddWithValue("@code", companyCode);
-            cmd.Parameters.AddWithValue("@company_id", companyId);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                Log($"[DB] Обновлён company_id для {companyCode}: {companyId}");
-            }
-            else
-            {
-                Log($"[DB] Компания {companyCode} не найдена в БД.");
-            }
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] Ошибка БД для компании {companyCode}: {dbEx.Message}");
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] Неожиданная ошибка при обновлении company_id для {companyCode}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Обновить company_id, url, title, about, description, site, rating, employees, followers, employees_count и habr для компании
-    /// </summary>
-    public void CompaniesUpdateDetails(NpgsqlConnection conn, string companyCode, string companyUrl, long? companyId,
-        string? companyTitle, string? companyAbout, string? companyDescription, string? companySite,
-        decimal? companyRating, int? currentEmployees, int? pastEmployees, int? followers, int? wantWork,
-        string? employeesCount, bool? habr)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(companyCode))
-            throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_companies (code, url, company_id, title, about, description, site, rating,
-                    current_employees, past_employees, followers, want_work, employees_count, habr, created_at, updated_at)
-                VALUES (@code, @url, @company_id, @title, @about, @description, @site, @rating,
-                    @current_employees, @past_employees, @followers, @want_work, @employees_count, @habr, NOW(), NOW())
-                ON CONFLICT (code)
-                DO UPDATE SET
-                    url = EXCLUDED.url,
-                    company_id = EXCLUDED.company_id,
-                    title = COALESCE(EXCLUDED.title, habr_companies.title),
-                    about = COALESCE(EXCLUDED.about, habr_companies.about),
-                    description = COALESCE(EXCLUDED.description, habr_companies.description),
-                    site = COALESCE(EXCLUDED.site, habr_companies.site),
-                    rating = COALESCE(EXCLUDED.rating, habr_companies.rating),
-                    current_employees = COALESCE(EXCLUDED.current_employees, habr_companies.current_employees),
-                    past_employees = COALESCE(EXCLUDED.past_employees, habr_companies.past_employees),
-                    followers = COALESCE(EXCLUDED.followers, habr_companies.followers),
-                    want_work = COALESCE(EXCLUDED.want_work, habr_companies.want_work),
-                    employees_count = COALESCE(EXCLUDED.employees_count, habr_companies.employees_count),
-                    habr = COALESCE(EXCLUDED.habr, habr_companies.habr),
-                    updated_at = NOW()
-                RETURNING xmax", conn);
-
-            cmd.Parameters.AddWithValue("@code", companyCode);
-            cmd.Parameters.AddWithValue("@url", companyUrl);
-            cmd.Parameters.AddWithValue("@company_id", companyId.HasValue ? (object)companyId.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@title", companyTitle ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@about", companyAbout ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@description", companyDescription ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@site", companySite ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@rating", companyRating.HasValue ? (object)companyRating.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@current_employees",
-                currentEmployees.HasValue ? (object)currentEmployees.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@past_employees",
-                pastEmployees.HasValue ? (object)pastEmployees.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@followers", followers.HasValue ? (object)followers.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@want_work", wantWork.HasValue ? (object)wantWork.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@employees_count",
-                !string.IsNullOrWhiteSpace(employeesCount) ? employeesCount : DBNull.Value);
-            cmd.Parameters.AddWithValue("@habr", habr.HasValue ? (object)habr.Value : DBNull.Value);
-
-            var xmaxResult = cmd.ExecuteScalar();
-            var xmax = Convert.ToUInt32(xmaxResult);
-            var isInsert = xmax == 0;
-
-            if (isInsert)
-                _statistics.RecordInsert("habr_companies", companyCode);
-            else
-                _statistics.RecordUpdate("habr_companies", companyCode);
-
-            // Подробное логирование
-            var logParts = new List<string> { $"[DB] CompanyDetails {companyCode}:" };
-
-            if (companyId.HasValue)
-                logParts.Add($"CompanyID={companyId.Value}");
-
-            logParts.Add($"URL={companyUrl}");
-
-            if (companyTitle != null)
-                logParts.Add($"Title={companyTitle}");
-
-            if (companyAbout != null)
-            {
-                var aboutPreview = companyAbout.Length > 50 ? companyAbout.Substring(0, 50) + "..." : companyAbout;
-                logParts.Add($"About={aboutPreview}");
-            }
-
-            if (companyDescription != null)
-            {
-                var descPreview = companyDescription.Length > 50 ? companyDescription.Substring(0, 50) + "..." : companyDescription;
-                logParts.Add($"Description={descPreview}");
-            }
-
-            if (companySite != null)
-                logParts.Add($"Site={companySite}");
-
-            if (companyRating.HasValue)
-                logParts.Add($"Rating={companyRating.Value:F2}");
-
-            if (currentEmployees.HasValue || pastEmployees.HasValue)
-                logParts.Add($"Employees={currentEmployees?.ToString() ?? "?"}/{pastEmployees?.ToString() ?? "?"}");
-
-            if (followers.HasValue || wantWork.HasValue)
-                logParts.Add($"Followers={followers?.ToString() ?? "?"}/{wantWork?.ToString() ?? "?"}");
-
-            if (employeesCount != null)
-                logParts.Add($"Size={employeesCount}");
-
-            if (habr.HasValue)
-                logParts.Add($"Habr={habr.Value}");
-
-            logParts.Add(isInsert ? "? INSERT" : "? UPDATE");
-
-            Log(string.Join(" | ", logParts));
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] CompanyDetails {companyCode}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_companies", companyCode);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] CompanyDetails {companyCode}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_companies", companyCode);
-        }
     }
 
     /// <summary>
@@ -2891,96 +2823,9 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Сохранить или обновить данные рейтинга компании в базе данных
-    /// </summary>
-    public void CompaniesInsertOrUpdate(NpgsqlConnection conn, string code, string url,
-        string? title = null, decimal? rating = null, string? about = null,
-        string? city = null, List<string>? awards = null, decimal? scores = null, string? reviewText = null)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Code must not be empty.", nameof(code));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            // Сначала получаем или создаем компанию
-            int companyId;
-            using (var cmdSelect = new NpgsqlCommand(@"
-                SELECT id FROM habr_companies WHERE code = @code", conn))
-            {
-                cmdSelect.Parameters.AddWithValue("@code", code);
-                var result = cmdSelect.ExecuteScalar();
-
-                if (result != null)
-                {
-                    // Компания существует - обновляем
-                    companyId = Convert.ToInt32(result);
-
-                    using var cmdUpdate = new NpgsqlCommand(@"
-                        UPDATE habr_companies
-                        SET
-                            url = @url,
-                            title = COALESCE(@title, title),
-                            rating = COALESCE(@rating, rating),
-                            about = COALESCE(@about, about),
-                            city = COALESCE(@city, city),
-                            awards = COALESCE(@awards, awards),
-                            scores = COALESCE(@scores, scores),
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE code = @code", conn);
-
-                    cmdUpdate.Parameters.AddWithValue("@code", code);
-                    cmdUpdate.Parameters.AddWithValue("@url", url);
-                    cmdUpdate.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
-                    cmdUpdate.Parameters.AddWithValue("@rating", rating ?? (object)DBNull.Value);
-                    cmdUpdate.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
-                    cmdUpdate.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
-                    cmdUpdate.Parameters.AddWithValue("@awards", awards?.ToArray() ?? (object)DBNull.Value);
-                    cmdUpdate.Parameters.AddWithValue("@scores", scores ?? (object)DBNull.Value);
-
-                    cmdUpdate.ExecuteNonQuery();
-                    Log($"[DB] Обновлена компания: {code}");
-                }
-                else
-                {
-                    // Компания не существует - создаем
-                    using var cmdInsert = new NpgsqlCommand(@"
-                        INSERT INTO habr_companies (code, url, title, rating, about, city, awards, scores, created_at, updated_at)
-                        VALUES (@code, @url, @title, @rating, @about, @city, @awards, @scores, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        RETURNING id", conn);
-
-                    cmdInsert.Parameters.AddWithValue("@code", code);
-                    cmdInsert.Parameters.AddWithValue("@url", url);
-                    cmdInsert.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@rating", rating ?? (object)DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@awards", awards?.ToArray() ?? (object)DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@scores", scores ?? (object)DBNull.Value);
-
-                    var insertResult = cmdInsert.ExecuteScalar();
-                    companyId = Convert.ToInt32(insertResult!);
-                    Log($"[DB] Добавлена новая компания: {code} (ID={companyId})");
-                }
-            }
-
-            // Сохраняем отзыв, если он есть
-            if (!string.IsNullOrWhiteSpace(reviewText))
-            {
-                CompanyReviewsInsert(conn, companyId, reviewText);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] Ошибка при сохранении рейтинга компании {code}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// Сохранить отзыв о компании (с проверкой дубликатов по хешу)
     /// </summary>
-    private void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, string reviewText)
+    public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, string reviewText)
     {
         try
         {
