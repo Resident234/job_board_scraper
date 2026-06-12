@@ -2553,7 +2553,8 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить навык с skill_id (только если его еще нет)
+    /// Вставить навык с skill_id (только если его еще нет).
+    /// Если не найден по skill_id, но найден по title — обновляет skill_id у существующей записи.
     /// </summary>
     public void SkillsInsert(NpgsqlConnection conn, int skillId, string? title)
     {
@@ -2562,6 +2563,8 @@ public sealed class DatabaseClient
         try
         {
             EnsureConnectionOpen(conn);
+
+            var normalizedTitle = string.IsNullOrWhiteSpace(title) ? skillId.ToString() : title;
 
             // Проверяем существование по skill_id
             using (var checkCmd = new NpgsqlCommand(@"
@@ -2577,17 +2580,39 @@ public sealed class DatabaseClient
                 }
             }
 
-            // Если не существует, вставляем с skillId в оба поля
+            // Не найден по skill_id — ищем по title
+            using (var findCmd = new NpgsqlCommand(@"
+                SELECT id FROM habr_skills WHERE title = @title LIMIT 1", conn))
+            {
+                findCmd.Parameters.AddWithValue("@title", normalizedTitle);
+                var existingId = findCmd.ExecuteScalar();
+
+                if (existingId != null)
+                {
+                    // Найден по title — обновляем skill_id
+                    using var updateCmd = new NpgsqlCommand(@"
+                        UPDATE habr_skills SET skill_id = @skill_id, updated_at = NOW()
+                        WHERE id = @id", conn);
+                    updateCmd.Parameters.AddWithValue("@skill_id", skillId);
+                    updateCmd.Parameters.AddWithValue("@id", Convert.ToInt32(existingId));
+                    updateCmd.ExecuteNonQuery();
+                    Log($"[DB] Навык найден по title='{normalizedTitle}' (id={existingId}), skill_id обновлён на {skillId}");
+                    _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
+                    return;
+                }
+            }
+
+            // Не найден ни по skill_id, ни по title — вставляем
             using var cmd = new NpgsqlCommand(@"
                 INSERT INTO habr_skills (skill_id, title, created_at, updated_at)
                 VALUES (@skill_id, @title, NOW(), NOW())", conn);
 
             cmd.Parameters.AddWithValue("@skill_id", skillId);
-            // Если title пустой, используем skillId как строку
-            cmd.Parameters.AddWithValue("@title", string.IsNullOrWhiteSpace(title) ? skillId.ToString() : title);
+            cmd.Parameters.AddWithValue("@title", normalizedTitle);
 
             cmd.ExecuteNonQuery();
-            Log($"[DB] Навык добавлен: skill_id={skillId}, title={title ?? skillId.ToString()}");
+            Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}");
+            _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
         }
         catch (NpgsqlException dbEx)
         {
