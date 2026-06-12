@@ -15,7 +15,6 @@ public enum DbRecordType
     Resume,
     Company,
     CategoryRootId,
-    CompanySkills,
     UserAbout,
     UserSkills,
     UserExperience,
@@ -82,7 +81,8 @@ public readonly record struct CompanyRecord(
     string? City = null,
     List<string>? Awards = null,
     decimal? Scores = null,
-    List<string>? ReviewTexts = null);
+    List<string>? ReviewTexts = null,
+    List<string>? Skills = null);
 
 /// <summary>
 /// Data structure for CategoryRootId record type.
@@ -90,13 +90,6 @@ public readonly record struct CompanyRecord(
 public readonly record struct CategoryRootIdRecord(
     string CategoryId,
     string CategoryName);
-
-/// <summary>
-/// Data structure for CompanySkills record type.
-/// </summary>
-public readonly record struct CompanySkillsRecord(
-    string CompanyCode,
-    List<string> Skills);
 
 /// <summary>
 /// Data structure for UserAbout record type.
@@ -160,7 +153,6 @@ public readonly record struct DbRecord(
     ResumeRecord? Resume = null,
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
-    CompanySkillsRecord? CompanySkills = null,
     UserAboutRecord? UserAbout = null,
     UserSkillsRecord? UserSkills = null,
     UserExperienceRecord? UserExperience = null,
@@ -379,6 +371,12 @@ public sealed class DatabaseClient
                                                 Log($"[DB] Отзывы для компании {company.CompanyCode}: SKIP (компания не найдена в БД)");
                                             }
                                         }
+
+                                        // Если есть навыки, добавляем их
+                                        if (company.Skills != null && company.Skills.Count > 0)
+                                        {
+                                            CompanySkillsInsert(conn, companyCode: company.CompanyCode, skills: company.Skills);
+                                        }
                                     }
                                     break;
                                 case DbRecordType.CategoryRootId:
@@ -386,13 +384,6 @@ public sealed class DatabaseClient
                                     {
                                         var category = record.CategoryRootId.Value;
                                         CategoryRootIdsInsert(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
-                                    }
-                                    break;
-                                case DbRecordType.CompanySkills:
-                                    if (record.CompanySkills.HasValue)
-                                    {
-                                        var skills = record.CompanySkills.Value;
-                                        CompanySkillsInsert(conn, companyCode: skills.CompanyCode, skills: skills.Skills);
                                     }
                                     break;
                                 case DbRecordType.UserAbout:
@@ -604,7 +595,8 @@ public sealed class DatabaseClient
         string? city = null,
         List<string>? awards = null,
         decimal? scores = null,
-        List<string>? reviewTexts = null)
+        List<string>? reviewTexts = null,
+        List<string>? skills = null)
     {
         if (_saveQueue == null) return false;
 
@@ -626,7 +618,8 @@ public sealed class DatabaseClient
             City: city,
             Awards: awards,
             Scores: scores,
-            ReviewTexts: reviewTexts
+            ReviewTexts: reviewTexts,
+            Skills: skills
         );
 
         var record = new DbRecord(
@@ -640,6 +633,8 @@ public sealed class DatabaseClient
             logMessage += $" (ID: {companyId})";
         if (companyTitle != null)
             logMessage += $" | {companyTitle}";
+        if (skills != null && skills.Count > 0)
+            logMessage += $" | Skills: {skills.Count}";
         Log(logMessage);
 
         return true;
@@ -672,29 +667,6 @@ public sealed class DatabaseClient
     /// </summary>
     [Obsolete("Use EnqueueResume instead")]
     public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
-
-    /// <summary>
-    /// Добавить навыки компании в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCompanySkills(string companyCode, List<string> skills)
-    {
-        if (_saveQueue == null) return false;
-        if (skills == null || skills.Count == 0) return false;
-
-        var companySkillsRecord = new CompanySkillsRecord(
-            CompanyCode: companyCode,
-            Skills: skills
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanySkills,
-            CompanySkills: companySkillsRecord
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CompanySkills: {companyCode} -> {skills.Count} навыков");
-
-        return true;
-    }
 
     /// <summary>
     /// Добавить информацию о профиле пользователя в очередь на обновление

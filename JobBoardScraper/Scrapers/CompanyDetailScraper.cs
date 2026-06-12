@@ -541,7 +541,6 @@ public sealed class CompanyDetailScraper : IDisposable
                     if (skills.Count > 0)
                     {
                         _logger.WriteLine($"Найдено навыков: {skills.Count}");
-                        _db.EnqueueCompanySkills(code, skills);
                     }
 
                     // Проверяем, ведет ли компания блог на Хабре
@@ -561,7 +560,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     // Сохраняем данные компании в БД
                     _db.EnqueueCompany(code, url, companyId, companyTitle, companyAbout, companyDescription,
                         companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
-                        employeesCount, habr);
+                        employeesCount, habr, skills: skills.Count > 0 ? skills : null);
 
                     // Детальный вывод всех спарсенных данных
                     _logger.WriteLine($"=== Компания {code} ===");
