@@ -16,7 +16,6 @@ public enum DbRecordType
     Company,
     CategoryRootId,
     CompanySkills,
-    CompanyReview,
     UserAbout,
     UserSkills,
     UserExperience,
@@ -82,7 +81,8 @@ public readonly record struct CompanyRecord(
     bool? Habr = null,
     string? City = null,
     List<string>? Awards = null,
-    decimal? Scores = null);
+    decimal? Scores = null,
+    List<string>? ReviewTexts = null);
 
 /// <summary>
 /// Data structure for CategoryRootId record type.
@@ -97,13 +97,6 @@ public readonly record struct CategoryRootIdRecord(
 public readonly record struct CompanySkillsRecord(
     string CompanyCode,
     List<string> Skills);
-
-/// <summary>
-/// Data structure for CompanyReview record type.
-/// </summary>
-public readonly record struct CompanyReviewRecord(
-    string CompanyCode,
-    string ReviewText);
 
 /// <summary>
 /// Data structure for UserAbout record type.
@@ -168,7 +161,6 @@ public readonly record struct DbRecord(
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
     CompanySkillsRecord? CompanySkills = null,
-    CompanyReviewRecord? CompanyReview = null,
     UserAboutRecord? UserAbout = null,
     UserSkillsRecord? UserSkills = null,
     UserExperienceRecord? UserExperience = null,
@@ -373,6 +365,20 @@ public sealed class DatabaseClient
                                             awards: company.Awards,
                                             scores: company.Scores
                                         );
+
+                                        // Если есть отзывы, добавляем их
+                                        if (company.ReviewTexts != null && company.ReviewTexts.Count > 0)
+                                        {
+                                            var companyInternalId = CompaniesGetInternalId(conn, company.CompanyCode);
+                                            if (companyInternalId.HasValue)
+                                            {
+                                                CompanyReviewsInsert(conn, companyInternalId.Value, company.ReviewTexts);
+                                            }
+                                            else
+                                            {
+                                                Log($"[DB] Отзывы для компании {company.CompanyCode}: SKIP (компания не найдена в БД)");
+                                            }
+                                        }
                                     }
                                     break;
                                 case DbRecordType.CategoryRootId:
@@ -387,21 +393,6 @@ public sealed class DatabaseClient
                                     {
                                         var skills = record.CompanySkills.Value;
                                         CompanySkillsInsert(conn, companyCode: skills.CompanyCode, skills: skills.Skills);
-                                    }
-                                    break;
-                                case DbRecordType.CompanyReview:
-                                    if (record.CompanyReview.HasValue)
-                                    {
-                                        var review = record.CompanyReview.Value;
-                                        var companyInternalId = CompaniesGetInternalId(conn, review.CompanyCode);
-                                        if (companyInternalId.HasValue)
-                                        {
-                                            CompanyReviewsInsert(conn, companyInternalId.Value, review.ReviewText);
-                                        }
-                                        else
-                                        {
-                                            Log($"[DB] Отзыв для компании {review.CompanyCode}: SKIP (компания не найдена в БД)");
-                                        }
                                     }
                                     break;
                                 case DbRecordType.UserAbout:
@@ -612,7 +603,8 @@ public sealed class DatabaseClient
         bool? habr = null,
         string? city = null,
         List<string>? awards = null,
-        decimal? scores = null)
+        decimal? scores = null,
+        List<string>? reviewTexts = null)
     {
         if (_saveQueue == null) return false;
 
@@ -633,7 +625,8 @@ public sealed class DatabaseClient
             Habr: habr,
             City: city,
             Awards: awards,
-            Scores: scores
+            Scores: scores,
+            ReviewTexts: reviewTexts
         );
 
         var record = new DbRecord(
@@ -1035,29 +1028,6 @@ public sealed class DatabaseClient
         );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Добавить отзыв о компании в очередь на запись в базу данных
-    /// </summary>
-    public bool EnqueueCompanyReview(string companyCode, string reviewText)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(reviewText)) return false;
-
-        var reviewRecord = new CompanyReviewRecord(
-            CompanyCode: companyCode,
-            ReviewText: reviewText
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.CompanyReview,
-            CompanyReview: reviewRecord
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CompanyReview: {companyCode}");
 
         return true;
     }
@@ -2709,41 +2679,46 @@ public sealed class DatabaseClient
     /// <summary>
     /// Сохранить отзыв о компании (с проверкой дубликатов по хешу)
     /// </summary>
-    public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, string reviewText)
+    public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, List<string> reviewTexts)
     {
-        try
+        foreach (var reviewText in reviewTexts)
         {
-            var reviewHash = CompanyRatingScraper.ComputeReviewHash(reviewText);
+            if (string.IsNullOrWhiteSpace(reviewText)) continue;
 
-            // Проверяем, существует ли уже отзыв с таким хешем
-            using (var cmdCheck = new NpgsqlCommand(@"
-                SELECT COUNT(*) FROM habr_company_reviews WHERE review_hash = @review_hash", conn))
+            try
             {
-                cmdCheck.Parameters.AddWithValue("@review_hash", reviewHash);
-                var count = Convert.ToInt32(cmdCheck.ExecuteScalar());
+                var reviewHash = CompanyRatingScraper.ComputeReviewHash(reviewText);
 
-                if (count > 0)
+                // Проверяем, существует ли уже отзыв с таким хешем
+                using (var cmdCheck = new NpgsqlCommand(@"
+                    SELECT COUNT(*) FROM habr_company_reviews WHERE review_hash = @review_hash", conn))
                 {
-                    Log($"[DB] Отзыв с хешем {reviewHash.Substring(0, 8)}... уже существует, пропускаем");
-                    return;
+                    cmdCheck.Parameters.AddWithValue("@review_hash", reviewHash);
+                    var count = Convert.ToInt32(cmdCheck.ExecuteScalar());
+
+                    if (count > 0)
+                    {
+                        Log($"[DB] Отзыв с хешем {reviewHash.Substring(0, 8)}... уже существует, пропускаем");
+                        continue;
+                    }
                 }
+
+                // Вставляем новый отзыв
+                using var cmdInsert = new NpgsqlCommand(@"
+                    INSERT INTO habr_company_reviews (company_id, review_hash, review_text, created_at, updated_at)
+                    VALUES (@company_id, @review_hash, @review_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", conn);
+
+                cmdInsert.Parameters.AddWithValue("@company_id", companyId);
+                cmdInsert.Parameters.AddWithValue("@review_hash", reviewHash);
+                cmdInsert.Parameters.AddWithValue("@review_text", reviewText);
+
+                cmdInsert.ExecuteNonQuery();
+                Log($"[DB] Добавлен новый отзыв для компании ID={companyId}");
             }
-
-            // Вставляем новый отзыв
-            using var cmdInsert = new NpgsqlCommand(@"
-                INSERT INTO habr_company_reviews (company_id, review_hash, review_text, created_at, updated_at)
-                VALUES (@company_id, @review_hash, @review_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", conn);
-
-            cmdInsert.Parameters.AddWithValue("@company_id", companyId);
-            cmdInsert.Parameters.AddWithValue("@review_hash", reviewHash);
-            cmdInsert.Parameters.AddWithValue("@review_text", reviewText);
-
-            cmdInsert.ExecuteNonQuery();
-            Log($"[DB] Добавлен новый отзыв для компании ID={companyId}");
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
+            catch (Exception ex)
+            {
+                Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
+            }
         }
     }
 
