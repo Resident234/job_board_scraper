@@ -15,7 +15,6 @@ public enum DbRecordType
     Resume,
     Company,
     CategoryRootId,
-    UserAbout,
     UserSkills,
     UserExperience,
     UserAdditionalData,
@@ -58,7 +57,8 @@ public readonly record struct ResumeRecord(
     string? JobSearchStatus = null,
     bool? IsEmpty = null,
     List<string>? Skills = null,
-    bool? IsDeleted = null);
+    bool? IsDeleted = null,
+    string? About = null);
 
 /// <summary>
 /// Data structure for Company record type.
@@ -90,13 +90,6 @@ public readonly record struct CompanyRecord(
 public readonly record struct CategoryRootIdRecord(
     string CategoryId,
     string CategoryName);
-
-/// <summary>
-/// Data structure for UserAbout record type.
-/// </summary>
-public readonly record struct UserAboutRecord(
-    string UserLink,
-    string About);
 
 /// <summary>
 /// Data structure for UserSkills record type.
@@ -153,7 +146,6 @@ public readonly record struct DbRecord(
     ResumeRecord? Resume = null,
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
-    UserAboutRecord? UserAbout = null,
     UserSkillsRecord? UserSkills = null,
     UserExperienceRecord? UserExperience = null,
     UserAdditionalDataRecord? UserAdditionalData = null,
@@ -323,7 +315,8 @@ public sealed class DatabaseClient
                                             isPublic: resume.IsPublic,
                                             jobSearchStatus: resume.JobSearchStatus,
                                             isEmpty: resume.IsEmpty,
-                                            isDeleted: resume.IsDeleted
+                                            isDeleted: resume.IsDeleted,
+                                            about: resume.About
                                         );
 
                                         // Если есть навыки, добавляем их
@@ -384,16 +377,6 @@ public sealed class DatabaseClient
                                     {
                                         var category = record.CategoryRootId.Value;
                                         CategoryRootIdsInsert(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
-                                    }
-                                    break;
-                                case DbRecordType.UserAbout:
-                                    if (record.UserAbout.HasValue)
-                                    {
-                                        var about = record.UserAbout.Value;
-                                        ResumesInsert(conn,
-                                            link: about.UserLink,
-                                            about: about.About,
-                                            mode: InsertMode.UpdateIfExists);
                                     }
                                     break;
                                 case DbRecordType.UserSkills:
@@ -738,12 +721,13 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
-        // Обновляем основные данные профиля (имя, техническая информация, уровень, зарплата)
+        // Обновляем данные профиля (включая about)
         if (!string.IsNullOrWhiteSpace(userName) ||
             !string.IsNullOrWhiteSpace(infoTech) ||
             !string.IsNullOrWhiteSpace(levelTitle) ||
             salary.HasValue ||
-            !string.IsNullOrWhiteSpace(lastVisit))
+            !string.IsNullOrWhiteSpace(lastVisit) ||
+            about != null)
         {
             var resumeRecord = new ResumeRecord(
                 Link: userLink,
@@ -756,7 +740,8 @@ public sealed class DatabaseClient
                 LastVisit: lastVisit,
                 WorkExperience: experienceText,
                 JobSearchStatus: jobSearchStatus,
-                IsEmpty: isEmpty
+                IsEmpty: isEmpty,
+                About: about ?? ""
             );
 
             var profileRecord = new DbRecord(
@@ -765,17 +750,6 @@ public sealed class DatabaseClient
             );
             _saveQueue.Enqueue(profileRecord);
         }
-
-        // Обновляем about (записываем пустую строку если не найден)
-        var aboutRecordData = new UserAboutRecord(
-            UserLink: userLink,
-            About: about ?? ""
-        );
-        var aboutRecord = new DbRecord(
-            Type: DbRecordType.UserAbout,
-            UserAbout: aboutRecordData
-        );
-        _saveQueue.Enqueue(aboutRecord);
 
         // Добавляем навыки
         if (skills != null && skills.Count > 0)
@@ -843,29 +817,19 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
-        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true (upsert)
+        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true и about (upsert)
         var deletedResumeRecord = new ResumeRecord(
             Link: userLink,
             Title: "Профиль удален",
             Mode: InsertMode.UpdateIfExists,
-            IsDeleted: true
+            IsDeleted: true,
+            About: about
         );
         var resumeRecord = new DbRecord(
             Type: DbRecordType.Resume,
             Resume: deletedResumeRecord
         );
         _saveQueue.Enqueue(resumeRecord);
-
-        // 2. Обновить about
-        var aboutRecordData = new UserAboutRecord(
-            UserLink: userLink,
-            About: about
-        );
-        var aboutRecord = new DbRecord(
-            Type: DbRecordType.UserAbout,
-            UserAbout: aboutRecordData
-        );
-        _saveQueue.Enqueue(aboutRecord);
 
         // 3. Для обратной совместимости: UserDeleted
         var deletedRecordData = new UserDeletedRecord(
