@@ -15,7 +15,7 @@ public enum DbRecordType
     Resume,
     Company,
     CategoryRootId,
-    UserSkills,
+    Skills,
     UserExperience,
     UserAdditionalData,
     UserCommunityParticipation,
@@ -56,7 +56,7 @@ public readonly record struct ResumeRecord(
     bool? IsPublic = null,
     string? JobSearchStatus = null,
     bool? IsEmpty = null,
-    List<string>? Skills = null,
+    List<SkillsRecord>? Skills = null,
     bool? IsDeleted = null,
     string? About = null);
 
@@ -82,7 +82,7 @@ public readonly record struct CompanyRecord(
     List<string>? Awards = null,
     decimal? Scores = null,
     List<string>? ReviewTexts = null,
-    List<string>? Skills = null);
+    List<SkillsRecord>? Skills = null);
 
 /// <summary>
 /// Data structure for CategoryRootId record type.
@@ -92,13 +92,11 @@ public readonly record struct CategoryRootIdRecord(
     string CategoryName);
 
 /// <summary>
-/// Data structure for UserSkills record type.
+/// Data structure for Skills record type.
 /// </summary>
-public readonly record struct UserSkillsRecord(
-    string UserLink,
-    List<string>? Skills = null,
-    int? SkillId = null,
-    string? SkillTitle = null);
+public readonly record struct SkillsRecord(
+   int? SkillId = null,
+   string? SkillTitle = null);
 
 /// <summary>
 /// Data structure for UserExperience record type.
@@ -146,7 +144,7 @@ public readonly record struct DbRecord(
     ResumeRecord? Resume = null,
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
-    UserSkillsRecord? UserSkills = null,
+    SkillsRecord? Skills = null,
     UserExperienceRecord? UserExperience = null,
     UserAdditionalDataRecord? UserAdditionalData = null,
     UserCommunityParticipationRecord? UserCommunityParticipation = null,
@@ -379,10 +377,10 @@ public sealed class DatabaseClient
                                         CategoryRootIdsInsert(conn, categoryId: category.CategoryId, categoryName: category.CategoryName);
                                     }
                                     break;
-                                case DbRecordType.UserSkills:
-                                    if (record.UserSkills.HasValue)
+                                case DbRecordType.Skills:
+                                    if (record.Skills.HasValue)
                                     {
-                                        var skills = record.UserSkills.Value;
+                                        var skills = record.Skills.Value;
                                         if (skills.SkillId.HasValue)
                                         {
                                             // Case: Adding skill with skill_id
@@ -579,7 +577,7 @@ public sealed class DatabaseClient
         List<string>? awards = null,
         decimal? scores = null,
         List<string>? reviewTexts = null,
-        List<string>? skills = null)
+        List<SkillsRecord>? skills = null)
     {
         if (_saveQueue == null) return false;
 
@@ -754,15 +752,18 @@ public sealed class DatabaseClient
         // Добавляем навыки
         if (skills != null && skills.Count > 0)
         {
-            var skillsRecordData = new UserSkillsRecord(
-                UserLink: userLink,
-                Skills: skills
-            );
-            var skillsRecord = new DbRecord(
-                Type: DbRecordType.UserSkills,
-                UserSkills: skillsRecordData
-            );
-            _saveQueue.Enqueue(skillsRecord);
+            foreach (var skill in skills)
+            {
+                var skillRecordData = new SkillsRecord(
+                    SkillId: null,
+                    SkillTitle: skill
+                );
+                var skillRecord = new DbRecord(
+                    Type: DbRecordType.Skills,
+                    Skills: skillRecordData
+                );
+                _saveQueue.Enqueue(skillRecord);
+            }
         }
 
         // Добавляем дополнительные данные профиля
@@ -920,15 +921,14 @@ public sealed class DatabaseClient
     {
         if (_saveQueue == null) return false;
 
-        var skillRecord = new UserSkillsRecord(
-            UserLink: skillId.ToString(),
+        var skillRecord = new SkillsRecord(
             SkillId: skillId,
             SkillTitle: title
         );
 
         var record = new DbRecord(
-            Type: DbRecordType.UserSkills,
-            UserSkills: skillRecord
+            Type: DbRecordType.Skills,
+            Skills: skillRecord
         );
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] Skill: ID={skillId}, Title={title}");

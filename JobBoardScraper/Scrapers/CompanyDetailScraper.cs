@@ -523,7 +523,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     }
 
                     // Извлекаем навыки компании
-                    var skills = new List<string>();
+                    var skills = new List<SkillsRecord>();
                     var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
                     if (skillsContainer != null)
                     {
@@ -533,7 +533,7 @@ public sealed class CompanyDetailScraper : IDisposable
                             var skillTitle = skillElement.TextContent?.Trim();
                             if (!string.IsNullOrWhiteSpace(skillTitle))
                             {
-                                skills.Add(skillTitle);
+                                skills.Add(new SkillsRecord(SkillId: null, SkillTitle: skillTitle));
                             }
                         }
                     }

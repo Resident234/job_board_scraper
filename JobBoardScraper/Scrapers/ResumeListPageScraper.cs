@@ -700,7 +700,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     AppConfig.ResumeListSalaryRegex);
 
                 // 5) Извлекаем навыки
-                var skills = new List<string>();
+                var skills = new List<SkillsRecord>();
                 var skillsSection = section.QuerySelector(AppConfig.ResumeListSkillsSectionSelector);
                 if (skillsSection != null)
                 {
@@ -710,7 +710,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         var skillName = skillSpan.TextContent?.Trim();
                         if (!string.IsNullOrWhiteSpace(skillName))
                         {
-                            skills.Add(skillName);
+                            skills.Add(new SkillsRecord(SkillId: null, SkillTitle: skillName));
                         }
                     }
                 }

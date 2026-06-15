@@ -1,5 +1,7 @@
 namespace JobBoardScraper.Domain.Models;
 
+using JobBoardScraper.Data;
+
 /// <summary>
 /// Данные профиля резюме со страницы списка резюме
 /// </summary>
@@ -11,5 +13,5 @@ public record ResumeProfileData(
     string? InfoTech,
     string? LevelTitle,
     int? Salary,
-    List<string>? Skills
+    List<SkillsRecord>? Skills
 );
