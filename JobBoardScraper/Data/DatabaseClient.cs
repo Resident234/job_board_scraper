@@ -111,7 +111,7 @@ public readonly record struct UserExperienceRecord(
     string? Position = null,
     string? Duration = null,
     string? Description = null,
-    List<(int? SkillId, string SkillName)> Skills = null,
+    List<SkillsRecord>? Skills = null,
     bool IsFirstRecord = false);
 
 /// <summary>
@@ -884,7 +884,7 @@ public sealed class DatabaseClient
         string? position = null,
         string? duration = null,
         string? description = null,
-        List<(int? SkillId, string SkillName)> skills = null,
+        List<SkillsRecord>? skills = null,
         bool isFirstRecord = false)
     {
         if (_saveQueue == null) return false;

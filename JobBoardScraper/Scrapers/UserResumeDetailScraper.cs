@@ -672,7 +672,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                             }
 
                             // Извлекаем навыки
-                            var experienceSkills = new List<(int? SkillId, string SkillName)>();
+                            var experienceSkills = new List<SkillsRecord>();
                             var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
                             if (tagsContainer != null)
                             {
@@ -694,7 +694,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                                         }
                                     }
 
-                                    experienceSkills.Add((skillId, skillName));
+                                    experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
                                 }
                             }
 
