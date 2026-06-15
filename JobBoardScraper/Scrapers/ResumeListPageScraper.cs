@@ -359,9 +359,9 @@ public sealed class ResumeListPageScraper : IDisposable
         _logger.WriteLine("Начало обхода страниц по company_ids...");
         
         // Получаем список company_id из БД
-        using var conn = _db.DatabaseConnectionInit();
-        var companyIds = _db.GetAllCompanyIds(conn);
-        _db.DatabaseConnectionClose(conn);
+        using var conn = _db.ConnectionInit();
+        var companyIds = _db.CompaniesGetAllIds(conn);
+        _db.ConnectionClose(conn);
         
         var totalCompanyIds = companyIds.Count;
         var orders = AppConfig.ResumeListCompanyIdsOrders;
@@ -456,9 +456,9 @@ public sealed class ResumeListPageScraper : IDisposable
         _logger.WriteLine("Начало обхода страниц по university_ids...");
         
         // Получаем список university_id из БД
-        using var conn = _db.DatabaseConnectionInit();
-        var universityIds = _db.GetAllUniversityIds(conn);
-        _db.DatabaseConnectionClose(conn);
+        using var conn = _db.ConnectionInit();
+        var universityIds = _db.UniversitiesGetAllIds(conn);
+        _db.ConnectionClose(conn);
         
         var totalUniversityIds = universityIds.Count;
         var orders = AppConfig.ResumeListUniversityIdsOrders;

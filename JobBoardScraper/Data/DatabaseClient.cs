@@ -302,9 +302,7 @@ public sealed class DatabaseClient
                                                 ? resume.UserCode
                                                 : resume.Code,
                                             expert: resume.IsExpert ?? resume.Expert,
-                                            workExperience: !string.IsNullOrWhiteSpace(resume.WorkExperience)
-                                                ? resume.WorkExperience
-                                                : resume.WorkExperience,
+                                            workExperience: resume.WorkExperience,
                                             mode: resume.Mode,
                                             levelId: levelId,
                                             infoTech: resume.InfoTech,
@@ -383,13 +381,7 @@ public sealed class DatabaseClient
                                         var skills = record.Skills.Value;
                                         if (skills.SkillId.HasValue)
                                         {
-                                            // Case: Adding skill with skill_id
                                             SkillsInsert(conn, skills.SkillId.Value, skills.SkillTitle ?? "");
-                                        }
-                                        else if (skills.Skills != null && skills.Skills.Count > 0)
-                                        {
-                                            // Case: Adding user skills
-                                            UserSkillsInsert(conn, userLink: skills.UserLink, skills: skills.Skills);
                                         }
                                     }
                                     break;
@@ -752,17 +744,24 @@ public sealed class DatabaseClient
         // Добавляем навыки
         if (skills != null && skills.Count > 0)
         {
-            foreach (var skill in skills)
+            var skillRecords = skills
+                .Where(skill => !string.IsNullOrWhiteSpace(skill))
+                .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
+                .ToList();
+
+            if (skillRecords.Count > 0)
             {
-                var skillRecordData = new SkillsRecord(
-                    SkillId: null,
-                    SkillTitle: skill
+                var resumeRecord = new ResumeRecord(
+                    Link: userLink,
+                    Title: null!,
+                    Mode: InsertMode.UpdateIfExists,
+                    Skills: skillRecords
                 );
-                var skillRecord = new DbRecord(
-                    Type: DbRecordType.Skills,
-                    Skills: skillRecordData
+                var resumeDbRecord = new DbRecord(
+                    Type: DbRecordType.Resume,
+                    Resume: resumeRecord
                 );
-                _saveQueue.Enqueue(skillRecord);
+                _saveQueue.Enqueue(resumeDbRecord);
             }
         }
 
@@ -1739,6 +1738,11 @@ public sealed class DatabaseClient
     /// </summary>
     public void CompanySkillsInsert(NpgsqlConnection conn, string companyCode, List<string> skills)
     {
+        CompanySkillsInsert(conn, companyCode, skills.Select(skill => new SkillsRecord(SkillTitle: skill)).ToList());
+    }
+
+    public void CompanySkillsInsert(NpgsqlConnection conn, string companyCode, List<SkillsRecord> skills)
+    {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(companyCode))
             throw new ArgumentException("Company code must not be empty.", nameof(companyCode));
@@ -1778,8 +1782,9 @@ public sealed class DatabaseClient
             // Добавляем навыки
             int addedCount = 0;
             int newSkillsCount = 0;
-            foreach (var skillTitle in skills)
+            foreach (var skillRecord in skills)
             {
+                var skillTitle = skillRecord.SkillTitle;
                 if (string.IsNullOrWhiteSpace(skillTitle)) continue;
 
                 // Вставляем навык в таблицу habr_skills (если его нет)
@@ -2284,6 +2289,11 @@ public sealed class DatabaseClient
     /// </summary>
     public void UserSkillsInsert(NpgsqlConnection conn, string userLink, List<string> skills)
     {
+        UserSkillsInsert(conn, userLink, skills.Select(skill => new SkillsRecord(SkillTitle: skill)).ToList());
+    }
+
+    public void UserSkillsInsert(NpgsqlConnection conn, string userLink, List<SkillsRecord> skills)
+    {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
             throw new ArgumentException("User link must not be empty.", nameof(userLink));
@@ -2323,8 +2333,9 @@ public sealed class DatabaseClient
             // Добавляем навыки
             int addedCount = 0;
             int newSkillsCount = 0;
-            foreach (var skillTitle in skills)
+            foreach (var skillRecord in skills)
             {
+                var skillTitle = skillRecord.SkillTitle;
                 if (string.IsNullOrWhiteSpace(skillTitle)) continue;
 
                 // Вставляем навык в таблицу habr_skills (если его нет)

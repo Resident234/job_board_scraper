@@ -51,8 +51,8 @@ class Program
         Console.WriteLine($"[Program] DatabaseClient: Режим вывода логов - {AppConfig.DatabaseClientOutputMode}");
         
         var db = new DatabaseClient(AppConfig.ConnectionString, dbLogger);
-        using var conn = db.DatabaseConnectionInit();
-        db.DatabaseEnsureConnectionOpen(conn);
+        using var conn = db.ConnectionInit();
+        db.EnsureConnectionOpen(conn);
 
         using var controller = new AdaptiveConcurrencyController(
             defaultConcurrency: AppConfig.MaxConcurrentRequests,
@@ -124,7 +124,7 @@ class Program
                 {
                     db.EnqueueCompany(companyCode, companyUrl, companyId);
                 },
-                getCategoryIds: () => db.GetAllCategoryIds(conn),
+                getCategoryIds: () => db.CategoryGetAllIds(conn),
                 interval: TimeSpan.FromDays(7),
                 outputMode: AppConfig.CompaniesOutputMode);
 
@@ -185,7 +185,7 @@ class Program
                 {
                     db.EnqueueResume(link, username, slogan, mode);
                 },
-                getCompanyCodes: () => db.GetAllCompanyCodes(conn),
+                getCompanyCodes: () => db.CompaniesGetAllCodes(conn),
                 controller: controller,
                 interval: TimeSpan.FromDays(5),
                 outputMode: AppConfig.CompanyFollowersOutputMode);
@@ -249,7 +249,7 @@ class Program
             var companyDetailScraper = new CompanyDetailScraper(
                 companyDetailHttpClient,
                 db,
-                getCompanies: () => db.GetAllCompaniesWithUrls(conn),
+                getCompanies: () => db.CompaniesGetAll(conn),
                 controller: controller,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.CompanyDetailOutputMode);
@@ -282,7 +282,7 @@ class Program
             var userProfileScraper = new UserProfileScraper(
                 userProfileHttpClient,
                 db,
-                getUserCodes: () => db.GetAllUserLinks(conn),
+                getUserCodes: () => db.ResumesGetAllUserLinks(conn),
                 controller: controller,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.UserProfileOutputMode);
@@ -315,7 +315,7 @@ class Program
             var userFriendsScraper = new UserFriendsScraper(
                 userFriendsHttpClient,
                 db,
-                getUserCodes: () => db.GetAllUserLinks(conn, onlyPublic: AppConfig.UserFriendsOnlyPublic),
+                getUserCodes: () => db.ResumesGetAllUserLinks(conn, onlyPublic: AppConfig.UserFriendsOnlyPublic),
                 controller: controller,
                 interval: TimeSpan.FromDays(30),
                 outputMode: AppConfig.UserFriendsOutputMode);
@@ -448,7 +448,7 @@ class Program
             var userResumeDetailScraper = new UserResumeDetailScraper(
                 userResumeDetailHttpClient,
                 db,
-                getUserCodes: () => db.GetUserLinksWithoutData(conn),
+                getUserCodes: () => db.ResumesGetUserLinksWithoutData(conn),
                 controller: controller,
                 proxyCoordinator: proxyCoordinator,
                 interval: TimeSpan.FromMinutes(20),
@@ -563,7 +563,7 @@ class Program
         }
 
         await db.StopWriterTask();
-        db.DatabaseConnectionClose(conn);
+        db.ConnectionClose(conn);
 
         Console.WriteLine("Приложение завершено.");
     }

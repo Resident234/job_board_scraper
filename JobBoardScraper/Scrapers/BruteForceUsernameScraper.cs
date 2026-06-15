@@ -38,8 +38,8 @@ public sealed class BruteForceUsernameScraper
 
     public async Task RunAsync(CancellationToken ct)
     {
-        using var conn = _db.DatabaseConnectionInit();
-        _db.DatabaseEnsureConnectionOpen(conn);
+        using var conn = _db.ConnectionInit();
+        _db.EnsureConnectionOpen(conn);
 
         for (int len = AppConfig.MinLength; len <= AppConfig.MaxLength; len++)
         {
@@ -49,7 +49,7 @@ public sealed class BruteForceUsernameScraper
             _logger.WriteLine($"[BruteForceScraper] Сгенерировано адресов: {totalLinks}");
 
             int totalLength = (AppConfig.BaseUrl?.Length ?? 0) + AppConfig.MaxLength;
-            string lastLink = _db.DatabaseGetLastLink(conn, totalLength);
+            string lastLink = _db.ResumesGetLastLink(conn, totalLength);
             _logger.WriteLine($"[BruteForceScraper] Последний обработанный link из БД: {lastLink}");
 
             int startIndex = 0;
@@ -143,7 +143,7 @@ public sealed class BruteForceUsernameScraper
             );
         }
 
-        _db.DatabaseConnectionClose(conn);
+        _db.ConnectionClose(conn);
     }
 
     private static IEnumerable<string> GenerateUsernames(int length)

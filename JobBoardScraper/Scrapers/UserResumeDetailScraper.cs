@@ -436,6 +436,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                     return;
                 }
 
+                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                var encoding = response.Content.Headers.ContentType?.CharSet != null
+                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
+                    : System.Text.Encoding.UTF8;
+                var html = encoding.GetString(htmlBytes);
+
                 if (IsDeletedProfile(html))
                 {
                     const string deletedTitle = "Профиль удален";
@@ -457,12 +463,6 @@ public sealed class UserResumeDetailScraper : IDisposable
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
-
-                var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                var encoding = response.Content.Headers.ContentType?.CharSet != null
-                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                    : System.Text.Encoding.UTF8;
-                var html = encoding.GetString(htmlBytes);
                 
                 // Проверяем на приватный профиль сразу в HTML
                 // Проверяем несколько признаков приватного профиля:
