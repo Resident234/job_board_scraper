@@ -17,7 +17,6 @@ public enum DbRecordType
     CategoryRootId,
     Skills,
     UserExperience,
-    UserAdditionalData,
     UserCommunityParticipation,
     UserDeleted
 }
@@ -41,7 +40,7 @@ public enum InsertMode
 public readonly record struct ResumeRecord(
     InsertMode Mode = InsertMode.SkipIfExists,
     string Link = "",
-    string Title = "",
+    string? Title = null,
     string? Slogan = null,
     string? Code = null,
     bool? Expert = null,
@@ -53,6 +52,10 @@ public readonly record struct ResumeRecord(
     string? InfoTech = null,
     int? Salary = null,
     string? LastVisit = null,
+    string? Age = null,
+    string? Registration = null,
+    string? Citizenship = null,
+    bool? RemoteWork = null,
     bool? IsPublic = null,
     string? JobSearchStatus = null,
     bool? IsEmpty = null,
@@ -115,13 +118,6 @@ public readonly record struct UserExperienceRecord(
     bool IsFirstRecord = false);
 
 /// <summary>
-/// Data structure for UserAdditionalData record type.
-/// </summary>
-public readonly record struct UserAdditionalDataRecord(
-    string UserLink,
-    Dictionary<string, string?> AdditionalData);
-
-/// <summary>
 /// Data structure for UserCommunityParticipation record type.
 /// </summary>
 public readonly record struct UserCommunityParticipationRecord(
@@ -146,7 +142,6 @@ public readonly record struct DbRecord(
     CategoryRootIdRecord? CategoryRootId = null,
     SkillsRecord? Skills = null,
     UserExperienceRecord? UserExperience = null,
-    UserAdditionalDataRecord? UserAdditionalData = null,
     UserCommunityParticipationRecord? UserCommunityParticipation = null,
     UserDeletedRecord? UserDeleted = null);
 
@@ -294,9 +289,7 @@ public sealed class DatabaseClient
                                         // Объединенная вставка/обновление всех полей
                                         ResumesInsert(conn,
                                             link: resume.Link,
-                                            title: !string.IsNullOrWhiteSpace(resume.UserName)
-                                                ? resume.UserName
-                                                : resume.Title,
+                                            title: resume.UserName ?? resume.Title,
                                             slogan: resume.Slogan,
                                             code: !string.IsNullOrWhiteSpace(resume.UserCode)
                                                 ? resume.UserCode
@@ -308,6 +301,10 @@ public sealed class DatabaseClient
                                             infoTech: resume.InfoTech,
                                             salary: resume.Salary,
                                             lastVisit: resume.LastVisit,
+                                            age: resume.Age,
+                                            registration: resume.Registration,
+                                            citizenship: resume.Citizenship,
+                                            remoteWork: resume.RemoteWork,
                                             isPublic: resume.IsPublic,
                                             jobSearchStatus: resume.JobSearchStatus,
                                             isEmpty: resume.IsEmpty,
@@ -389,13 +386,6 @@ public sealed class DatabaseClient
                                     if (record.UserExperience.HasValue)
                                     {
                                         UserExperienceInsert(conn, record.UserExperience.Value);
-                                    }
-                                    break;
-                                case DbRecordType.UserAdditionalData:
-                                    if (record.UserAdditionalData.HasValue)
-                                    {
-                                        var additionalData = record.UserAdditionalData.Value;
-                                        ResumesUpdateUserAdditionalData(conn, userLink: additionalData.UserLink, additionalData: additionalData.AdditionalData);
                                     }
                                     break;
                                 case DbRecordType.UserCommunityParticipation:
@@ -711,27 +701,45 @@ public sealed class DatabaseClient
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(userLink)) return false;
 
-        // Обновляем данные профиля (включая about)
+        bool hasAdditionalFields = !string.IsNullOrWhiteSpace(age) ||
+            !string.IsNullOrWhiteSpace(registration) ||
+            !string.IsNullOrWhiteSpace(citizenship) ||
+            remoteWork.HasValue ||
+            !string.IsNullOrWhiteSpace(jobSearchStatus);
+
+        var skillRecords = skills?
+            .Where(skill => !string.IsNullOrWhiteSpace(skill))
+            .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
+            .ToList();
+
+        // Обновляем данные профиля, навыки и дополнительные поля одним ResumeRecord
         if (!string.IsNullOrWhiteSpace(userName) ||
             !string.IsNullOrWhiteSpace(infoTech) ||
             !string.IsNullOrWhiteSpace(levelTitle) ||
             salary.HasValue ||
             !string.IsNullOrWhiteSpace(lastVisit) ||
-            about != null)
+            !string.IsNullOrWhiteSpace(about) ||
+            hasAdditionalFields ||
+            skillRecords is { Count: > 0 })
         {
             var resumeRecord = new ResumeRecord(
                 Link: userLink,
-                Title: userName ?? "",
+                Title: userName,
                 Mode: InsertMode.UpdateIfExists,
                 UserName: userName,
                 LevelTitle: levelTitle,
                 InfoTech: infoTech,
                 Salary: salary,
                 LastVisit: lastVisit,
+                Age: age,
+                Registration: registration,
+                Citizenship: citizenship,
+                RemoteWork: remoteWork,
                 WorkExperience: experienceText,
                 JobSearchStatus: jobSearchStatus,
                 IsEmpty: isEmpty,
-                About: about ?? ""
+                About: about,
+                Skills: skillRecords
             );
 
             var profileRecord = new DbRecord(
@@ -739,55 +747,6 @@ public sealed class DatabaseClient
                 Resume: resumeRecord
             );
             _saveQueue.Enqueue(profileRecord);
-        }
-
-        // Добавляем навыки
-        if (skills != null && skills.Count > 0)
-        {
-            var skillRecords = skills
-                .Where(skill => !string.IsNullOrWhiteSpace(skill))
-                .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
-                .ToList();
-
-            if (skillRecords.Count > 0)
-            {
-                var resumeRecord = new ResumeRecord(
-                    Link: userLink,
-                    Title: null!,
-                    Mode: InsertMode.UpdateIfExists,
-                    Skills: skillRecords
-                );
-                var resumeDbRecord = new DbRecord(
-                    Type: DbRecordType.Resume,
-                    Resume: resumeRecord
-                );
-                _saveQueue.Enqueue(resumeDbRecord);
-            }
-        }
-
-        // Добавляем дополнительные данные профиля
-        if (!string.IsNullOrWhiteSpace(age) ||
-            !string.IsNullOrWhiteSpace(registration) ||
-            !string.IsNullOrWhiteSpace(citizenship) ||
-            remoteWork.HasValue ||
-            !string.IsNullOrWhiteSpace(jobSearchStatus))
-        {
-            var additionalDataRecord = new UserAdditionalDataRecord(
-                UserLink: userLink,
-                AdditionalData: new Dictionary<string, string?>
-                {
-                    { "age", age },
-                    { "registration", registration },
-                    { "citizenship", citizenship },
-                    { "remote_work", remoteWork?.ToString() },
-                    { "job_search_status", jobSearchStatus }
-                }
-            );
-            var additionalRecord = new DbRecord(
-                Type: DbRecordType.UserAdditionalData,
-                UserAdditionalData: additionalDataRecord
-            );
-            _saveQueue.Enqueue(additionalRecord);
         }
 
         // Добавляем участие в профсообществах
@@ -1096,6 +1055,10 @@ public sealed class DatabaseClient
         string? infoTech = null,
         int? salary = null,
         string? lastVisit = null,
+        string? age = null,
+        string? registration = null,
+        string? citizenship = null,
+        bool? remoteWork = null,
         bool? isPublic = null,
         string? jobSearchStatus = null,
         bool? isEmpty = null,
@@ -1129,7 +1092,7 @@ public sealed class DatabaseClient
 
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
@@ -1141,6 +1104,10 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@age", age ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@registration", registration ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@citizenship", citizenship ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@remote_work", remoteWork ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
@@ -1180,6 +1147,18 @@ public sealed class DatabaseClient
                 if (lastVisit != null)
                     logParts.Add($"LastVisit={lastVisit}");
 
+                if (age != null)
+                    logParts.Add($"Age={age}");
+
+                if (registration != null)
+                    logParts.Add($"Registration={registration}");
+
+                if (citizenship != null)
+                    logParts.Add($"Citizenship={citizenship}");
+
+                if (remoteWork.HasValue)
+                    logParts.Add($"RemoteWork={remoteWork.Value}");
+
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
 
@@ -1207,8 +1186,8 @@ public sealed class DatabaseClient
 
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at)
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at)
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())
                     ON CONFLICT (link)
                     DO UPDATE SET
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
@@ -1220,6 +1199,10 @@ public sealed class DatabaseClient
                         info_tech = COALESCE(EXCLUDED.info_tech, habr_resumes.info_tech),
                         salary = COALESCE(EXCLUDED.salary, habr_resumes.salary),
                         last_visit = COALESCE(EXCLUDED.last_visit, habr_resumes.last_visit),
+                        age = COALESCE(EXCLUDED.age, habr_resumes.age),
+                        registration = COALESCE(EXCLUDED.registration, habr_resumes.registration),
+                        citizenship = COALESCE(EXCLUDED.citizenship, habr_resumes.citizenship),
+                        remote_work = COALESCE(EXCLUDED.remote_work, habr_resumes.remote_work),
                         public = COALESCE(EXCLUDED.public, habr_resumes.public),
                         job_search_status = COALESCE(EXCLUDED.job_search_status, habr_resumes.job_search_status),
                         is_empty = COALESCE(EXCLUDED.is_empty, habr_resumes.is_empty),
@@ -1237,6 +1220,10 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@info_tech", infoTech ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@salary", salary ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@last_visit", lastVisit ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@age", age ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@registration", registration ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@citizenship", citizenship ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@remote_work", remoteWork ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@public", isPublic ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@job_search_status", jobSearchStatus ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
@@ -1282,6 +1269,18 @@ public sealed class DatabaseClient
 
                 if (lastVisit != null)
                     logParts.Add($"LastVisit={lastVisit}");
+
+                if (age != null)
+                    logParts.Add($"Age={age}");
+
+                if (registration != null)
+                    logParts.Add($"Registration={registration}");
+
+                if (citizenship != null)
+                    logParts.Add($"Citizenship={citizenship}");
+
+                if (remoteWork.HasValue)
+                    logParts.Add($"RemoteWork={remoteWork.Value}");
 
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
@@ -2071,103 +2070,6 @@ public sealed class DatabaseClient
         }
     }
 
-    /// <summary>
-    /// Обновить дополнительные данные профиля пользователя (возраст, регистрация, гражданство, удаленная работа)
-    /// </summary>
-    public void ResumesUpdateUserAdditionalData(NpgsqlConnection conn, string userLink, Dictionary<string, string?> additionalData)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-        if (additionalData == null || additionalData.Count == 0)
-            return;
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            var setClauses = new List<string>();
-            var cmd = new NpgsqlCommand { Connection = conn };
-
-            if (additionalData.TryGetValue("age", out var age) && !string.IsNullOrWhiteSpace(age))
-            {
-                setClauses.Add("age = @age");
-                cmd.Parameters.AddWithValue("@age", age);
-            }
-
-            if (additionalData.TryGetValue("experience_text", out var experienceText) && !string.IsNullOrWhiteSpace(experienceText))
-            {
-                setClauses.Add("experience_text = @experience_text");
-                cmd.Parameters.AddWithValue("@experience_text", experienceText);
-            }
-
-            if (additionalData.TryGetValue("registration", out var registration) && !string.IsNullOrWhiteSpace(registration))
-            {
-                setClauses.Add("registration = @registration");
-                cmd.Parameters.AddWithValue("@registration", registration);
-            }
-
-            if (additionalData.TryGetValue("last_visit", out var lastVisit) && !string.IsNullOrWhiteSpace(lastVisit))
-            {
-                setClauses.Add("last_visit = @last_visit");
-                cmd.Parameters.AddWithValue("@last_visit", lastVisit);
-            }
-
-            if (additionalData.TryGetValue("citizenship", out var citizenship) && !string.IsNullOrWhiteSpace(citizenship))
-            {
-                setClauses.Add("citizenship = @citizenship");
-                cmd.Parameters.AddWithValue("@citizenship", citizenship);
-            }
-
-            if (additionalData.TryGetValue("remote_work", out var remoteWorkStr) && !string.IsNullOrWhiteSpace(remoteWorkStr))
-            {
-                setClauses.Add("remote_work = @remote_work");
-                // Парсим строку в boolean
-                if (bool.TryParse(remoteWorkStr, out var remoteWorkBool))
-                {
-                    cmd.Parameters.AddWithValue("@remote_work", remoteWorkBool);
-                }
-                else
-                {
-                    cmd.Parameters.AddWithValue("@remote_work", DBNull.Value);
-                }
-            }
-
-            if (setClauses.Count == 0)
-                return;
-
-            cmd.CommandText = $@"
-                UPDATE habr_resumes
-                SET {string.Join(", ", setClauses)}
-                WHERE link = @link";
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                Log($"[DB] UserAdditionalData {userLink}: ? UPDATE (Age={age}, Exp={experienceText}, Reg={registration})");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] UserAdditionalData {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] UserAdditionalData {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] UserAdditionalData {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
 
     /// <summary>
     /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
