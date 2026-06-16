@@ -188,16 +188,6 @@ public sealed class DatabaseClient
         }
     }
 
-    /// <summary>
-    /// Обрезает строку до указанной длины, если она превышает лимит
-    /// </summary>
-    private static string TruncateString(string? value, int maxLength)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        if (value.Length <= maxLength) return value;
-
-        return value.Substring(0, maxLength - 3) + "...";
-    }
 
     #region Connection Management Methods
 
@@ -492,9 +482,18 @@ public sealed class DatabaseClient
         InsertMode mode = InsertMode.SkipIfExists,
         string? code = null,
         bool? expert = null,
-        string? workExperience = null)
+        string? workExperience = null,
+        string? userCode = null,
+        string? userName = null,
+        bool? isExpert = null,
+        string? levelTitle = null,
+        string? infoTech = null,
+        int? salary = null,
+        string? lastVisit = null,
+        bool? isPublic = null)
     {
         if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(link)) return false;
 
         var resumeRecord = new ResumeRecord(
             Link: link,
@@ -503,6 +502,14 @@ public sealed class DatabaseClient
             Code: code,
             Expert: expert,
             WorkExperience: workExperience,
+            UserCode: userCode,
+            UserName: userName,
+            IsExpert: isExpert,
+            LevelTitle: levelTitle,
+            InfoTech: infoTech,
+            Salary: salary,
+            LastVisit: lastVisit,
+            IsPublic: isPublic,
             Mode: mode
         );
 
@@ -513,7 +520,10 @@ public sealed class DatabaseClient
         _saveQueue.Enqueue(record);
         Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
                           (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                          (expert == true ? " | ЭКСПЕРТ" : ""));
+                          (expert == true || isExpert == true ? " | ЭКСПЕРТ" : "") +
+                          (levelTitle != null ? $" | Level={levelTitle}" : "") +
+                          (salary.HasValue ? $" | Salary={salary.Value}" : "") +
+                          (isPublic.HasValue ? $" | Public={isPublic.Value}" : ""));
 
         return true;
     }
@@ -605,51 +615,7 @@ public sealed class DatabaseClient
 
         return true;
     }
-
-    /// <summary>
-    /// Добавить элемент в очередь на запись в базу данных (устаревший метод для обратной совместимости)
-    /// </summary>
-    [Obsolete("Use EnqueueResume instead")]
-    public bool EnqueueItem(string link, string title) => EnqueueResume(link, title);
-
-    /// <summary>
-    /// Добавить информацию о профиле пользователя в очередь на обновление
-    /// </summary>
-    public bool EnqueueUserProfile(string userLink, string? userCode, string? userName, bool? isExpert,
-        string? levelTitle, string? infoTech, int? salary, string? workExperience = null, string? lastVisit = null,
-        bool? isPublic = null)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        var resumeRecord = new ResumeRecord(
-            Link: userLink,
-            Title: userName ?? "",
-            Mode: InsertMode.UpdateIfExists,
-            UserCode: userCode,
-            UserName: userName,
-            IsExpert: isExpert,
-            LevelTitle: levelTitle,
-            InfoTech: infoTech,
-            Salary: salary,
-            WorkExperience: workExperience,
-            LastVisit: lastVisit,
-            IsPublic: isPublic,
-            JobSearchStatus: null,
-            IsEmpty: null
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.Resume,
-            Resume: resumeRecord
-        );
-        _saveQueue.Enqueue(record);
-        Log(
-            $"[DB Queue] Resume (UserProfile): {userLink} (code={userCode}) -> Name={userName}, Expert={isExpert}, Level={levelTitle}, Salary={salary}, WorkExp={workExperience}, LastVisit={lastVisit}, Public={isPublic}");
-
-        return true;
-    }
-
+    
     /// <summary>
     /// Добавить детальную информацию о резюме пользователя в очередь
     /// </summary>
@@ -2777,5 +2743,4 @@ public sealed class DatabaseClient
     }
 
     #endregion
-
 }

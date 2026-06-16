@@ -198,7 +198,13 @@ namespace JobBoardScraper.Scrapers;
                     if (!isPublic)
                     {
                         _logger.WriteLine($"Пользователь {userLink}: Приватный профиль (редирект)");
-                        _db.EnqueueUserProfile(userLink, userCode, null, null, null, null, null, null, null, false);
+                        _db.EnqueueResume(
+                            link: userLink,
+                            title: "",
+                            mode: InsertMode.UpdateIfExists,
+                            code: userCode,
+                            userCode: userCode,
+                            isPublic: false);
                         _statistics.IncrementSuccess();
                         return;
                     }
@@ -229,17 +235,20 @@ namespace JobBoardScraper.Scrapers;
                         AppConfig.UserProfileBasicSectionSelector);
 
                     // Сохраняем информацию о пользователе (публичный профиль)
-                    _db.EnqueueUserProfile(
-                        userLink,
-                        userCode,
-                        userName, 
-                        isExpert, 
-                        levelTitle, 
-                        infoTech, 
-                        salary, 
-                        workExperience, 
-                        lastVisit, 
-                        true
+                    _db.EnqueueResume(
+                        link: userLink,
+                        title: userName ?? "",
+                        mode: InsertMode.UpdateIfExists,
+                        code: userCode,
+                        userCode: userCode,
+                        userName: userName,
+                        isExpert: isExpert,
+                        levelTitle: levelTitle,
+                        infoTech: infoTech,
+                        salary: salary,
+                        workExperience: workExperience,
+                        lastVisit: lastVisit,
+                        isPublic: true
                     );
                     
                     _logger.WriteLine($"Пользователь {userLink} (code={userCode}):");
