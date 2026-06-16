@@ -17,7 +17,6 @@ public enum DbRecordType
     CategoryRootId,
     Skills,
     UserExperience,
-    UserCommunityParticipation,
     UserDeleted
 }
 
@@ -60,6 +59,7 @@ public readonly record struct ResumeRecord(
     string? JobSearchStatus = null,
     bool? IsEmpty = null,
     List<SkillsRecord>? Skills = null,
+    List<CommunityParticipationRecord>? CommunityParticipation = null,
     bool? IsDeleted = null,
     string? About = null);
 
@@ -102,6 +102,15 @@ public readonly record struct SkillsRecord(
    string? SkillTitle = null);
 
 /// <summary>
+/// Data structure for CommunityParticipation record type.
+/// </summary>
+public readonly record struct CommunityParticipationRecord(
+   string Name = "",
+   string? MemberSince = null,
+   string? Contribution = null,
+   string? Topics = null);
+
+/// <summary>
 /// Data structure for UserExperience record type.
 /// </summary>
 public readonly record struct UserExperienceRecord(
@@ -116,13 +125,6 @@ public readonly record struct UserExperienceRecord(
     string? Description = null,
     List<SkillsRecord>? Skills = null,
     bool IsFirstRecord = false);
-
-/// <summary>
-/// Data structure for UserCommunityParticipation record type.
-/// </summary>
-public readonly record struct UserCommunityParticipationRecord(
-    string UserLink,
-    List<CommunityParticipationData> CommunityParticipation);
 
 /// <summary>
 /// Data structure for UserDeleted record type.
@@ -142,7 +144,6 @@ public readonly record struct DbRecord(
     CategoryRootIdRecord? CategoryRootId = null,
     SkillsRecord? Skills = null,
     UserExperienceRecord? UserExperience = null,
-    UserCommunityParticipationRecord? UserCommunityParticipation = null,
     UserDeletedRecord? UserDeleted = null);
 
 public sealed class DatabaseClient
@@ -309,7 +310,8 @@ public sealed class DatabaseClient
                                             jobSearchStatus: resume.JobSearchStatus,
                                             isEmpty: resume.IsEmpty,
                                             isDeleted: resume.IsDeleted,
-                                            about: resume.About
+                                            about: resume.About,
+                                            communityParticipation: resume.CommunityParticipation
                                         );
 
                                         // Если есть навыки, добавляем их
@@ -386,13 +388,6 @@ public sealed class DatabaseClient
                                     if (record.UserExperience.HasValue)
                                     {
                                         UserExperienceInsert(conn, record.UserExperience.Value);
-                                    }
-                                    break;
-                                case DbRecordType.UserCommunityParticipation:
-                                    if (record.UserCommunityParticipation.HasValue)
-                                    {
-                                        var community = record.UserCommunityParticipation.Value;
-                                        ResumesUpdateUserCommunityParticipation(conn, userLink: community.UserLink, communityParticipation: community.CommunityParticipation);
                                     }
                                     break;
                                 case DbRecordType.UserDeleted:
@@ -695,7 +690,7 @@ public sealed class DatabaseClient
         string? levelTitle = null,
         int? salary = null,
         string? jobSearchStatus = null,
-        List<CommunityParticipationData>? communityParticipation = null,
+        List<CommunityParticipationRecord>? communityParticipation = null,
         bool? isEmpty = null)
     {
         if (_saveQueue == null) return false;
@@ -712,7 +707,9 @@ public sealed class DatabaseClient
             .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
             .ToList();
 
-        // Обновляем данные профиля, навыки и дополнительные поля одним ResumeRecord
+        bool hasCommunityParticipation = communityParticipation is { Count: > 0 };
+
+        // Обновляем данные профиля, навыки, участие в сообществах и дополнительные поля одним ResumeRecord
         if (!string.IsNullOrWhiteSpace(userName) ||
             !string.IsNullOrWhiteSpace(infoTech) ||
             !string.IsNullOrWhiteSpace(levelTitle) ||
@@ -720,7 +717,8 @@ public sealed class DatabaseClient
             !string.IsNullOrWhiteSpace(lastVisit) ||
             !string.IsNullOrWhiteSpace(about) ||
             hasAdditionalFields ||
-            skillRecords is { Count: > 0 })
+            skillRecords is { Count: > 0 } ||
+            hasCommunityParticipation)
         {
             var resumeRecord = new ResumeRecord(
                 Link: userLink,
@@ -739,7 +737,8 @@ public sealed class DatabaseClient
                 JobSearchStatus: jobSearchStatus,
                 IsEmpty: isEmpty,
                 About: about,
-                Skills: skillRecords
+                Skills: skillRecords,
+                CommunityParticipation: communityParticipation
             );
 
             var profileRecord = new DbRecord(
@@ -749,19 +748,6 @@ public sealed class DatabaseClient
             _saveQueue.Enqueue(profileRecord);
         }
 
-        // Добавляем участие в профсообществах
-        if (communityParticipation != null && communityParticipation.Count > 0)
-        {
-            var communityRecordData = new UserCommunityParticipationRecord(
-                UserLink: userLink,
-                CommunityParticipation: communityParticipation
-            );
-            var communityRecord = new DbRecord(
-                Type: DbRecordType.UserCommunityParticipation,
-                UserCommunityParticipation: communityRecordData
-            );
-            _saveQueue.Enqueue(communityRecord);
-        }
 
         Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
 
@@ -1063,16 +1049,21 @@ public sealed class DatabaseClient
         string? jobSearchStatus = null,
         bool? isEmpty = null,
         bool? isDeleted = null,
-        string? about = null)
+        string? about = null,
+        List<CommunityParticipationRecord>? communityParticipation = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
 
         try
         {
-            EnsureConnectionOpen(conn);
+           EnsureConnectionOpen(conn);
 
-            if (mode == InsertMode.SkipIfExists)
+           string? communityParticipationJson = communityParticipation is { Count: > 0 }
+               ? SerializeCommunityParticipation(communityParticipation)
+               : null;
+
+           if (mode == InsertMode.SkipIfExists)
             {
                 // Проверка существования по link
                 if (ResumesRecordExistsByLink(conn, link))
@@ -1092,7 +1083,7 @@ public sealed class DatabaseClient
 
 
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())",
+                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, @community_participation, NOW(), NOW())",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
@@ -1113,6 +1104,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@community_participation", communityParticipationJson ?? (object)DBNull.Value);
 
                 cmd.ExecuteNonQuery();
                 _statistics.RecordInsert("habr_resumes", link);
@@ -1159,6 +1151,9 @@ public sealed class DatabaseClient
                 if (remoteWork.HasValue)
                     logParts.Add($"RemoteWork={remoteWork.Value}");
 
+                if (communityParticipationJson != null)
+                    logParts.Add($"CommunityParticipation={communityParticipationJson}");
+
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
 
@@ -1186,8 +1181,8 @@ public sealed class DatabaseClient
 
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, created_at, updated_at)
-                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, NOW(), NOW())
+                    INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at)
+                    VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, @community_participation, NOW(), NOW())
                     ON CONFLICT (link)
                     DO UPDATE SET
                         title = COALESCE(EXCLUDED.title, habr_resumes.title),
@@ -1208,6 +1203,7 @@ public sealed class DatabaseClient
                         is_empty = COALESCE(EXCLUDED.is_empty, habr_resumes.is_empty),
                         is_deleted = COALESCE(EXCLUDED.is_deleted, habr_resumes.is_deleted),
                         about = COALESCE(EXCLUDED.about, habr_resumes.about),
+                        community_participation = COALESCE(EXCLUDED.community_participation, habr_resumes.community_participation),
                         updated_at = NOW()
                     RETURNING xmax", conn);
                 cmd.Parameters.AddWithValue("@link", link);
@@ -1229,6 +1225,7 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@is_empty", isEmpty ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@is_deleted", isDeleted ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@community_participation", communityParticipationJson ?? (object)DBNull.Value);
 
                 var xmaxResult = cmd.ExecuteScalar();
                 var xmax = Convert.ToUInt32(xmaxResult);
@@ -1281,6 +1278,9 @@ public sealed class DatabaseClient
 
                 if (remoteWork.HasValue)
                     logParts.Add($"RemoteWork={remoteWork.Value}");
+
+                if (communityParticipationJson != null)
+                    logParts.Add($"CommunityParticipation={communityParticipationJson}");
 
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
@@ -2075,7 +2075,7 @@ public sealed class DatabaseClient
     /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
     /// Сохраняет данные в поле community_participation как JSON массив
     /// </summary>
-    public void ResumesUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
+    public void ResumesUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationRecord> communityParticipation)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -2087,20 +2087,7 @@ public sealed class DatabaseClient
         {
             EnsureConnectionOpen(conn);
 
-            // Сериализуем данные в JSON
-            var jsonArray = new System.Text.Json.Nodes.JsonArray();
-            foreach (var item in communityParticipation)
-            {
-                var jsonObj = new System.Text.Json.Nodes.JsonObject
-                {
-                    ["name"] = item.Name,
-                    ["member_since"] = item.MemberSince,
-                    ["contribution"] = item.Contribution,
-                    ["topics"] = item.Topics
-                };
-                jsonArray.Add(jsonObj);
-            }
-            var jsonString = jsonArray.ToJsonString();
+            var jsonString = SerializeCommunityParticipation(communityParticipation);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -2789,6 +2776,28 @@ public sealed class DatabaseClient
             Log($"[DB] Ошибка при очистке 404: {ex.Message}");
             return 0;
         }
+    }
+
+    #endregion
+
+    #region Helper methods
+
+    private static string SerializeCommunityParticipation(List<CommunityParticipationRecord> communityParticipation)
+    {
+        var jsonArray = new System.Text.Json.Nodes.JsonArray();
+        foreach (var item in communityParticipation)
+        {
+            var jsonObj = new System.Text.Json.Nodes.JsonObject
+            {
+                ["name"] = item.Name,
+                ["member_since"] = item.MemberSince,
+                ["contribution"] = item.Contribution,
+                ["topics"] = item.Topics
+            };
+            jsonArray.Add(jsonObj);
+        }
+
+        return jsonArray.ToJsonString();
     }
 
     #endregion

@@ -1,4 +1,5 @@
 using AngleSharp.Dom;
+using JobBoardScraper.Data;
 using JobBoardScraper.Domain.Models;
 
 namespace JobBoardScraper.Parsing;
@@ -792,9 +793,9 @@ public static class ProfileDataExtractor
     /// <summary>
     /// Извлекает данные об участии в профсообществах из профиля пользователя
     /// </summary>
-    public static List<CommunityParticipationData> ExtractCommunityParticipationData(IDocument doc)
+    public static List<CommunityParticipationRecord> ExtractCommunityParticipationRecords(IDocument doc)
     {
-        var result = new List<CommunityParticipationData>();
+        var result = new List<CommunityParticipationRecord>();
         
         try
         {
@@ -833,7 +834,7 @@ public static class ProfileDataExtractor
                     var data = ExtractSingleCommunityParticipationItem(item);
                     if (data != null)
                     {
-                        result.Add(data);
+                        result.Add(data.Value);
                     }
                 }
                 catch
@@ -849,7 +850,7 @@ public static class ProfileDataExtractor
         return result;
     }
 
-    private static CommunityParticipationData? ExtractSingleCommunityParticipationItem(IElement item)
+    private static CommunityParticipationRecord? ExtractSingleCommunityParticipationItem(IElement item)
     {
         var nameElement = item.QuerySelector(AppConfig.CommunityParticipationNameSelector);
         var name = nameElement?.TextContent?.Trim();
@@ -899,12 +900,10 @@ public static class ProfileDataExtractor
             }
         }
         
-        return new CommunityParticipationData
-        {
-            Name = name,
-            MemberSince = memberSince,
-            Contribution = contribution,
-            Topics = topics
-        };
+        return new CommunityParticipationRecord(
+            Name: name,
+            MemberSince: memberSince,
+            Contribution: contribution,
+            Topics: topics);
     }
 }

@@ -755,7 +755,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 }
                 
                 // Извлекаем данные об участии в профсообществах
-                var communityParticipationData = ProfileDataExtractor.ExtractCommunityParticipationData(doc);
+                var communityParticipation = ProfileDataExtractor.ExtractCommunityParticipationRecords(doc);
                 
                 // Определяем, является ли профиль пустым
                 // Пустой профиль - это когда НИ ОДНО из следующих условий не выполняется:
@@ -777,8 +777,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                               string.IsNullOrWhiteSpace(about) && 
                               experienceCount == 0 && 
                               educationCount == 0 && 
-                              additionalEducationCount == 0 && 
-                              communityParticipationData.Count == 0;
+                              additionalEducationCount == 0 &&
+                              communityParticipation.Count == 0;
                 
                 // Если профиль пустой, записываем "Пустой профиль" в about
                 if (isEmpty)
@@ -802,7 +802,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     levelTitle,
                     salary,
                     jobSearchStatus,
-                    communityParticipationData,
+                    communityParticipation,
                     isEmpty: isEmpty);
                 
                 // Если удалось извлечь данные, значит профиль публичный
@@ -826,7 +826,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
                 _logger.WriteLine($"  Высшее образование: {educationCount} записей");
                 _logger.WriteLine($"  Дополнительное образование: {additionalEducationCount} записей");
-                _logger.WriteLine($"  Участие в профсообществах: {communityParticipationData.Count} записей");
+                _logger.WriteLine($"  Участие в профсообществах: {communityParticipation.Count} записей");
                 _logger.WriteLine($"  Статус: публичный профиль");
                 
                 // Сообщаем об успехе для coordinator
