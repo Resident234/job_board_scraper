@@ -16,8 +16,7 @@ public enum DbRecordType
     Company,
     CategoryRootId,
     Skills,
-    UserExperience,
-    UserDeleted
+    UserExperience
 }
 
 public enum InsertMode
@@ -127,12 +126,6 @@ public readonly record struct UserExperienceRecord(
     bool IsFirstRecord = false);
 
 /// <summary>
-/// Data structure for UserDeleted record type.
-/// </summary>
-public readonly record struct UserDeletedRecord(
-    string UserLink);
-
-/// <summary>
 /// Record structure for database queue operations with specific fields for each record type.
 /// </summary>
 public readonly record struct DbRecord(
@@ -143,8 +136,7 @@ public readonly record struct DbRecord(
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
     SkillsRecord? Skills = null,
-    UserExperienceRecord? UserExperience = null,
-    UserDeletedRecord? UserDeleted = null);
+    UserExperienceRecord? UserExperience = null);
 
 public sealed class DatabaseClient
 {
@@ -388,12 +380,6 @@ public sealed class DatabaseClient
                                     if (record.UserExperience.HasValue)
                                     {
                                         UserExperienceInsert(conn, record.UserExperience.Value);
-                                    }
-                                    break;
-                                case DbRecordType.UserDeleted:
-                                    if (record.UserDeleted.HasValue)
-                                    {
-                                        ResumesMarkProfileAsDeleted(conn, userLink: record.UserDeleted.Value.UserLink);
                                     }
                                     break;
                             }
@@ -775,16 +761,6 @@ public sealed class DatabaseClient
             Resume: deletedResumeRecord
         );
         _saveQueue.Enqueue(resumeRecord);
-
-        // 3. Для обратной совместимости: UserDeleted
-        var deletedRecordData = new UserDeletedRecord(
-            UserLink: userLink
-        );
-        var deletedRecord = new DbRecord(
-            Type: DbRecordType.UserDeleted,
-            UserDeleted: deletedRecordData
-        );
-        _saveQueue.Enqueue(deletedRecord);
 
         Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
         return true;
