@@ -484,8 +484,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                         link: userLink,
                         title: string.Empty,
                         mode: InsertMode.UpdateIfExists,
-                        about: privateMessage);
-                    _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: false);
+                        about: privateMessage,
+                        isPublic: false);
 
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: приватный профиль");
@@ -811,11 +811,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                         .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
                         .ToList(),
                     about: about,
-                    communityParticipation: communityParticipation);
-                
-                // Если удалось извлечь данные, значит профиль публичный
-                // Устанавливаем public = true
-                _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: true);
+                    communityParticipation: communityParticipation,
+                    isPublic: true);
 
                 _logger.WriteLine($"Пользователь {userLink}:");
                 _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");

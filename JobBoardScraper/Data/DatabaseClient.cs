@@ -639,32 +639,6 @@ public sealed class DatabaseClient
     }
     
     /// <summary>
-    /// Обновить статус публичности профиля пользователя
-    /// </summary>
-    public bool EnqueueUpdateUserPublicStatus(string userLink, bool isPublic)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        var resumeRecord = new ResumeRecord(
-            Link: userLink,
-            Title: "",
-            Mode: InsertMode.UpdateIfExists,
-            IsPublic: isPublic
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.Resume,
-            Resume: resumeRecord
-        );
-        _saveQueue.Enqueue(record);
-
-        Log($"[DB Queue] UpdateUserPublicStatus: {userLink} -> public={isPublic}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Добавить опыт работы пользователя в очередь
     /// </summary>
     public bool EnqueueUserExperience(
