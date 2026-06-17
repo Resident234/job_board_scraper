@@ -440,7 +440,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                 {
                     const string deletedTitle = "Профиль удален";
                     const string deletedAbout = "Профиль пользователя удален со всей информацией, которую он о себе оставлял";
-                    _db.EnqueueDeletedProfile(userLink, deletedAbout);
+                    _db.EnqueueResume(
+                        link: userLink,
+                        title: deletedTitle,
+                        mode: InsertMode.UpdateIfExists,
+                        isDeleted: true,
+                        about: deletedAbout);
 
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: профиль удалён");

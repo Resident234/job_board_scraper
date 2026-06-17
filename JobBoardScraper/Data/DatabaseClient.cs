@@ -499,7 +499,8 @@ public sealed class DatabaseClient
         bool? isEmpty = null,
         List<SkillsRecord>? skills = null,
         List<CommunityParticipationRecord>? communityParticipation = null,
-        string? about = null)
+        string? about = null,
+        bool? isDeleted = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(link)) return false;
@@ -528,6 +529,7 @@ public sealed class DatabaseClient
             Skills: skills,
             CommunityParticipation: communityParticipation,
             About: about,
+            IsDeleted: isDeleted,
             Mode: mode
         );
 
@@ -636,32 +638,6 @@ public sealed class DatabaseClient
         return true;
     }
     
-    /// <summary>
-    /// Добавить информацию об удалённом профиле в очередь
-    /// </summary>
-    public bool EnqueueDeletedProfile(string userLink, string about)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        // 1. Убедиться, что профиль записан в habr_resumes с is_deleted = true и about (upsert)
-        var deletedResumeRecord = new ResumeRecord(
-            Link: userLink,
-            Title: "Профиль удален",
-            Mode: InsertMode.UpdateIfExists,
-            IsDeleted: true,
-            About: about
-        );
-        var resumeRecord = new DbRecord(
-            Type: DbRecordType.Resume,
-            Resume: deletedResumeRecord
-        );
-        _saveQueue.Enqueue(resumeRecord);
-
-        Log($"[DB Queue] DeletedProfile: {userLink} (is_deleted=true)");
-        return true;
-    }
-
     /// <summary>
     /// Обновить статус публичности профиля пользователя
     /// </summary>
