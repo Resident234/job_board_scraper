@@ -490,7 +490,16 @@ public sealed class DatabaseClient
         string? infoTech = null,
         int? salary = null,
         string? lastVisit = null,
-        bool? isPublic = null)
+        bool? isPublic = null,
+        string? age = null,
+        string? registration = null,
+        string? citizenship = null,
+        bool? remoteWork = null,
+        string? jobSearchStatus = null,
+        bool? isEmpty = null,
+        List<SkillsRecord>? skills = null,
+        List<CommunityParticipationRecord>? communityParticipation = null,
+        string? about = null)
     {
         if (_saveQueue == null) return false;
         if (string.IsNullOrWhiteSpace(link)) return false;
@@ -510,6 +519,15 @@ public sealed class DatabaseClient
             Salary: salary,
             LastVisit: lastVisit,
             IsPublic: isPublic,
+            Age: age,
+            Registration: registration,
+            Citizenship: citizenship,
+            RemoteWork: remoteWork,
+            JobSearchStatus: jobSearchStatus,
+            IsEmpty: isEmpty,
+            Skills: skills,
+            CommunityParticipation: communityParticipation,
+            About: about,
             Mode: mode
         );
 
@@ -523,7 +541,9 @@ public sealed class DatabaseClient
                           (expert == true || isExpert == true ? " | ЭКСПЕРТ" : "") +
                           (levelTitle != null ? $" | Level={levelTitle}" : "") +
                           (salary.HasValue ? $" | Salary={salary.Value}" : "") +
-                          (isPublic.HasValue ? $" | Public={isPublic.Value}" : ""));
+                          (isPublic.HasValue ? $" | Public={isPublic.Value}" : "") +
+                          (!string.IsNullOrWhiteSpace(about) ? $" | About={about}" : "") +
+                          (skills != null && skills.Count > 0 ? $" | Skills={skills.Count}" : ""));
 
         return true;
     }
@@ -616,96 +636,6 @@ public sealed class DatabaseClient
         return true;
     }
     
-    /// <summary>
-    /// Добавить детальную информацию о резюме пользователя в очередь
-    /// </summary>
-    public bool EnqueueUserResumeDetail(string userLink, string? about, List<string>? skills)
-    {
-        return EnqueueUserResumeDetail(userLink, about, skills, null, null, null, null, null, null, null, null, null, null, null, null, null);
-    }
-
-    /// <summary>
-    /// Добавить детальную информацию о резюме пользователя в очередь (с дополнительными полями)
-    /// </summary>
-    public bool EnqueueUserResumeDetail(
-        string userLink,
-        string? about,
-        List<string>? skills,
-        string? age,
-        string? experienceText,
-        string? registration,
-        string? lastVisit,
-        string? citizenship,
-        bool? remoteWork,
-        string? userName = null,
-        string? infoTech = null,
-        string? levelTitle = null,
-        int? salary = null,
-        string? jobSearchStatus = null,
-        List<CommunityParticipationRecord>? communityParticipation = null,
-        bool? isEmpty = null)
-    {
-        if (_saveQueue == null) return false;
-        if (string.IsNullOrWhiteSpace(userLink)) return false;
-
-        bool hasAdditionalFields = !string.IsNullOrWhiteSpace(age) ||
-            !string.IsNullOrWhiteSpace(registration) ||
-            !string.IsNullOrWhiteSpace(citizenship) ||
-            remoteWork.HasValue ||
-            !string.IsNullOrWhiteSpace(jobSearchStatus);
-
-        var skillRecords = skills?
-            .Where(skill => !string.IsNullOrWhiteSpace(skill))
-            .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
-            .ToList();
-
-        bool hasCommunityParticipation = communityParticipation is { Count: > 0 };
-
-        // Обновляем данные профиля, навыки, участие в сообществах и дополнительные поля одним ResumeRecord
-        if (!string.IsNullOrWhiteSpace(userName) ||
-            !string.IsNullOrWhiteSpace(infoTech) ||
-            !string.IsNullOrWhiteSpace(levelTitle) ||
-            salary.HasValue ||
-            !string.IsNullOrWhiteSpace(lastVisit) ||
-            !string.IsNullOrWhiteSpace(about) ||
-            hasAdditionalFields ||
-            skillRecords is { Count: > 0 } ||
-            hasCommunityParticipation)
-        {
-            var resumeRecord = new ResumeRecord(
-                Link: userLink,
-                Title: userName,
-                Mode: InsertMode.UpdateIfExists,
-                UserName: userName,
-                LevelTitle: levelTitle,
-                InfoTech: infoTech,
-                Salary: salary,
-                LastVisit: lastVisit,
-                Age: age,
-                Registration: registration,
-                Citizenship: citizenship,
-                RemoteWork: remoteWork,
-                WorkExperience: experienceText,
-                JobSearchStatus: jobSearchStatus,
-                IsEmpty: isEmpty,
-                About: about,
-                Skills: skillRecords,
-                CommunityParticipation: communityParticipation
-            );
-
-            var profileRecord = new DbRecord(
-                Type: DbRecordType.Resume,
-                Resume: resumeRecord
-            );
-            _saveQueue.Enqueue(profileRecord);
-        }
-
-
-        Log($"[DB Queue] UserResumeDetail: {userLink} -> UserName={userName}, InfoTech={infoTech}, Level={levelTitle}, Salary={salary}, JobStatus={jobSearchStatus}, About={!string.IsNullOrWhiteSpace(about)}, Skills={skills?.Count ?? 0}, Age={age}, ExperienceText={experienceText}, Registration={registration}, LastVisit={lastVisit}, Citizenship={citizenship}, RemoteWork={remoteWork}, CommunityParticipation={communityParticipation?.Count ?? 0}");
-
-        return true;
-    }
-
     /// <summary>
     /// Добавить информацию об удалённом профиле в очередь
     /// </summary>

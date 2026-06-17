@@ -414,18 +414,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     const string notFoundMessage = "Ошибка 404";
-                    // Используем полную перегрузку с userName для записи в title
-                    _db.EnqueueUserResumeDetail(
-                        userLink,
-                        about: notFoundMessage,
-                        skills: new List<string>(),
-                        age: null,
-                        experienceText: null,
-                        registration: null,
-                        lastVisit: null,
-                        citizenship: null,
-                        remoteWork: null,
-                        userName: notFoundMessage);
+                    _db.EnqueueResume(
+                        link: userLink,
+                        title: notFoundMessage,
+                        mode: InsertMode.UpdateIfExists,
+                        userName: notFoundMessage,
+                        about: notFoundMessage);
 
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: страница не найдена (404)");
@@ -481,7 +475,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                 {
                     // Профиль приватный - сохраняем статус и переходим к следующему
                     const string privateMessage = "Доступ ограничен настройками приватности";
-                    _db.EnqueueUserResumeDetail(userLink, privateMessage, new List<string>());
+                    _db.EnqueueResume(
+                        link: userLink,
+                        title: string.Empty,
+                        mode: InsertMode.UpdateIfExists,
+                        about: privateMessage);
                     _db.EnqueueUpdateUserPublicStatus(userLink, isPublic: false);
 
                     _logger.WriteLine($"Пользователь {userLink}:");
@@ -787,23 +785,28 @@ public sealed class UserResumeDetailScraper : IDisposable
                 }
                 
                 // Сохраняем информацию для публичного профиля
-                _db.EnqueueUserResumeDetail(
-                    userLink,
-                    about,
-                    skills,
-                    age,
-                    experienceText,
-                    registration,
-                    lastVisit,
-                    citizenship,
-                    remoteWork,
-                    userName,
-                    infoTech,
-                    levelTitle,
-                    salary,
-                    jobSearchStatus,
-                    communityParticipation,
-                    isEmpty: isEmpty);
+                _db.EnqueueResume(
+                    link: userLink,
+                    title: userName ?? string.Empty,
+                    mode: InsertMode.UpdateIfExists,
+                    userName: userName,
+                    levelTitle: levelTitle,
+                    infoTech: infoTech,
+                    salary: salary,
+                    lastVisit: lastVisit,
+                    workExperience: experienceText,
+                    age: age,
+                    registration: registration,
+                    citizenship: citizenship,
+                    remoteWork: remoteWork,
+                    jobSearchStatus: jobSearchStatus,
+                    isEmpty: isEmpty,
+                    skills: skills?
+                        .Where(skill => !string.IsNullOrWhiteSpace(skill))
+                        .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
+                        .ToList(),
+                    about: about,
+                    communityParticipation: communityParticipation);
                 
                 // Если удалось извлечь данные, значит профиль публичный
                 // Устанавливаем public = true
