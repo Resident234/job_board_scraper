@@ -719,19 +719,20 @@ public sealed class ResumeListPageScraper : IDisposable
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
 
-                // Создаём структуру данных и добавляем в очередь
-                var profileData = new ResumeProfileData(
-                    Code: code,
-                    Link: link,
-                    Title: name,
-                    IsExpert: isExpert,
-                    InfoTech: infoTech,
-                    LevelTitle: levelTitle,
-                    Salary: salary,
-                    Skills: skills.Count > 0 ? skills : null
+                _db.EnqueueResume(
+                    link: link,
+                    title: name,
+                    code: code,
+                    expert: isExpert,
+                    userCode: code,
+                    userName: name,
+                    isExpert: isExpert,
+                    infoTech: infoTech,
+                    levelTitle: levelTitle,
+                    salary: salary,
+                    skills: skills.Count > 0 ? skills : null,
+                    mode: InsertMode.UpdateIfExists
                 );
-
-                _db.EnqueueResumeProfile(profileData);
                 profileCount++;
             }
             catch (Exception ex)

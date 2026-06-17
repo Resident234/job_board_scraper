@@ -703,38 +703,6 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить детальный профиль резюме в очередь
-    /// </summary>
-    public bool EnqueueResumeProfile(ResumeProfileData profileData)
-    {
-        if (_saveQueue == null) return false;
-
-        var resumeRecord = new ResumeRecord(
-            Link: profileData.Link,
-            Title: profileData.Title,
-            Code: profileData.Code,
-            Expert: profileData.IsExpert,
-            Mode: InsertMode.UpdateIfExists,
-            UserCode: profileData.Code,
-            UserName: profileData.Title,
-            IsExpert: profileData.IsExpert,
-            LevelTitle: profileData.LevelTitle,
-            InfoTech: profileData.InfoTech,
-            Salary: profileData.Salary,
-            Skills: profileData.Skills
-        );
-
-        var record = new DbRecord(
-            Type: DbRecordType.Resume,
-            Resume: resumeRecord
-        );
-        _saveQueue.Enqueue(record);
-        Log($"[DB Queue] ResumeProfile: {profileData.Code} -> {profileData.Title}, Expert={profileData.IsExpert}, Skills={profileData.Skills?.Count ?? 0}");
-
-        return true;
-    }
-
-    /// <summary>
     /// Добавить университет в очередь на сохранение
     /// </summary>
     public void EnqueueUniversity(UniversityData data)
