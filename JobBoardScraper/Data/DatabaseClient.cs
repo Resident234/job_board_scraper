@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -205,6 +206,10 @@ public sealed class DatabaseClient
         }
     }
 
+    #region Logging
+    
+    private const int MaxRecordLogDepth = 3;
+
     private void Log(string message)
     {
         if (_logger != null)
@@ -216,7 +221,98 @@ public sealed class DatabaseClient
             Console.WriteLine(message);
         }
     }
+    
+    private void LogEnqueue(string recordType, object? record)
+    {
+        Log($"[DB Queue] {recordType}: {FormatRecord(record)}");
+    }
 
+    private static string FormatRecord(object? record)
+    {
+        return FormatValue(record, depth: 0);
+    }
+
+    private static string FormatValue(object? value, int depth)
+    {
+        if (value == null)
+            return "<null>";
+
+        if (depth > MaxRecordLogDepth)
+            return value.ToString() ?? "<value>";
+
+        var type = value.GetType();
+
+        if (type.IsEnum)
+            return value.ToString() ?? "<enum>";
+
+        if (type == typeof(string))
+            return string.IsNullOrWhiteSpace((string)value) ? "<empty>" : EscapeLogValue((string)value);
+
+        if (IsScalarType(type))
+            return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "<value>";
+
+        if (value is System.Collections.IEnumerable enumerable && type != typeof(string))
+            return FormatEnumerable(enumerable, depth);
+
+        return FormatObjectProperties(value, depth);
+    }
+
+    private static string FormatObjectProperties(object value, int depth)
+    {
+        var properties = value.GetType()
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(property => property.GetIndexParameters().Length == 0)
+            .OrderBy(property => property.MetadataToken)
+            .Select(property =>
+            {
+                try
+                {
+                    return $"{property.Name}={FormatValue(property.GetValue(value), depth + 1)}";
+                }
+                catch (Exception ex)
+                {
+                    return $"{property.Name}=<error reading property: {EscapeLogValue(ex.Message)}>";
+                }
+            });
+
+        return "{" + string.Join(", ", properties) + "}";
+    }
+
+    private static string FormatEnumerable(System.Collections.IEnumerable enumerable, int depth)
+    {
+        var items = new List<string>();
+
+        foreach (var item in enumerable)
+        {
+            items.Add(FormatValue(item, depth + 1));
+        }
+
+        return items.Count == 0 ? "[]" : "[" + string.Join("; ", items) + "]";
+    }
+
+    private static bool IsScalarType(Type type)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+
+        return type.IsPrimitive
+            || type == typeof(string)
+            || type == typeof(decimal)
+            || type == typeof(DateTime)
+            || type == typeof(DateTimeOffset)
+            || type == typeof(TimeSpan)
+            || type == typeof(Guid);
+    }
+
+    private static string EscapeLogValue(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n")
+            .Replace("\t", "\\t");
+    }
+
+    #endregion
 
     #region Connection Management Methods
 
@@ -580,14 +676,7 @@ public sealed class DatabaseClient
             Resume: resumeRecord
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] Resume ({mode}): {title} -> {link}" +
-                          (string.IsNullOrWhiteSpace(slogan) ? "" : $" | {slogan}") +
-                          (expert == true || isExpert == true ? " | ЭКСПЕРТ" : "") +
-                          (levelTitle != null ? $" | Level={levelTitle}" : "") +
-                          (salary.HasValue ? $" | Salary={salary.Value}" : "") +
-                          (isPublic.HasValue ? $" | Public={isPublic.Value}" : "") +
-                          (!string.IsNullOrWhiteSpace(about) ? $" | About={about}" : "") +
-                          (skills != null && skills.Count > 0 ? $" | Skills={skills.Count}" : ""));
+        LogEnqueue("Resume", resumeRecord);
 
         return true;
     }
@@ -645,15 +734,7 @@ public sealed class DatabaseClient
             Company: companyRecord
         );
         _saveQueue.Enqueue(record);
-
-        var logMessage = $"[DB Queue] Company: {companyCode} -> {companyUrl}";
-        if (companyId.HasValue)
-            logMessage += $" (ID: {companyId})";
-        if (companyTitle != null)
-            logMessage += $" | {companyTitle}";
-        if (skills != null && skills.Count > 0)
-            logMessage += $" | Skills: {skills.Count}";
-        Log(logMessage);
+        LogEnqueue("Company", companyRecord);
 
         return true;
     }
@@ -675,7 +756,7 @@ public sealed class DatabaseClient
             CategoryRootId: categoryRecord
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] CategoryRootId: {categoryId} -> {categoryName}");
+        LogEnqueue("CategoryRootId", categoryRecord);
 
         return true;
     }
@@ -717,7 +798,7 @@ public sealed class DatabaseClient
             UserExperience: experienceRecord
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] UserExperience: {userLink} -> Company={companyCode}, Position={position}, Skills={skills?.Count ?? 0}");
+        LogEnqueue("UserExperience", experienceRecord);
 
         return true;
     }
@@ -739,7 +820,7 @@ public sealed class DatabaseClient
             Skills: skillRecord
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] Skill: ID={skillId}, Title={title}");
+        LogEnqueue("Skills", skillRecord);
 
         return true;
     }
@@ -751,16 +832,18 @@ public sealed class DatabaseClient
     {
         if (_saveQueue == null) return;
 
+        var universityRecord = new UniversityRecord(
+            HabrId: data.HabrId,
+            Name: data.Name,
+            City: data.City,
+            GraduateCount: data.GraduateCount);
+
         var record = new DbRecord(
             Type: DbRecordType.University,
-            University: new UniversityRecord(
-                HabrId: data.HabrId,
-                Name: data.Name,
-                City: data.City,
-                GraduateCount: data.GraduateCount)
+            University: universityRecord
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] University: {data.Name}");
+        LogEnqueue("University", universityRecord);
     }
 
     /// <summary>
@@ -775,7 +858,7 @@ public sealed class DatabaseClient
             AdditionalEducation: data
         );
         _saveQueue.Enqueue(record);
-        Log($"[DB Queue] AdditionalEducation: {data.UserLink} -> {data.Title}");
+        LogEnqueue("AdditionalEducation", data);
     }
 
     #endregion
