@@ -701,9 +701,9 @@ public static class ProfileDataExtractor
     /// <summary>
     /// Извлекает данные о дополнительном образовании из профиля пользователя
     /// </summary>
-    public static List<AdditionalEducationData> ExtractAdditionalEducationData(IDocument doc)
+    public static List<AdditionalEducationRecord> ExtractAdditionalEducationData(IDocument doc, string userLink = "")
     {
-        var result = new List<AdditionalEducationData>();
+        var result = new List<AdditionalEducationRecord>();
         
         try
         {
@@ -739,10 +739,10 @@ public static class ProfileDataExtractor
             {
                 try
                 {
-                    var educationData = ExtractSingleAdditionalEducationItem(item);
+                    var educationData = ExtractSingleAdditionalEducationItem(item, userLink);
                     if (educationData != null)
                     {
-                        result.Add(educationData);
+                        result.Add(educationData.Value);
                     }
                 }
                 catch
@@ -758,7 +758,7 @@ public static class ProfileDataExtractor
         return result;
     }
 
-    private static AdditionalEducationData? ExtractSingleAdditionalEducationItem(IElement item)
+    private static AdditionalEducationRecord? ExtractSingleAdditionalEducationItem(IElement item, string userLink)
     {
         var titleElement = item.QuerySelector(AppConfig.AdditionalEducationTitleSelector);
         var title = titleElement?.TextContent?.Trim();
@@ -782,12 +782,12 @@ public static class ProfileDataExtractor
             duration = durationElement.TextContent?.Trim();
         }
         
-        return new AdditionalEducationData
-        {
-            Title = title,
-            Course = course,
-            Duration = duration
-        };
+        return new AdditionalEducationRecord(
+            UserLink: userLink,
+            Title: title,
+            Course: course,
+            Duration: duration
+        );
     }
 
     /// <summary>

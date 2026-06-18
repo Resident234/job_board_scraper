@@ -132,16 +132,15 @@ public class CourseData
 }
 ```
 
-### UserUniversityData
+### UserUniversityRecord
 
 ```csharp
-public class UserUniversityData
-{
-    public string UserLink { get; set; }
-    public int UniversityHabrId { get; set; }
-    public List<CourseData> Courses { get; set; }
-    public string? Description { get; set; }
-}
+public readonly record struct UserUniversityRecord(
+    string UserLink,
+    int UniversityHabrId,
+    List<CourseData>? Courses = null,
+    string? Description = null
+);
 ```
 
 ## Использование
@@ -160,19 +159,26 @@ psql -U postgres -d jobs -f sql/create_resumes_universities_table.sql
 ```csharp
 // Извлечение данных
 var educationData = ProfileDataExtractor.ExtractEducationData(doc);
+var userUniversities = new List<UserUniversityRecord>();
 
-// Сохранение
+// Сохранение университетов и накопление связей пользователь-университет
 foreach (var education in educationData)
 {
     _db.EnqueueUniversity(education.University);
-    _db.EnqueueUserUniversity(new UserUniversityData
-    {
-        UserLink = userLink,
-        UniversityHabrId = education.University.HabrId,
-        Courses = education.Courses,
-        Description = education.Description
-    });
+    userUniversities.Add(new UserUniversityRecord(
+        UserLink: userLink,
+        UniversityHabrId: education.University.HabrId,
+        Courses: education.Courses,
+        Description: education.Description
+    ));
 }
+
+// Передаем связи пользователь-университет через ResumeRecord
+_db.EnqueueResume(
+    link: userLink,
+    title: string.Empty,
+    mode: InsertMode.UpdateIfExists,
+    userUniversities: userUniversities);
 ```
 
 ## Примеры SQL-запросов

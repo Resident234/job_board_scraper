@@ -16,7 +16,9 @@ public enum DbRecordType
     Company,
     CategoryRootId,
     Skills,
-    UserExperience
+    UserExperience,
+    University,
+    AdditionalEducation
 }
 
 public enum InsertMode
@@ -59,6 +61,7 @@ public readonly record struct ResumeRecord(
     bool? IsEmpty = null,
     List<SkillsRecord>? Skills = null,
     List<CommunityParticipationRecord>? CommunityParticipation = null,
+    List<UserUniversityRecord>? UserUniversities = null,
     bool? IsDeleted = null,
     string? About = null);
 
@@ -126,6 +129,33 @@ public readonly record struct UserExperienceRecord(
     bool IsFirstRecord = false);
 
 /// <summary>
+/// University record type.
+/// </summary>
+public readonly record struct UniversityRecord(
+    int HabrId,
+    string Name,
+    string? City = null,
+    int? GraduateCount = null);
+
+/// <summary>
+/// User-university relation record type.
+/// </summary>
+public readonly record struct UserUniversityRecord(
+    string UserLink,
+    int UniversityHabrId,
+    List<CourseData>? Courses = null,
+    string? Description = null);
+
+/// <summary>
+/// Additional education record type.
+/// </summary>
+public readonly record struct AdditionalEducationRecord(
+    string UserLink,
+    string Title,
+    string? Course = null,
+    string? Duration = null);
+
+/// <summary>
 /// Record structure for database queue operations with specific fields for each record type.
 /// </summary>
 public readonly record struct DbRecord(
@@ -136,7 +166,9 @@ public readonly record struct DbRecord(
     CompanyRecord? Company = null,
     CategoryRootIdRecord? CategoryRootId = null,
     SkillsRecord? Skills = null,
-    UserExperienceRecord? UserExperience = null);
+    UserExperienceRecord? UserExperience = null,
+    UniversityRecord? University = null,
+    AdditionalEducationRecord? AdditionalEducation = null);
 
 public sealed class DatabaseClient
 {
@@ -148,9 +180,6 @@ public sealed class DatabaseClient
     private readonly DatabaseStatistics _statistics = new();
     private DateTime _lastStatsDump = DateTime.Now;
     private readonly TimeSpan _statsDumpInterval = TimeSpan.FromMinutes(5);
-    private readonly ConcurrentQueue<UniversityData> _universityQueue = new();
-    private readonly ConcurrentQueue<UserUniversityData> _userUniversityQueue = new();
-    private readonly ConcurrentQueue<AdditionalEducationData> _additionalEducationQueue = new();
 
     /// <summary>
     /// Статистика операций с БД
@@ -301,6 +330,12 @@ public sealed class DatabaseClient
                                         {
                                             UserSkillsInsert(conn, userLink: resume.Link, skills: resume.Skills);
                                         }
+
+                                        // Если есть связи пользователь-университет, добавляем их через ResumeRecord
+                                        if (resume.UserUniversities != null && resume.UserUniversities.Count > 0)
+                                        {
+                                            ResumesUniversitiesInsert(conn, resume.UserUniversities);
+                                        }
                                     }
                                     break;
                                 case DbRecordType.Company:
@@ -372,6 +407,18 @@ public sealed class DatabaseClient
                                         UserExperienceInsert(conn, record.UserExperience.Value);
                                     }
                                     break;
+                                case DbRecordType.University:
+                                    if (record.University.HasValue)
+                                    {
+                                        UniversitiesInsert(conn, record.University.Value);
+                                    }
+                                    break;
+                                case DbRecordType.AdditionalEducation:
+                                    if (record.AdditionalEducation.HasValue)
+                                    {
+                                        ResumesEducationsInsert(conn, record.AdditionalEducation.Value);
+                                    }
+                                    break;
                             }
                         }
                         catch (Exception ex)
@@ -381,13 +428,6 @@ public sealed class DatabaseClient
                             // Продолжаем обработку следующих записей
                         }
                     }
-
-                    // Обрабатываем очереди университетов
-                    FlushUniversityQueue(conn);
-                    FlushUserUniversityQueue(conn);
-
-                    // Обрабатываем очередь дополнительного образования
-                    FlushAdditionalEducationQueue(conn);
 
                     await Task.Delay(delayMs, linkedToken);
                 }
@@ -499,6 +539,7 @@ public sealed class DatabaseClient
         bool? isEmpty = null,
         List<SkillsRecord>? skills = null,
         List<CommunityParticipationRecord>? communityParticipation = null,
+        List<UserUniversityRecord>? userUniversities = null,
         string? about = null,
         bool? isDeleted = null)
     {
@@ -528,6 +569,7 @@ public sealed class DatabaseClient
             IsEmpty: isEmpty,
             Skills: skills,
             CommunityParticipation: communityParticipation,
+            UserUniversities: userUniversities,
             About: about,
             IsDeleted: isDeleted,
             Mode: mode
@@ -703,81 +745,37 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Добавить университет в очередь на сохранение
+    /// Добавить университет в основную очередь на сохранение
     /// </summary>
     public void EnqueueUniversity(UniversityData data)
     {
-        _universityQueue.Enqueue(data);
+        if (_saveQueue == null) return;
+
+        var record = new DbRecord(
+            Type: DbRecordType.University,
+            University: new UniversityRecord(
+                HabrId: data.HabrId,
+                Name: data.Name,
+                City: data.City,
+                GraduateCount: data.GraduateCount)
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] University: {data.Name}");
     }
 
     /// <summary>
-    /// Добавить связь пользователь-университет в очередь на сохранение
+    /// Добавить дополнительное образование в основную очередь на сохранение
     /// </summary>
-    public void EnqueueUserUniversity(UserUniversityData data)
+    public void EnqueueAdditionalEducation(AdditionalEducationRecord data)
     {
-        _userUniversityQueue.Enqueue(data);
-    }
+        if (_saveQueue == null) return;
 
-    /// <summary>
-    /// Сохранить все университеты из очереди в БД
-    /// </summary>
-    public void FlushUniversityQueue(NpgsqlConnection conn)
-    {
-        while (_universityQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                UniversitiesInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении университета {data.Name}: {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Сохранить все связи пользователь-университет из очереди в БД
-    /// </summary>
-    public void FlushUserUniversityQueue(NpgsqlConnection conn)
-    {
-        while (_userUniversityQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                ResumesUniversitiesInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении связи пользователь-университет: {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Добавить дополнительное образование в очередь на сохранение
-    /// </summary>
-    public void EnqueueAdditionalEducation(AdditionalEducationData data)
-    {
-        _additionalEducationQueue.Enqueue(data);
-    }
-
-    /// <summary>
-    /// Сохранить все записи дополнительного образования из очереди в БД
-    /// </summary>
-    public void FlushAdditionalEducationQueue(NpgsqlConnection conn)
-    {
-        while (_additionalEducationQueue.TryDequeue(out var data))
-        {
-            try
-            {
-                ResumesEducationsInsert(conn, data);
-            }
-            catch (Exception ex)
-            {
-                Log($"[DB] Ошибка при сохранении дополнительного образования: {ex.Message}");
-            }
-        }
+        var record = new DbRecord(
+            Type: DbRecordType.AdditionalEducation,
+            AdditionalEducation: data
+        );
+        _saveQueue.Enqueue(record);
+        Log($"[DB Queue] AdditionalEducation: {data.UserLink} -> {data.Title}");
     }
 
     #endregion
@@ -2376,7 +2374,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить или обновить университет в БД
     /// </summary>
-    private void UniversitiesInsert(NpgsqlConnection conn, UniversityData data)
+    private void UniversitiesInsert(NpgsqlConnection conn, UniversityRecord data)
     {
         EnsureConnectionOpen(conn);
 
@@ -2403,9 +2401,22 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить связь пользователь-университет в БД
+    /// Вставить связи пользователь-университет в БД
     /// </summary>
-    private void ResumesUniversitiesInsert(NpgsqlConnection conn, UserUniversityData data)
+    private void ResumesUniversitiesInsert(NpgsqlConnection conn, List<UserUniversityRecord>? userUniversities)
+    {
+        if (userUniversities == null || userUniversities.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var userUniversity in userUniversities)
+        {
+            ResumesUniversityInsert(conn, userUniversity);
+        }
+    }
+
+    private void ResumesUniversityInsert(NpgsqlConnection conn, UserUniversityRecord data)
     {
         EnsureConnectionOpen(conn);
 
@@ -2475,7 +2486,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить запись дополнительного образования в БД
     /// </summary>
-    private void ResumesEducationsInsert(NpgsqlConnection conn, AdditionalEducationData data)
+    private void ResumesEducationsInsert(NpgsqlConnection conn, AdditionalEducationRecord data)
     {
         EnsureConnectionOpen(conn);
 

@@ -731,28 +731,27 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем данные о высшем образовании
                 var educationData = ProfileDataExtractor.ExtractEducationData(doc);
                 var educationCount = 0;
+                var userUniversities = new List<UserUniversityRecord>();
                 foreach (var education in educationData)
                 {
                     // Сохраняем университет
                     _db.EnqueueUniversity(education.University);
-                    
-                    // Сохраняем связь пользователь-университет
-                    _db.EnqueueUserUniversity(new UserUniversityData
-                    {
-                        UserLink = userLink,
-                        UniversityHabrId = education.University.HabrId,
-                        Courses = education.Courses,
-                        Description = education.Description
-                    });
+
+                    // Сохраняем связь пользователь-университет через ResumeRecord
+                    userUniversities.Add(new UserUniversityRecord(
+                        UserLink: userLink,
+                        UniversityHabrId: education.University.HabrId,
+                        Courses: education.Courses,
+                        Description: education.Description
+                    ));
                     educationCount++;
                 }
                 
                 // Извлекаем данные о дополнительном образовании
-                var additionalEducationData = ProfileDataExtractor.ExtractAdditionalEducationData(doc);
+                var additionalEducationData = ProfileDataExtractor.ExtractAdditionalEducationData(doc, userLink);
                 var additionalEducationCount = 0;
                 foreach (var additionalEducation in additionalEducationData)
                 {
-                    additionalEducation.UserLink = userLink;
                     _db.EnqueueAdditionalEducation(additionalEducation);
                     additionalEducationCount++;
                 }
@@ -812,6 +811,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         .ToList(),
                     about: about,
                     communityParticipation: communityParticipation,
+                    userUniversities: userUniversities,
                     isPublic: true);
 
                 _logger.WriteLine($"Пользователь {userLink}:");
