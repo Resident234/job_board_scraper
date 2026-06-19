@@ -735,7 +735,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                 foreach (var education in educationData)
                 {
                     // Сохраняем университет
-                    _db.EnqueueUniversity(education.University);
+                    _db.EnqueueUniversity(
+                        education.University.HabrId,
+                        education.University.Name,
+                        education.University.City,
+                        education.University.GraduateCount);
 
                     // Сохраняем связь пользователь-университет через ResumeRecord
                     userUniversities.Add(new UserUniversityRecord(
@@ -752,7 +756,11 @@ public sealed class UserResumeDetailScraper : IDisposable
                 var additionalEducationCount = 0;
                 foreach (var additionalEducation in additionalEducationData)
                 {
-                    _db.EnqueueAdditionalEducation(additionalEducation);
+                    _db.EnqueueAdditionalEducation(
+                        additionalEducation.UserLink,
+                        additionalEducation.Title,
+                        additionalEducation.Course,
+                        additionalEducation.Duration);
                     additionalEducationCount++;
                 }
                 

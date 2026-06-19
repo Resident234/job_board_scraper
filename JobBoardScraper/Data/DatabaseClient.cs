@@ -828,15 +828,15 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить университет в основную очередь на сохранение
     /// </summary>
-    public void EnqueueUniversity(UniversityData data)
+    public void EnqueueUniversity(int habrId, string name, string? city = null, int? graduateCount = null)
     {
         if (_saveQueue == null) return;
 
         var universityRecord = new UniversityRecord(
-            HabrId: data.HabrId,
-            Name: data.Name,
-            City: data.City,
-            GraduateCount: data.GraduateCount);
+            HabrId: habrId,
+            Name: name,
+            City: city,
+            GraduateCount: graduateCount);
 
         var record = new DbRecord(
             Type: DbRecordType.University,
@@ -849,16 +849,22 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить дополнительное образование в основную очередь на сохранение
     /// </summary>
-    public void EnqueueAdditionalEducation(AdditionalEducationRecord data)
+    public void EnqueueAdditionalEducation(string userLink, string title, string? course = null, string? duration = null)
     {
         if (_saveQueue == null) return;
 
+        var additionalEducationRecord = new AdditionalEducationRecord(
+            UserLink: userLink,
+            Title: title,
+            Course: course,
+            Duration: duration);
+
         var record = new DbRecord(
             Type: DbRecordType.AdditionalEducation,
-            AdditionalEducation: data
+            AdditionalEducation: additionalEducationRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("AdditionalEducation", data);
+        LogEnqueue("AdditionalEducation", additionalEducationRecord);
     }
 
     #endregion
