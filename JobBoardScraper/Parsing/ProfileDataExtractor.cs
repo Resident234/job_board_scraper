@@ -793,9 +793,9 @@ public static class ProfileDataExtractor
     /// <summary>
     /// Извлекает данные об участии в профсообществах из профиля пользователя
     /// </summary>
-    public static List<CommunityParticipationRecord> ExtractCommunityParticipationRecords(IDocument doc)
+    public static List<CommunityParticipationData> ExtractCommunityParticipationRecords(IDocument doc)
     {
-        var result = new List<CommunityParticipationRecord>();
+        var result = new List<CommunityParticipationData>();
         
         try
         {
@@ -834,7 +834,7 @@ public static class ProfileDataExtractor
                     var data = ExtractSingleCommunityParticipationItem(item);
                     if (data != null)
                     {
-                        result.Add(data.Value);
+                        result.Add(data);
                     }
                 }
                 catch
@@ -850,7 +850,7 @@ public static class ProfileDataExtractor
         return result;
     }
 
-    private static CommunityParticipationRecord? ExtractSingleCommunityParticipationItem(IElement item)
+    private static CommunityParticipationData? ExtractSingleCommunityParticipationItem(IElement item)
     {
         var nameElement = item.QuerySelector(AppConfig.CommunityParticipationNameSelector);
         var name = nameElement?.TextContent?.Trim();
@@ -900,10 +900,12 @@ public static class ProfileDataExtractor
             }
         }
         
-        return new CommunityParticipationRecord(
-            Name: name,
-            MemberSince: memberSince,
-            Contribution: contribution,
-            Topics: topics);
+        return new CommunityParticipationData
+        {
+            Name = name,
+            MemberSince = memberSince,
+            Contribution = contribution,
+            Topics = topics
+        };
     }
 }

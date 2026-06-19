@@ -61,7 +61,7 @@ public readonly record struct ResumeRecord(
     string? JobSearchStatus = null,
     bool? IsEmpty = null,
     List<SkillsRecord>? Skills = null,
-    List<CommunityParticipationRecord>? CommunityParticipation = null,
+    List<CommunityParticipationData>? CommunityParticipation = null,
     List<UserUniversityRecord>? UserUniversities = null,
     bool? IsDeleted = null,
     string? About = null);
@@ -104,14 +104,6 @@ public readonly record struct SkillsRecord(
    int? SkillId = null,
    string? SkillTitle = null);
 
-/// <summary>
-/// Data structure for CommunityParticipation record type.
-/// </summary>
-public readonly record struct CommunityParticipationRecord(
-   string Name = "",
-   string? MemberSince = null,
-   string? Contribution = null,
-   string? Topics = null);
 
 /// <summary>
 /// Data structure for UserExperience record type.
@@ -634,7 +626,7 @@ public sealed class DatabaseClient
         string? jobSearchStatus = null,
         bool? isEmpty = null,
         List<SkillsRecord>? skills = null,
-        List<CommunityParticipationRecord>? communityParticipation = null,
+        List<CommunityParticipationData>? communityParticipation = null,
         List<UserUniversityRecord>? userUniversities = null,
         string? about = null,
         bool? isDeleted = null)
@@ -927,7 +919,7 @@ public sealed class DatabaseClient
         bool? isEmpty = null,
         bool? isDeleted = null,
         string? about = null,
-        List<CommunityParticipationRecord>? communityParticipation = null)
+        List<CommunityParticipationData>? communityParticipation = null)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
@@ -937,7 +929,7 @@ public sealed class DatabaseClient
            EnsureConnectionOpen(conn);
 
            string? communityParticipationJson = communityParticipation is { Count: > 0 }
-               ? SerializeCommunityParticipation(communityParticipation)
+               ? System.Text.Json.JsonSerializer.Serialize(communityParticipation)
                : null;
 
            if (mode == InsertMode.SkipIfExists)
@@ -1952,7 +1944,7 @@ public sealed class DatabaseClient
     /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
     /// Сохраняет данные в поле community_participation как JSON массив
     /// </summary>
-    public void ResumesUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationRecord> communityParticipation)
+    public void ResumesUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
         if (string.IsNullOrWhiteSpace(userLink))
@@ -1964,7 +1956,7 @@ public sealed class DatabaseClient
         {
             EnsureConnectionOpen(conn);
 
-            var jsonString = SerializeCommunityParticipation(communityParticipation);
+            var jsonString = System.Text.Json.JsonSerializer.Serialize(communityParticipation);
 
             using var cmd = new NpgsqlCommand(@"
                 UPDATE habr_resumes
@@ -2670,25 +2662,4 @@ public sealed class DatabaseClient
 
     #endregion
 
-    #region Helper methods
-
-    private static string SerializeCommunityParticipation(List<CommunityParticipationRecord> communityParticipation)
-    {
-        var jsonArray = new System.Text.Json.Nodes.JsonArray();
-        foreach (var item in communityParticipation)
-        {
-            var jsonObj = new System.Text.Json.Nodes.JsonObject
-            {
-                ["name"] = item.Name,
-                ["member_since"] = item.MemberSince,
-                ["contribution"] = item.Contribution,
-                ["topics"] = item.Topics
-            };
-            jsonArray.Add(jsonObj);
-        }
-
-        return jsonArray.ToJsonString();
-    }
-
-    #endregion
 }
