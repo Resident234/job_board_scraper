@@ -389,7 +389,7 @@ public sealed class DatabaseClient
                                     if (record.Resume.HasValue)
                                     {
                                         var resume = record.Resume.Value;
-                                        
+
                                         // Получаем или создаём level_id если есть данные профиля
                                         int? levelId = LevelsInsert(conn, resume.LevelTitle);
 
@@ -499,19 +499,45 @@ public sealed class DatabaseClient
                                 case DbRecordType.UserExperience:
                                     if (record.UserExperience.HasValue)
                                     {
-                                        UserExperienceInsert(conn, record.UserExperience.Value);
+                                        var experience = record.UserExperience.Value;
+                                        UserExperienceInsert(
+                                            conn,
+                                            experience.UserLink,
+                                            experience.CompanyCode,
+                                            experience.CompanyUrl,
+                                            experience.CompanyTitle,
+                                            experience.CompanyAbout,
+                                            experience.CompanySize,
+                                            experience.Position,
+                                            experience.Duration,
+                                            experience.Description,
+                                            experience.Skills,
+                                            experience.IsFirstRecord);
                                     }
                                     break;
                                 case DbRecordType.University:
                                     if (record.University.HasValue)
                                     {
-                                        UniversitiesInsert(conn, record.University.Value);
+                                        var university = record.University.Value;
+                                        UniversitiesInsert(
+                                            conn,
+                                            university.HabrId,
+                                            university.Name,
+                                            university.City,
+                                            university.GraduateCount);
                                     }
                                     break;
                                 case DbRecordType.AdditionalEducation:
                                     if (record.AdditionalEducation.HasValue)
                                     {
-                                        ResumesEducationsInsert(conn, record.AdditionalEducation.Value);
+                                        var additionalEducation = record.AdditionalEducation.Value;
+                                        ResumesEducationsInsert(
+                                            conn,
+                                            additionalEducation.UserLink,
+                                            additionalEducation.Title,
+                                            additionalEducation.Course,
+                                            additionalEducation.Duration,
+                                            additionalEducation.DeleteExisting);
                                     }
                                     break;
                             }
@@ -891,18 +917,6 @@ public sealed class DatabaseClient
         return result != null ? Convert.ToInt32(result) : null;
     }
 
-    // Проверка существования записи по полю link
-    public bool ResumesRecordExistsByLink(NpgsqlConnection conn, string link)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(link)) throw new ArgumentException("Link must not be empty.", nameof(link));
-
-        EnsureConnectionOpen(conn);
-        using var cmd = new NpgsqlCommand("SELECT 1 FROM habr_resumes WHERE link = @link LIMIT 1", conn);
-        cmd.Parameters.AddWithValue("@link", link);
-        var result = cmd.ExecuteScalar();
-        return result is not null;
-    }
 
     // Вставка ссылки, заголовка страницы, слогана и дополнительных полей в таблицу resumes
     public void ResumesInsert(
@@ -1870,204 +1884,6 @@ public sealed class DatabaseClient
         return userLinks;
     }
 
-    /// <summary>
-    /// Обновить флаг пустого профиля для пользователя
-    /// </summary>
-    public void ResumesUpdateUserEmptyProfile(NpgsqlConnection conn, string userLink, bool isEmpty)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes
-                SET is_empty = @is_empty
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@is_empty", isEmpty);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                Log($"[DB] UserEmptyProfile {userLink}: ? UPDATE (isEmpty={isEmpty})");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] UserEmptyProfile {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] UserEmptyProfile {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] UserEmptyProfile {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
-
-    /// <summary>
-    /// Пометить профиль как удалённый
-    /// </summary>
-    public void ResumesMarkProfileAsDeleted(NpgsqlConnection conn, string userLink)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes
-                SET is_deleted = true,
-                    title = 'Профиль удален',
-                    about = 'Профиль пользователя удален со всей информацией, которую он о себе оставлял',
-                    updated_at = NOW()
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                Log($"[DB] MarkDeleted {userLink}: ? UPDATE (is_deleted=true)");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] MarkDeleted {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] MarkDeleted {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] MarkDeleted {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
-
-
-    /// <summary>
-    /// Обновить участие в профсообществах для пользователя (Хабр, GitHub и др.)
-    /// Сохраняет данные в поле community_participation как JSON массив
-    /// </summary>
-    public void ResumesUpdateUserCommunityParticipation(NpgsqlConnection conn, string userLink, List<CommunityParticipationData> communityParticipation)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-        if (communityParticipation == null || communityParticipation.Count == 0)
-            return;
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            var jsonString = System.Text.Json.JsonSerializer.Serialize(communityParticipation);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes
-                SET community_participation = @community_participation::jsonb,
-                    updated_at = NOW()
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@community_participation", jsonString);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                var names = string.Join(", ", communityParticipation.Select(c => c.Name));
-                Log($"[DB] UserCommunity {userLink}: ? UPDATE ({communityParticipation.Count} записей: {names})");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] UserCommunity {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] UserCommunity {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] UserCommunity {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
-
-    /// <summary>
-    /// Обновить статус публичности профиля пользователя
-    /// </summary>
-    public void ResumesUpdateUserPublicStatus(NpgsqlConnection conn, string userLink, bool isPublic)
-    {
-        if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(userLink))
-            throw new ArgumentException("User link must not be empty.", nameof(userLink));
-
-        try
-        {
-            EnsureConnectionOpen(conn);
-
-            using var cmd = new NpgsqlCommand(@"
-                UPDATE habr_resumes
-                SET public = @public,
-                    updated_at = NOW()
-                WHERE link = @link", conn);
-
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@public", isPublic);
-
-            int rowsAffected = cmd.ExecuteNonQuery();
-
-            if (rowsAffected > 0)
-            {
-                _statistics.RecordUpdate("habr_resumes", userLink);
-                Log($"[DB] UserPublicStatus {userLink}: ? UPDATE (public={isPublic})");
-            }
-            else
-            {
-                _statistics.RecordSkipped("habr_resumes", userLink);
-                Log($"[DB] UserPublicStatus {userLink}: ? NOT FOUND");
-            }
-            TryDumpStatistics();
-        }
-        catch (NpgsqlException dbEx)
-        {
-            Log($"[DB] UserPublicStatus {userLink}: ? ERROR - {dbEx.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-        catch (Exception ex)
-        {
-            Log($"[DB] UserPublicStatus {userLink}: ? ERROR - {ex.Message}");
-            _statistics.RecordError("habr_resumes", userLink);
-        }
-    }
 
     /// <summary>
     /// Вставить или обновить навыки пользователя.
@@ -2201,18 +2017,30 @@ public sealed class DatabaseClient
     /// - делает upsert навыков в habr_skills через ON CONFLICT (title);
     /// - связывает навыки с опытом в habr_user_experience_skills через ON CONFLICT (experience_id, skill_id).
     /// </remarks>
-    public void UserExperienceInsert(NpgsqlConnection conn, UserExperienceRecord exp)
+    public void UserExperienceInsert(
+        NpgsqlConnection conn,
+        string userLink,
+        string? companyCode = null,
+        string? companyUrl = null,
+        string? companyTitle = null,
+        string? companyAbout = null,
+        string? companySize = null,
+        string? position = null,
+        string? duration = null,
+        string? description = null,
+        List<SkillsRecord>? skills = null,
+        bool isFirstRecord = false)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (string.IsNullOrWhiteSpace(exp.UserLink))
-            throw new ArgumentException("User link must not be empty.", nameof(exp));
+        if (string.IsNullOrWhiteSpace(userLink))
+            throw new ArgumentException("User link must not be empty.", nameof(userLink));
 
         try
         {
             EnsureConnectionOpen(conn);
 
-            var hasCompany = !string.IsNullOrWhiteSpace(exp.CompanyCode);
-            var experienceSkillTitles = exp.Skills?
+            var hasCompany = !string.IsNullOrWhiteSpace(companyCode);
+            var experienceSkillTitles = skills?
                 .Select(skill => skill.SkillTitle)
                 .Where(skillTitle => !string.IsNullOrWhiteSpace(skillTitle))
                 .Select(skillTitle => skillTitle!.Trim())
@@ -2308,23 +2136,23 @@ public sealed class DatabaseClient
                     (SELECT COUNT(*)::int FROM linked_experience_skills) AS linked_experience_skills_count,
                     (SELECT COUNT(*)::int FROM updated_company) AS updated_company_count", conn);
 
-            cmd.Parameters.AddWithValue("@user_link", exp.UserLink);
+            cmd.Parameters.AddWithValue("@user_link", userLink);
             cmd.Parameters.AddWithValue("@has_company", hasCompany);
-            cmd.Parameters.AddWithValue("@company_code", hasCompany ? exp.CompanyCode! : DBNull.Value);
-            cmd.Parameters.AddWithValue("@company_url", exp.CompanyUrl ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@company_title", exp.CompanyTitle ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@company_about", exp.CompanyAbout ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@company_employees_count", exp.CompanySize ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@delete_old_experiences", exp.IsFirstRecord);
-            cmd.Parameters.AddWithValue("@position", exp.Position ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@duration", exp.Duration ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@description", exp.Description ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_code", hasCompany ? companyCode! : DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_url", companyUrl ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_title", companyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_about", companyAbout ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_employees_count", companySize ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@delete_old_experiences", isFirstRecord);
+            cmd.Parameters.AddWithValue("@position", position ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@duration", duration ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@description", description ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@experience_skill_titles", string.Join("\n", experienceSkillTitles));
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] UserExperience {exp.UserLink}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] UserExperience {userLink}: ? ERROR - запрос не вернул результат");
                 return;
             }
 
@@ -2338,19 +2166,19 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                Log($"[DB] Пользователь {exp.UserLink} не найден в БД. Пропуск опыта работы.");
+                Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск опыта работы.");
                 return;
             }
 
             if (!experienceId.HasValue)
             {
-                Log($"[DB] UserExperience {exp.UserLink}: ? ERROR - опыт работы не вставлен");
+                Log($"[DB] UserExperience {userLink}: ? ERROR - опыт работы не вставлен");
                 return;
             }
 
             if (deletedExperiencesCount > 0)
             {
-                Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {exp.UserLink}");
+                Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {userLink}");
             }
 
             if (linkedExperienceSkillsCount > 0)
@@ -2360,19 +2188,19 @@ public sealed class DatabaseClient
 
             if (upsertedExperienceSkillsCount > 0)
             {
-                _statistics.RecordInsert("habr_skills", $"{upsertedExperienceSkillsCount} навыков для опыта {exp.UserLink}");
+                _statistics.RecordInsert("habr_skills", $"{upsertedExperienceSkillsCount} навыков для опыта {userLink}");
             }
 
-            Log($"[DB] UserExperience {exp.UserLink}: ? experience_id={experienceId}, company_id={companyId}, skills={linkedExperienceSkillsCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}");
-            _statistics.RecordInsert("habr_user_experience", $"{userId}-{exp.CompanyTitle}");
+            Log($"[DB] UserExperience {userLink}: ? experience_id={experienceId}, company_id={companyId}, skills={linkedExperienceSkillsCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}");
+            _statistics.RecordInsert("habr_user_experience", $"{userId}-{companyTitle}");
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при добавлении опыта работы для {exp.UserLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении опыта работы для {userLink}: {dbEx.Message}");
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {exp.UserLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {userLink}: {ex.Message}");
         }
     }
 
@@ -2589,7 +2417,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Вставить или обновить университет в БД
     /// </summary>
-    private void UniversitiesInsert(NpgsqlConnection conn, UniversityRecord data)
+    private void UniversitiesInsert(NpgsqlConnection conn, int habrId, string name, string? city = null, int? graduateCount = null)
     {
         EnsureConnectionOpen(conn);
 
@@ -2603,16 +2431,16 @@ public sealed class DatabaseClient
                 graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
                 updated_at = NOW()", conn);
 
-        cmd.Parameters.AddWithValue("@habr_id", data.HabrId);
-        cmd.Parameters.AddWithValue("@name", data.Name);
-        cmd.Parameters.AddWithValue("@city", data.City ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@graduate_count", data.GraduateCount ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@habr_id", habrId);
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@graduate_count", graduateCount ?? (object)DBNull.Value);
 
         int rowsAffected = cmd.ExecuteNonQuery();
         // Для UPSERT без RETURNING xmax считаем как UPDATE если rowsAffected > 0
         if (rowsAffected > 0)
-            _statistics.RecordUpdate("habr_universities", data.HabrId.ToString());
-        Log($"[DB] Университет {data.Name} (ID={data.HabrId}): {(rowsAffected > 0 ? "? UPSERT" : "? NO CHANGE")}");
+            _statistics.RecordUpdate("habr_universities", habrId.ToString());
+        Log($"[DB] Университет {name} (ID={habrId}): {(rowsAffected > 0 ? "? UPSERT" : "? NO CHANGE")}");
     }
 
     /// <summary>
@@ -2758,7 +2586,13 @@ public sealed class DatabaseClient
     /// Вставить запись дополнительного образования в БД одним SQL-запросом.
     /// При DeleteExisting=true сначала удаляет старые записи пользователя, затем вставляет новую.
     /// </summary>
-    private void ResumesEducationsInsert(NpgsqlConnection conn, AdditionalEducationRecord data)
+    private void ResumesEducationsInsert(
+        NpgsqlConnection conn,
+        string userLink,
+        string title,
+        string? course = null,
+        string? duration = null,
+        bool deleteExisting = false)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
 
@@ -2793,16 +2627,16 @@ public sealed class DatabaseClient
                     (SELECT resume_id FROM inserted) AS inserted_resume_id,
                     (SELECT title FROM inserted) AS inserted_title", conn);
 
-            cmd.Parameters.AddWithValue("@link", data.UserLink);
-            cmd.Parameters.AddWithValue("@title", data.Title);
-            cmd.Parameters.AddWithValue("@course", data.Course ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@duration", data.Duration ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@delete_existing", data.DeleteExisting);
+            cmd.Parameters.AddWithValue("@link", userLink);
+            cmd.Parameters.AddWithValue("@title", title);
+            cmd.Parameters.AddWithValue("@course", course ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@duration", duration ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@delete_existing", deleteExisting);
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] Дополнительное образование {data.UserLink}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] Дополнительное образование {userLink}: ? ERROR - запрос не вернул результат");
                 return;
             }
 
@@ -2813,14 +2647,14 @@ public sealed class DatabaseClient
 
             if (!resumeId.HasValue)
             {
-                Log($"[DB] Пользователь не найден для дополнительного образования: {data.UserLink}");
+                Log($"[DB] Пользователь не найден для дополнительного образования: {userLink}");
                 return;
             }
 
-           if (deletedCount > 0)
-           {
-               Log($"[DB] Дополнительное образование: resume_id={resumeId}: удалено старых записей={deletedCount}");
-           }
+            if (deletedCount > 0)
+            {
+                Log($"[DB] Дополнительное образование: resume_id={resumeId}: удалено старых записей={deletedCount}");
+            }
 
             if (insertedResumeId.HasValue)
             {
@@ -2829,13 +2663,13 @@ public sealed class DatabaseClient
             }
             else
             {
-                _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{data.Title}");
-                Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}: ? SKIPPED");
+                _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{title}");
+                Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={title}: ? SKIPPED");
             }
         }
         catch (Exception ex)
         {
-            Log($"[DB] Ошибка при сохранении дополнительного образования для {data.UserLink}: {ex.Message}");
+            Log($"[DB] Ошибка при сохранении дополнительного образования для {userLink}: {ex.Message}");
         }
     }
 
