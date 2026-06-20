@@ -760,7 +760,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                         additionalEducation.UserLink,
                         additionalEducation.Title,
                         additionalEducation.Course,
-                        additionalEducation.Duration);
+                        additionalEducation.Duration,
+                        deleteExisting: additionalEducationCount == 0);
                     additionalEducationCount++;
                 }
                 

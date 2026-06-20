@@ -146,7 +146,8 @@ public readonly record struct AdditionalEducationRecord(
     string UserLink,
     string Title,
     string? Course = null,
-    string? Duration = null);
+    string? Duration = null,
+    bool DeleteExisting = false);
 
 /// <summary>
 /// Record structure for database queue operations with specific fields for each record type.
@@ -841,7 +842,7 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить дополнительное образование в основную очередь на сохранение
     /// </summary>
-    public void EnqueueAdditionalEducation(string userLink, string title, string? course = null, string? duration = null)
+    public void EnqueueAdditionalEducation(string userLink, string title, string? course = null, string? duration = null, bool deleteExisting = false)
     {
         if (_saveQueue == null) return;
 
@@ -849,7 +850,8 @@ public sealed class DatabaseClient
             UserLink: userLink,
             Title: title,
             Course: course,
-            Duration: duration);
+            Duration: duration,
+            DeleteExisting: deleteExisting);
 
         var record = new DbRecord(
             Type: DbRecordType.AdditionalEducation,
@@ -934,14 +936,6 @@ public sealed class DatabaseClient
 
            if (mode == InsertMode.SkipIfExists)
             {
-                // Проверка существования по link
-                if (ResumesRecordExistsByLink(conn, link))
-                {
-                    Log($"[DB] Resume {link}: ? SKIP (уже существует)");
-                    _statistics.RecordSkipped("habr_resumes", link);
-                    return;
-                }
-
                 if (title != null && title.Contains("Ошибка 404"))
                 {
                     Log($"[DB] Resume {link}: ? SKIP (404 страница)");
@@ -949,10 +943,11 @@ public sealed class DatabaseClient
                     return;
                 }
 
-
-
                 using var cmd = new NpgsqlCommand(
-                    "INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at) VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, @community_participation, NOW(), NOW())",
+                    @"INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at)
+                      VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, @community_participation, NOW(), NOW())
+                      ON CONFLICT (link) DO NOTHING
+                      RETURNING xmax",
                     conn);
                 cmd.Parameters.AddWithValue("@link", link);
                 cmd.Parameters.AddWithValue("@title", title ?? (object)DBNull.Value);
@@ -975,7 +970,14 @@ public sealed class DatabaseClient
                 cmd.Parameters.AddWithValue("@about", about ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@community_participation", communityParticipationJson ?? (object)DBNull.Value);
 
-                cmd.ExecuteNonQuery();
+                var inserted = cmd.ExecuteScalar();
+                if (inserted == null)
+                {
+                    Log($"[DB] Resume {link}: ? SKIP (уже существует)");
+                    _statistics.RecordSkipped("habr_resumes", link);
+                    return;
+                }
+
                 _statistics.RecordInsert("habr_resumes", link);
 
                 // Подробное логирование
@@ -1602,8 +1604,16 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить или обновить навыки компании
+    /// Вставить или обновить навыки компании.
     /// </summary>
+    /// <remarks>
+    /// Метод выполняет все действия одним SQL-запросом через CTE:
+    /// - находит компанию в habr_companies по code;
+    /// - удаляет устаревшие связи habr_company_skills для этой компании;
+    /// - нормализует, триммит и дедуплицирует список навыков;
+    /// - делает upsert навыков в habr_skills через ON CONFLICT (title);
+    /// - связывает навыки с компанией в habr_company_skills через ON CONFLICT (company_id, skill_id).
+    /// </remarks>
     public void CompanySkillsInsert(NpgsqlConnection conn, string companyCode, List<string> skills)
     {
         CompanySkillsInsert(conn, companyCode, skills.Select(skill => new SkillsRecord(SkillTitle: skill)).ToList());
@@ -1620,18 +1630,73 @@ public sealed class DatabaseClient
         {
             EnsureConnectionOpen(conn);
 
-            // Получаем ID компании по коду
-            int? companyId = null;
-            using (var cmdGetCompany =
-                   new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
+            var skillTitles = skills
+                .Select(skill => skill.SkillTitle)
+                .Where(skillTitle => !string.IsNullOrWhiteSpace(skillTitle))
+                .Select(skillTitle => skillTitle!.Trim())
+                .Distinct()
+                .ToArray();
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH company AS (
+                    SELECT id
+                    FROM habr_companies
+                    WHERE code = @company_code
+                    LIMIT 1
+                ),
+                deleted AS (
+                    DELETE FROM habr_company_skills hcs
+                    USING company c
+                    WHERE hcs.company_id = c.id
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM upserted_skills s
+                          WHERE s.id = hcs.skill_id
+                      )
+                    RETURNING 1
+                ),
+                dedup_skills AS (
+                    SELECT DISTINCT trim(title) AS title
+                    FROM string_to_array(@titles, E'\n') AS t(title)
+                    WHERE trim(title) <> ''
+                ),
+                upserted_skills AS (
+                    INSERT INTO habr_skills (title, created_at, updated_at)
+                    SELECT title, NOW(), NOW()
+                    FROM dedup_skills
+                    ON CONFLICT (title)
+                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                    RETURNING id
+                ),
+                linked AS (
+                    INSERT INTO habr_company_skills (company_id, skill_id, created_at, updated_at)
+                    SELECT c.id, s.id, NOW(), NOW()
+                    FROM company c
+                    CROSS JOIN upserted_skills s
+                    ON CONFLICT (company_id, skill_id) DO UPDATE SET updated_at = NOW()
+                    RETURNING 1
+                )
+                SELECT
+                    (SELECT id FROM company) AS company_id,
+                    (SELECT COUNT(*)::int FROM linked) AS linked_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills) AS upserted_skills_count,
+                    (SELECT COUNT(*)::int FROM deleted) AS deleted_count", conn);
+
+            cmd.Parameters.AddWithValue("@company_code", companyCode);
+            cmd.Parameters.AddWithValue("@titles", string.Join("\n", skillTitles));
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                cmdGetCompany.Parameters.AddWithValue("@code", companyCode);
-                var result = cmdGetCompany.ExecuteScalar();
-                if (result != null)
-                {
-                    companyId = Convert.ToInt32(result);
-                }
+                Log($"[DB] CompanySkills {companyCode}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_company_skills", companyCode);
+                return;
             }
+
+            var companyId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
+            var linkedCount = reader.GetInt32(1);
+            var upsertedSkillsCount = reader.GetInt32(2);
+            var deletedCount = reader.GetInt32(3);
 
             if (!companyId.HasValue)
             {
@@ -1639,57 +1704,13 @@ public sealed class DatabaseClient
                 return;
             }
 
-            // Удаляем старые связи навыков для этой компании
-            using (var cmdDelete =
-                   new NpgsqlCommand("DELETE FROM habr_company_skills WHERE company_id = @company_id", conn))
-            {
-                cmdDelete.Parameters.AddWithValue("@company_id", companyId.Value);
-                cmdDelete.ExecuteNonQuery();
-            }
-
-            // Добавляем навыки
-            int addedCount = 0;
-            int newSkillsCount = 0;
-            foreach (var skillRecord in skills)
-            {
-                var skillTitle = skillRecord.SkillTitle;
-                if (string.IsNullOrWhiteSpace(skillTitle)) continue;
-
-                // Вставляем навык в таблицу habr_skills (если его нет)
-                int skillId;
-                using (var cmdInsertSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_skills (title, created_at, updated_at)
-                    VALUES (@title, NOW(), NOW())
-                    ON CONFLICT (title)
-                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                    RETURNING id", conn))
-                {
-                    cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
-                    var result = cmdInsertSkill.ExecuteScalar();
-                    skillId = Convert.ToInt32(result);
-                }
-
-                // Связываем навык с компанией
-                using (var cmdLinkSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_company_skills (company_id, skill_id, created_at, updated_at)
-                    VALUES (@company_id, @skill_id, NOW(), NOW())
-                    ON CONFLICT (company_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
-                {
-                    cmdLinkSkill.Parameters.AddWithValue("@company_id", companyId.Value);
-                    cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
-                    cmdLinkSkill.ExecuteNonQuery();
-                }
-
-                addedCount++;
-                newSkillsCount++;
-            }
-
-            if (addedCount > 0)
+            if (linkedCount > 0)
             {
                 _statistics.RecordInsert("habr_company_skills", companyCode);
-                _statistics.RecordInsert("habr_skills", $"{newSkillsCount} навыков для компании {companyCode}");
+                _statistics.RecordInsert("habr_skills", $"{upsertedSkillsCount} навыков для компании {companyCode}");
             }
-            Log($"[DB] CompanySkills {companyCode}: ? {addedCount} навыков добавлено");
+
+            Log($"[DB] CompanySkills {companyCode}: ? {linkedCount} навыков добавлено/обновлено, {deletedCount} устаревших связей удалено");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
@@ -2043,8 +2064,16 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить или обновить навыки пользователя
+    /// Вставить или обновить навыки пользователя.
     /// </summary>
+    /// <remarks>
+    /// Метод выполняет все действия одним SQL-запросом через CTE:
+    /// - находит пользователя в habr_resumes по link;
+    /// - удаляет устаревшие связи habr_user_skills для этого пользователя;
+    /// - нормализует, триммит и дедуплицирует список навыков;
+    /// - делает upsert навыков в habr_skills через ON CONFLICT (title);
+    /// - связывает навыки с пользователем в habr_user_skills через ON CONFLICT (user_id, skill_id).
+    /// </remarks>
     public void UserSkillsInsert(NpgsqlConnection conn, string userLink, List<string> skills)
     {
         UserSkillsInsert(conn, userLink, skills.Select(skill => new SkillsRecord(SkillTitle: skill)).ToList());
@@ -2061,18 +2090,72 @@ public sealed class DatabaseClient
         {
             EnsureConnectionOpen(conn);
 
-            // Получаем ID пользователя по ссылке
-            int? userId = null;
-            using (var cmdGetUser =
-                   new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+            var skillTitles = skills
+                .Select(skill => skill.SkillTitle)
+                .Where(skillTitle => !string.IsNullOrWhiteSpace(skillTitle))
+                .Select(skillTitle => skillTitle!.Trim())
+                .Distinct()
+                .ToArray();
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH target_user AS (
+                    SELECT id
+                    FROM habr_resumes
+                    WHERE link = @user_link
+                    LIMIT 1
+                ),
+                dedup_skills AS (
+                    SELECT DISTINCT trim(title) AS title
+                    FROM string_to_array(@titles, E'\n') AS t(title)
+                    WHERE trim(title) <> ''
+                ),
+                upserted_skills AS (
+                    INSERT INTO habr_skills (title, created_at, updated_at)
+                    SELECT title, NOW(), NOW()
+                    FROM dedup_skills
+                    ON CONFLICT (title)
+                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                    RETURNING id
+                ),
+                deleted AS (
+                    DELETE FROM habr_user_skills hus
+                    USING target_user u
+                    WHERE hus.user_id = u.id
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM upserted_skills s
+                          WHERE s.id = hus.skill_id
+                      )
+                    RETURNING 1
+                ),
+                linked AS (
+                    INSERT INTO habr_user_skills (user_id, skill_id, created_at, updated_at)
+                    SELECT u.id, s.id, NOW(), NOW()
+                    FROM target_user u
+                    CROSS JOIN upserted_skills s
+                    ON CONFLICT (user_id, skill_id) DO UPDATE SET updated_at = NOW()
+                    RETURNING 1
+                )
+                SELECT
+                    (SELECT id FROM target_user) AS user_id,
+                    (SELECT COUNT(*)::int FROM linked) AS linked_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills) AS upserted_skills_count,
+                    (SELECT COUNT(*)::int FROM deleted) AS deleted_count", conn);
+
+            cmd.Parameters.AddWithValue("@user_link", userLink);
+            cmd.Parameters.AddWithValue("@titles", string.Join("\n", skillTitles));
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                cmdGetUser.Parameters.AddWithValue("@link", userLink);
-                var result = cmdGetUser.ExecuteScalar();
-                if (result != null)
-                {
-                    userId = Convert.ToInt32(result);
-                }
+                Log($"[DB] UserSkills {userLink}: ? ERROR - запрос не вернул результат");
+                return;
             }
+
+            var userId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
+            var linkedCount = reader.GetInt32(1);
+            var upsertedSkillsCount = reader.GetInt32(2);
+            var deletedCount = reader.GetInt32(3);
 
             if (!userId.HasValue)
             {
@@ -2080,57 +2163,13 @@ public sealed class DatabaseClient
                 return;
             }
 
-            // Удаляем старые связи навыков для этого пользователя
-            using (var cmdDelete =
-                   new NpgsqlCommand("DELETE FROM habr_user_skills WHERE user_id = @user_id", conn))
-            {
-                cmdDelete.Parameters.AddWithValue("@user_id", userId.Value);
-                cmdDelete.ExecuteNonQuery();
-            }
-
-            // Добавляем навыки
-            int addedCount = 0;
-            int newSkillsCount = 0;
-            foreach (var skillRecord in skills)
-            {
-                var skillTitle = skillRecord.SkillTitle;
-                if (string.IsNullOrWhiteSpace(skillTitle)) continue;
-
-                // Вставляем навык в таблицу habr_skills (если его нет)
-                int skillId;
-                using (var cmdInsertSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_skills (title, created_at, updated_at)
-                    VALUES (@title, NOW(), NOW())
-                    ON CONFLICT (title)
-                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                    RETURNING id", conn))
-                {
-                    cmdInsertSkill.Parameters.AddWithValue("@title", skillTitle.Trim());
-                    var result = cmdInsertSkill.ExecuteScalar();
-                    skillId = Convert.ToInt32(result);
-                }
-
-                // Связываем навык с пользователем
-                using (var cmdLinkSkill = new NpgsqlCommand(@"
-                    INSERT INTO habr_user_skills (user_id, skill_id, created_at, updated_at)
-                    VALUES (@user_id, @skill_id, NOW(), NOW())
-                    ON CONFLICT (user_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
-                {
-                    cmdLinkSkill.Parameters.AddWithValue("@user_id", userId.Value);
-                    cmdLinkSkill.Parameters.AddWithValue("@skill_id", skillId);
-                    cmdLinkSkill.ExecuteNonQuery();
-                }
-
-                addedCount++;
-                newSkillsCount++;
-            }
-
-            if (addedCount > 0)
+            if (linkedCount > 0)
             {
                 _statistics.RecordInsert("habr_user_skills", $"{userId}-{userLink}");
-                _statistics.RecordInsert("habr_skills", $"{newSkillsCount} навыков для {userLink}");
+                _statistics.RecordInsert("habr_skills", $"{upsertedSkillsCount} навыков для {userLink}");
             }
-            Log($"[DB] Добавлено {addedCount} навыков для пользователя {userLink}");
+
+            Log($"[DB] UserSkills {userLink}: ? {linkedCount} навыков добавлено/обновлено, {deletedCount} устаревших связей удалено");
         }
         catch (NpgsqlException dbEx)
         {
@@ -2144,8 +2183,18 @@ public sealed class DatabaseClient
 
 
     /// <summary>
-    /// Вставить опыт работы пользователя
+    /// Вставить опыт работы пользователя.
     /// </summary>
+    /// <remarks>
+    /// Метод выполняет все действия одним SQL-запросом через CTE:
+    /// - находит пользователя в habr_resumes по link;
+    /// - находит, создает или обновляет компанию в habr_companies по code;
+    /// - при IsFirstRecord удаляет старые записи habr_user_experience для пользователя;
+    /// - вставляет новую запись опыта работы в habr_user_experience;
+    /// - нормализует, триммит и дедуплицирует навыки опыта;
+    /// - делает upsert навыков в habr_skills через ON CONFLICT (title);
+    /// - связывает навыки с опытом в habr_user_experience_skills через ON CONFLICT (experience_id, skill_id).
+    /// </remarks>
     public void UserExperienceInsert(NpgsqlConnection conn, UserExperienceRecord exp)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
@@ -2156,17 +2205,130 @@ public sealed class DatabaseClient
         {
             EnsureConnectionOpen(conn);
 
-            // Получаем ID пользователя по ссылке
-            int? userId = null;
-            using (var cmdGetUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+            var hasCompany = !string.IsNullOrWhiteSpace(exp.CompanyCode);
+            var experienceSkillTitles = exp.Skills?
+                .Select(skill => skill.SkillTitle)
+                .Where(skillTitle => !string.IsNullOrWhiteSpace(skillTitle))
+                .Select(skillTitle => skillTitle!.Trim())
+                .Distinct()
+                .ToArray()
+                ?? Array.Empty<string>();
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH target_user AS (
+                    SELECT id
+                    FROM habr_resumes
+                    WHERE link = @user_link
+                    LIMIT 1
+                ),
+                existing_company AS (
+                    SELECT id
+                    FROM habr_companies
+                    WHERE code = @company_code
+                    LIMIT 1
+                ),
+                inserted_company AS (
+                    INSERT INTO habr_companies (code, url, title, about, employees_count, created_at, updated_at)
+                    SELECT @company_code, @company_url, @company_title, @company_about, @company_employees_count, NOW(), NOW()
+                    WHERE @has_company
+                      AND NOT EXISTS (SELECT 1 FROM existing_company)
+                    RETURNING id
+                ),
+                company_id AS (
+                    SELECT id FROM existing_company
+                    UNION ALL
+                    SELECT id FROM inserted_company
+                    LIMIT 1
+                ),
+                updated_company AS (
+                    UPDATE habr_companies
+                    SET url = COALESCE(@company_url, url),
+                        title = COALESCE(@company_title, title),
+                        about = COALESCE(@company_about, about),
+                        employees_count = COALESCE(@company_employees_count, employees_count),
+                        updated_at = NOW()
+                    WHERE @has_company
+                      AND id = (SELECT id FROM company_id)
+                    RETURNING id
+                ),
+                dedup_experience_skills AS (
+                    SELECT DISTINCT trim(title) AS title
+                    FROM string_to_array(@experience_skill_titles, E'\n') AS t(title)
+                    WHERE trim(title) <> ''
+                ),
+                upserted_experience_skills AS (
+                    INSERT INTO habr_skills (title, created_at, updated_at)
+                    SELECT title, NOW(), NOW()
+                    FROM dedup_experience_skills
+                    ON CONFLICT (title)
+                    DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                    RETURNING id
+                ),
+                inserted_experience AS (
+                    INSERT INTO habr_user_experience (user_id, company_id, position, duration, description, created_at, updated_at)
+                    SELECT
+                        tu.id,
+                        (SELECT id FROM company_id),
+                        @position,
+                        @duration,
+                        @description,
+                        NOW(),
+                        NOW()
+                    FROM target_user tu
+                    WHERE EXISTS (SELECT 1 FROM target_user)
+                    RETURNING id
+                ),
+                deleted_experiences AS (
+                    DELETE FROM habr_user_experience
+                    WHERE @delete_old_experiences
+                      AND user_id = (SELECT id FROM target_user)
+                      AND id <> ALL (SELECT id FROM inserted_experience)
+                    RETURNING 1
+                ),
+                linked_experience_skills AS (
+                    INSERT INTO habr_user_experience_skills (experience_id, skill_id, created_at, updated_at)
+                    SELECT ie.id, s.id, NOW(), NOW()
+                    FROM inserted_experience ie
+                    CROSS JOIN upserted_experience_skills s
+                    ON CONFLICT (experience_id, skill_id) DO UPDATE SET updated_at = NOW()
+                    RETURNING 1
+                )
+                SELECT
+                    (SELECT id FROM target_user) AS user_id,
+                    (SELECT id FROM company_id) AS company_id,
+                    (SELECT id FROM inserted_experience) AS experience_id,
+                    (SELECT COUNT(*)::int FROM deleted_experiences) AS deleted_experiences_count,
+                    (SELECT COUNT(*)::int FROM upserted_experience_skills) AS upserted_experience_skills_count,
+                    (SELECT COUNT(*)::int FROM linked_experience_skills) AS linked_experience_skills_count,
+                    (SELECT COUNT(*)::int FROM updated_company) AS updated_company_count", conn);
+
+            cmd.Parameters.AddWithValue("@user_link", exp.UserLink);
+            cmd.Parameters.AddWithValue("@has_company", hasCompany);
+            cmd.Parameters.AddWithValue("@company_code", hasCompany ? exp.CompanyCode! : DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_url", exp.CompanyUrl ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_title", exp.CompanyTitle ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_about", exp.CompanyAbout ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@company_employees_count", exp.CompanySize ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@delete_old_experiences", exp.IsFirstRecord);
+            cmd.Parameters.AddWithValue("@position", exp.Position ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@duration", exp.Duration ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@description", exp.Description ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@experience_skill_titles", string.Join("\n", experienceSkillTitles));
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                cmdGetUser.Parameters.AddWithValue("@link", exp.UserLink);
-                var result = cmdGetUser.ExecuteScalar();
-                if (result != null)
-                {
-                    userId = Convert.ToInt32(result);
-                }
+                Log($"[DB] UserExperience {exp.UserLink}: ? ERROR - запрос не вернул результат");
+                return;
             }
+
+            var userId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
+            var companyId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1);
+            var experienceId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
+            var deletedExperiencesCount = reader.GetInt32(3);
+            var upsertedExperienceSkillsCount = reader.GetInt32(4);
+            var linkedExperienceSkillsCount = reader.GetInt32(5);
+            var updatedCompanyCount = reader.GetInt32(6);
 
             if (!userId.HasValue)
             {
@@ -2174,141 +2336,28 @@ public sealed class DatabaseClient
                 return;
             }
 
-            // Обрабатываем компанию
-            int? companyId = null;
-            if (!string.IsNullOrWhiteSpace(exp.CompanyCode))
+            if (!experienceId.HasValue)
             {
-                // Ищем компанию по коду
-                using (var cmdGetCompany = new NpgsqlCommand("SELECT id FROM habr_companies WHERE code = @code LIMIT 1", conn))
-                {
-                    cmdGetCompany.Parameters.AddWithValue("@code", exp.CompanyCode);
-                    var result = cmdGetCompany.ExecuteScalar();
-                    if (result != null)
-                    {
-                        companyId = Convert.ToInt32(result);
-
-                        // Обновляем информацию о компании
-                        using (var cmdUpdateCompany = new NpgsqlCommand(@"
-                            UPDATE habr_companies
-                            SET url = COALESCE(@url, url),
-                                title = COALESCE(@title, title),
-                                about = COALESCE(@about, about),
-                                employees_count = COALESCE(@employees_count, employees_count),
-                                updated_at = NOW()
-                            WHERE id = @id", conn))
-                        {
-                            cmdUpdateCompany.Parameters.AddWithValue("@id", companyId.Value);
-                            cmdUpdateCompany.Parameters.AddWithValue("@url", exp.CompanyUrl ?? (object)DBNull.Value);
-                            cmdUpdateCompany.Parameters.AddWithValue("@title", exp.CompanyTitle ?? (object)DBNull.Value);
-                            cmdUpdateCompany.Parameters.AddWithValue("@about", exp.CompanyAbout ?? (object)DBNull.Value);
-                            cmdUpdateCompany.Parameters.AddWithValue("@employees_count", exp.CompanySize ?? (object)DBNull.Value);
-                            cmdUpdateCompany.ExecuteNonQuery();
-                        }
-                    }
-                    else
-                    {
-                        // Добавляем новую компанию
-                        using (var cmdInsertCompany = new NpgsqlCommand(@"
-                            INSERT INTO habr_companies (code, url, title, about, employees_count, created_at, updated_at)
-                            VALUES (@code, @url, @title, @about, @employees_count, NOW(), NOW())
-                            RETURNING id", conn))
-                        {
-                            cmdInsertCompany.Parameters.AddWithValue("@code", exp.CompanyCode);
-                            cmdInsertCompany.Parameters.AddWithValue("@url", exp.CompanyUrl ?? (object)DBNull.Value);
-                            cmdInsertCompany.Parameters.AddWithValue("@title", exp.CompanyTitle ?? (object)DBNull.Value);
-                            cmdInsertCompany.Parameters.AddWithValue("@about", exp.CompanyAbout ?? (object)DBNull.Value);
-                            cmdInsertCompany.Parameters.AddWithValue("@employees_count", exp.CompanySize ?? (object)DBNull.Value);
-                            var insertResult = cmdInsertCompany.ExecuteScalar();
-                            if (insertResult != null)
-                            {
-                                companyId = Convert.ToInt32(insertResult);
-                            }
-                        }
-                    }
-                }
+                Log($"[DB] UserExperience {exp.UserLink}: ? ERROR - опыт работы не вставлен");
+                return;
             }
 
-            // Удаляем старые записи опыта работы для этого пользователя (только для первой записи)
-            // Каскадное удаление автоматически удалит связанные записи из habr_user_experience_skills
-            if (exp.IsFirstRecord)
+            if (deletedExperiencesCount > 0)
             {
-                using (var cmdDelete = new NpgsqlCommand("DELETE FROM habr_user_experience WHERE user_id = @user_id", conn))
-                {
-                    cmdDelete.Parameters.AddWithValue("@user_id", userId.Value);
-                    int deletedCount = cmdDelete.ExecuteNonQuery();
-                    if (deletedCount > 0)
-                    {
-                        Log($"[DB] Удалено {deletedCount} старых записей опыта работы для пользователя {exp.UserLink}");
-                    }
-                }
+                Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {exp.UserLink}");
             }
 
-            // Добавляем запись опыта работы
-            int experienceId;
-            using (var cmdInsertExperience = new NpgsqlCommand(@"
-                INSERT INTO habr_user_experience (user_id, company_id, position, duration, description, created_at, updated_at)
-                VALUES (@user_id, @company_id, @position, @duration, @description, NOW(), NOW())
-                RETURNING id", conn))
+            if (linkedExperienceSkillsCount > 0)
             {
-                cmdInsertExperience.Parameters.AddWithValue("@user_id", userId.Value);
-                cmdInsertExperience.Parameters.AddWithValue("@company_id", companyId ?? (object)DBNull.Value);
-                cmdInsertExperience.Parameters.AddWithValue("@position", exp.Position ?? (object)DBNull.Value);
-                cmdInsertExperience.Parameters.AddWithValue("@duration", exp.Duration ?? (object)DBNull.Value);
-                cmdInsertExperience.Parameters.AddWithValue("@description", exp.Description ?? (object)DBNull.Value);
-                var result = cmdInsertExperience.ExecuteScalar();
-                experienceId = Convert.ToInt32(result);
-            }
-
-            // Добавляем навыки
-            int experienceSkillsCount = 0;
-            if (exp.Skills != null && exp.Skills.Count > 0)
-            {
-                foreach (var (skillId, skillName) in exp.Skills)
-                {
-                    if (string.IsNullOrWhiteSpace(skillName)) continue;
-
-                    // Ищем или создаём навык
-                    int actualSkillId;
-                    using (var cmdGetSkill = new NpgsqlCommand("SELECT id FROM habr_skills WHERE title = @title LIMIT 1", conn))
-                    {
-                        cmdGetSkill.Parameters.AddWithValue("@title", skillName.Trim());
-                        var result = cmdGetSkill.ExecuteScalar();
-                        if (result != null)
-                        {
-                            actualSkillId = Convert.ToInt32(result);
-                        }
-                        else
-                        {
-                            // Создаём новый навык
-                            using (var cmdInsertSkill = new NpgsqlCommand(@"
-                                INSERT INTO habr_skills (title, created_at, updated_at)
-                                VALUES (@title, NOW(), NOW())
-                                RETURNING id", conn))
-                            {
-                                cmdInsertSkill.Parameters.AddWithValue("@title", skillName.Trim());
-                                var insertResult = cmdInsertSkill.ExecuteScalar();
-                                actualSkillId = Convert.ToInt32(insertResult);
-                                _statistics.RecordInsert("habr_skills", skillName.Trim());
-                            }
-                        }
-                    }
-
-                    // Связываем навык с опытом работы
-                    using (var cmdLinkSkill = new NpgsqlCommand(@"
-                        INSERT INTO habr_user_experience_skills (experience_id, skill_id, created_at, updated_at)
-                        VALUES (@experience_id, @skill_id, NOW(), NOW())
-                        ON CONFLICT (experience_id, skill_id) DO UPDATE SET updated_at = NOW()", conn))
-                    {
-                        cmdLinkSkill.Parameters.AddWithValue("@experience_id", experienceId);
-                        cmdLinkSkill.Parameters.AddWithValue("@skill_id", actualSkillId);
-                        cmdLinkSkill.ExecuteNonQuery();
-                    }
-                    experienceSkillsCount++;
-                }
                 _statistics.RecordInsert("habr_user_experience_skills", $"{experienceId}");
             }
 
-            Log($"[DB] Добавлен опыт работы для {exp.UserLink}: Company={exp.CompanyTitle}, Position={exp.Position}, Skills={exp.Skills?.Count ?? 0}");
+            if (upsertedExperienceSkillsCount > 0)
+            {
+                _statistics.RecordInsert("habr_skills", $"{upsertedExperienceSkillsCount} навыков для опыта {exp.UserLink}");
+            }
+
+            Log($"[DB] UserExperience {exp.UserLink}: ? experience_id={experienceId}, company_id={companyId}, skills={linkedExperienceSkillsCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}");
             _statistics.RecordInsert("habr_user_experience", $"{userId}-{exp.CompanyTitle}");
         }
         catch (NpgsqlException dbEx)
@@ -2322,9 +2371,16 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить навык с skill_id (только если его еще нет).
-    /// Если не найден по skill_id, но найден по title — обновляет skill_id у существующей записи.
+    /// Вставить навык с skill_id одним SQL-запросом.
     /// </summary>
+    /// <remarks>
+    /// Логика запроса:
+    /// - ищет навык по skill_id;
+    /// - если найден — ничего не делает;
+    /// - если не найден по skill_id, ищет по title;
+    /// - если найден по title — обновляет skill_id;
+    /// - если не найден ни по skill_id, ни по title — вставляет новый навык.
+    /// </remarks>
     public void SkillsInsert(NpgsqlConnection conn, int skillId, string? title)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
@@ -2335,53 +2391,74 @@ public sealed class DatabaseClient
 
             var normalizedTitle = string.IsNullOrWhiteSpace(title) ? skillId.ToString() : title;
 
-            // Проверяем существование по skill_id
-            using (var checkCmd = new NpgsqlCommand(@"
-                SELECT COUNT(*) FROM habr_skills WHERE skill_id = @skill_id", conn))
-            {
-                checkCmd.Parameters.AddWithValue("@skill_id", skillId);
-                var count = (long)(checkCmd.ExecuteScalar() ?? 0L);
-
-                if (count > 0)
-                {
-                    Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
-                    return;
-                }
-            }
-
-            // Не найден по skill_id — ищем по title
-            using (var findCmd = new NpgsqlCommand(@"
-                SELECT id FROM habr_skills WHERE title = @title LIMIT 1", conn))
-            {
-                findCmd.Parameters.AddWithValue("@title", normalizedTitle);
-                var existingId = findCmd.ExecuteScalar();
-
-                if (existingId != null)
-                {
-                    // Найден по title — обновляем skill_id
-                    using var updateCmd = new NpgsqlCommand(@"
-                        UPDATE habr_skills SET skill_id = @skill_id, updated_at = NOW()
-                        WHERE id = @id", conn);
-                    updateCmd.Parameters.AddWithValue("@skill_id", skillId);
-                    updateCmd.Parameters.AddWithValue("@id", Convert.ToInt32(existingId));
-                    updateCmd.ExecuteNonQuery();
-                    Log($"[DB] Навык найден по title='{normalizedTitle}' (id={existingId}), skill_id обновлён на {skillId}");
-                    _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
-                    return;
-                }
-            }
-
-            // Не найден ни по skill_id, ни по title — вставляем
             using var cmd = new NpgsqlCommand(@"
-                INSERT INTO habr_skills (skill_id, title, created_at, updated_at)
-                VALUES (@skill_id, @title, NOW(), NOW())", conn);
+                WITH existing_by_skill_id AS (
+                    SELECT id
+                    FROM habr_skills
+                    WHERE skill_id = @skill_id
+                    LIMIT 1
+                ),
+                existing_by_title AS (
+                    SELECT id
+                    FROM habr_skills
+                    WHERE title = @title
+                    LIMIT 1
+                ),
+                updated_by_title AS (
+                    UPDATE habr_skills
+                    SET skill_id = @skill_id,
+                        updated_at = NOW()
+                    WHERE NOT EXISTS (SELECT 1 FROM existing_by_skill_id)
+                      AND id = (SELECT id FROM existing_by_title)
+                    RETURNING id
+                ),
+                inserted AS (
+                    INSERT INTO habr_skills (skill_id, title, created_at, updated_at)
+                    SELECT @skill_id, @title, NOW(), NOW()
+                    WHERE NOT EXISTS (SELECT 1 FROM existing_by_skill_id)
+                      AND NOT EXISTS (SELECT 1 FROM existing_by_title)
+                    RETURNING id
+                )
+                SELECT
+                    (SELECT id FROM existing_by_skill_id) AS existing_by_skill_id,
+                    (SELECT id FROM updated_by_title) AS updated_by_title,
+                    (SELECT id FROM inserted) AS inserted_id", conn);
 
             cmd.Parameters.AddWithValue("@skill_id", skillId);
             cmd.Parameters.AddWithValue("@title", normalizedTitle);
 
-            cmd.ExecuteNonQuery();
-            Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}");
-            _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+            {
+                Log($"[DB] SkillsInsert {skillId}: ? ERROR - запрос не вернул результат");
+                return;
+            }
+
+            var existingBySkillId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
+            var updatedByTitle = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1);
+            var insertedId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
+
+            if (existingBySkillId.HasValue)
+            {
+                Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
+                return;
+            }
+
+            if (updatedByTitle.HasValue)
+            {
+                Log($"[DB] Навык найден по title='{normalizedTitle}' (id={updatedByTitle}), skill_id обновлён на {skillId}");
+                _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
+                return;
+            }
+
+            if (insertedId.HasValue)
+            {
+                Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}");
+                _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
+                return;
+            }
+
+            Log($"[DB] SkillsInsert {skillId}: ? навык не обработан");
         }
         catch (NpgsqlException dbEx)
         {
@@ -2407,48 +2484,99 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Сохранить отзыв о компании (с проверкой дубликатов по хешу)
+    /// Сохранить отзывы о компании одним SQL-запросом с проверкой дубликатов по хешу.
     /// </summary>
     public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, List<string> reviewTexts)
     {
-        foreach (var reviewText in reviewTexts)
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (reviewTexts == null || reviewTexts.Count == 0) return;
+
+        try
         {
-            if (string.IsNullOrWhiteSpace(reviewText)) continue;
+            EnsureConnectionOpen(conn);
 
-            try
-            {
-                var reviewHash = CompanyRatingScraper.ComputeReviewHash(reviewText);
-
-                // Проверяем, существует ли уже отзыв с таким хешем
-                using (var cmdCheck = new NpgsqlCommand(@"
-                    SELECT COUNT(*) FROM habr_company_reviews WHERE review_hash = @review_hash", conn))
+            var reviews = reviewTexts
+                .Where(reviewText => !string.IsNullOrWhiteSpace(reviewText))
+                .Select(reviewText => new
                 {
-                    cmdCheck.Parameters.AddWithValue("@review_hash", reviewHash);
-                    var count = Convert.ToInt32(cmdCheck.ExecuteScalar());
+                    review_hash = CompanyRatingScraper.ComputeReviewHash(reviewText),
+                    review_text = reviewText
+                })
+                .ToArray();
 
-                    if (count > 0)
-                    {
-                        Log($"[DB] Отзыв с хешем {reviewHash.Substring(0, 8)}... уже существует, пропускаем");
-                        continue;
-                    }
-                }
+            if (reviews.Length == 0) return;
 
-                // Вставляем новый отзыв
-                using var cmdInsert = new NpgsqlCommand(@"
+            var reviewsJson = System.Text.Json.JsonSerializer.Serialize(reviews);
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH review_rows AS (
+                    SELECT review_hash, review_text
+                    FROM jsonb_to_recordset(@reviews::jsonb)
+                         AS r(review_hash text, review_text text)
+                    WHERE review_hash IS NOT NULL
+                      AND review_text IS NOT NULL
+                      AND btrim(review_text) <> ''
+                ),
+                dedup_review_rows AS (
+                    SELECT DISTINCT ON (review_hash)
+                        review_hash,
+                        review_text
+                    FROM review_rows
+                    ORDER BY review_hash, review_text
+                ),
+                existing_reviews AS (
+                    SELECT DISTINCT hcr.review_hash
+                    FROM habr_company_reviews hcr
+                    JOIN dedup_review_rows drr ON drr.review_hash = hcr.review_hash
+                ),
+                inserted_reviews AS (
                     INSERT INTO habr_company_reviews (company_id, review_hash, review_text, created_at, updated_at)
-                    VALUES (@company_id, @review_hash, @review_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", conn);
+                    SELECT @company_id, drr.review_hash, drr.review_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM dedup_review_rows drr
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM existing_reviews er
+                        WHERE er.review_hash = drr.review_hash
+                    )
+                    RETURNING id, review_hash
+                )
+                SELECT
+                    (SELECT COUNT(*)::int FROM inserted_reviews) AS inserted_count,
+                    (SELECT COUNT(*)::int FROM existing_reviews) AS existing_count,
+                    (SELECT COUNT(*)::int FROM dedup_review_rows) AS total_count", conn);
 
-                cmdInsert.Parameters.AddWithValue("@company_id", companyId);
-                cmdInsert.Parameters.AddWithValue("@review_hash", reviewHash);
-                cmdInsert.Parameters.AddWithValue("@review_text", reviewText);
+            cmd.Parameters.AddWithValue("@company_id", companyId);
+            cmd.Parameters.AddWithValue("@reviews", reviewsJson);
 
-                cmdInsert.ExecuteNonQuery();
-                Log($"[DB] Добавлен новый отзыв для компании ID={companyId}");
-            }
-            catch (Exception ex)
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                Log($"[DB] Ошибка при сохранении отзыва для компании ID={companyId}: {ex.Message}");
+                Log($"[DB] CompanyReviews {companyId}: ? ERROR - запрос не вернул результат");
+                return;
             }
+
+            var insertedCount = reader.GetInt32(0);
+            var existingCount = reader.GetInt32(1);
+            var totalCount = reader.GetInt32(2);
+
+            if (insertedCount > 0)
+            {
+                Log($"[DB] Добавлено {insertedCount} новых отзывов для компании ID={companyId}");
+            }
+
+            if (existingCount > 0)
+            {
+                Log($"[DB] Пропущено {existingCount} существующих отзывов для компании ID={companyId}");
+            }
+
+            if (totalCount == 0)
+            {
+                Log($"[DB] CompanyReviews {companyId}: ? отзывов для обработки не найдено");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Ошибка при сохранении отзывов для компании ID={companyId}: {ex.Message}");
         }
     }
 
@@ -2482,158 +2610,227 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить связи пользователь-университет в БД
+    /// Вставить связи пользователь-университет в БД одним SQL-запросом.
     /// </summary>
+    /// <remarks>
+    /// Логика запроса:
+    /// - входные записи передаются одним JSON-параметром;
+    /// - записи дедуплицируются по паре user_link + university_habr_id;
+    /// - пользователи находятся в habr_resumes;
+    /// - университеты находятся в habr_universities;
+    /// - связи upsert-ятся в habr_resumes_universities через ON CONFLICT (user_id, university_id);
+    /// - отдельно считаются пропущенные пользователи и университеты.
+    /// </remarks>
     private void ResumesUniversitiesInsert(NpgsqlConnection conn, List<UserUniversityRecord>? userUniversities)
     {
-        if (userUniversities == null || userUniversities.Count == 0)
-        {
-            return;
-        }
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (userUniversities == null || userUniversities.Count == 0) return;
 
-        foreach (var userUniversity in userUniversities)
+        try
         {
-            ResumesUniversityInsert(conn, userUniversity);
-        }
-    }
+            EnsureConnectionOpen(conn);
 
-    private void ResumesUniversityInsert(NpgsqlConnection conn, UserUniversityRecord data)
-    {
-        EnsureConnectionOpen(conn);
+            var records = userUniversities
+                .Where(userUniversity => !string.IsNullOrWhiteSpace(userUniversity.UserLink))
+                .GroupBy(userUniversity => (userUniversity.UserLink, userUniversity.UniversityHabrId))
+                .Select(group =>
+                {
+                    var first = group.First();
+                    var coursesJson = first.Courses != null && first.Courses.Count > 0
+                        ? System.Text.Json.JsonSerializer.Serialize(first.Courses)
+                        : null;
 
-        // Получаем user_id по ссылке
-        int? userId = null;
-        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
-        {
-            cmdUser.Parameters.AddWithValue("@link", data.UserLink);
-            var result = cmdUser.ExecuteScalar();
-            if (result != null)
+                    return new
+                    {
+                        user_link = first.UserLink,
+                        university_habr_id = first.UniversityHabrId,
+                        courses = coursesJson,
+                        description = first.Description
+                    };
+                })
+                .ToArray();
+
+            if (records.Length == 0) return;
+
+            var recordsJson = System.Text.Json.JsonSerializer.Serialize(records);
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH input_rows AS (
+                    SELECT user_link, university_habr_id, courses::jsonb AS courses, description
+                    FROM jsonb_to_recordset(@user_universities::jsonb)
+                         AS r(user_link text, university_habr_id int, courses jsonb, description text)
+                    WHERE user_link IS NOT NULL
+                      AND university_habr_id IS NOT NULL
+                ),
+                users AS (
+                    SELECT hr.id AS user_id, ir.user_link
+                    FROM input_rows ir
+                    JOIN habr_resumes hr ON hr.link = ir.user_link
+                ),
+                universities AS (
+                    SELECT hu.id AS university_id, ir.university_habr_id
+                    FROM input_rows ir
+                    JOIN habr_universities hu ON hu.habr_id = ir.university_habr_id
+                ),
+                joined_rows AS (
+                    SELECT
+                        u.user_id,
+                        univ.university_id,
+                        ir.courses,
+                        ir.description
+                    FROM input_rows ir
+                    JOIN users u ON u.user_link = ir.user_link
+                    JOIN universities univ ON univ.university_habr_id = ir.university_habr_id
+                ),
+                missing_users AS (
+                    SELECT DISTINCT ir.user_link
+                    FROM input_rows ir
+                    LEFT JOIN users u ON u.user_link = ir.user_link
+                    WHERE u.user_id IS NULL
+                ),
+                missing_universities AS (
+                    SELECT DISTINCT ir.university_habr_id
+                    FROM input_rows ir
+                    LEFT JOIN universities univ ON univ.university_habr_id = ir.university_habr_id
+                    WHERE univ.university_id IS NULL
+                ),
+                upserted AS (
+                    INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
+                    SELECT user_id, university_id, courses, description, NOW(), NOW()
+                    FROM joined_rows
+                    ON CONFLICT (user_id, university_id)
+                    DO UPDATE SET
+                        courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
+                        description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
+                        updated_at = NOW()
+                    RETURNING user_id, university_id
+                )
+                SELECT
+                    (SELECT COUNT(*)::int FROM upserted) AS upserted_count,
+                    (SELECT COUNT(*)::int FROM missing_users) AS missing_users_count,
+                    (SELECT COUNT(*)::int FROM missing_universities) AS missing_universities_count,
+                    (SELECT COUNT(*)::int FROM input_rows) AS input_count", conn);
+
+            cmd.Parameters.AddWithValue("@user_universities", recordsJson);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                userId = Convert.ToInt32(result);
+                Log("[DB] ResumesUniversities: ? ERROR - запрос не вернул результат");
+                return;
             }
-        }
 
-        if (!userId.HasValue)
-        {
-            Log($"[DB] Пользователь не найден: {data.UserLink}");
-            return;
-        }
+            var upsertedCount = reader.GetInt32(0);
+            var missingUsersCount = reader.GetInt32(1);
+            var missingUniversitiesCount = reader.GetInt32(2);
+            var inputCount = reader.GetInt32(3);
 
-        // Получаем university_id по habr_id
-        int? universityId = null;
-        using (var cmdUniv = new NpgsqlCommand("SELECT id FROM habr_universities WHERE habr_id = @habr_id LIMIT 1", conn))
-        {
-            cmdUniv.Parameters.AddWithValue("@habr_id", data.UniversityHabrId);
-            var result = cmdUniv.ExecuteScalar();
-            if (result != null)
+            if (upsertedCount > 0)
             {
-                universityId = Convert.ToInt32(result);
+                _statistics.RecordUpdate("habr_resumes_universities", $"{upsertedCount}");
             }
-        }
 
-        if (!universityId.HasValue)
+            if (missingUsersCount > 0)
+            {
+                Log($"[DB] Пропущено связей пользователь-университет: не найдено пользователей={missingUsersCount}");
+            }
+
+            if (missingUniversitiesCount > 0)
+            {
+                Log($"[DB] Пропущено связей пользователь-университет: не найдено университетов={missingUniversitiesCount}");
+            }
+
+            Log($"[DB] Связи пользователь-университет: input={inputCount}, upsert={upsertedCount}, missing_users={missingUsersCount}, missing_universities={missingUniversitiesCount}");
+        }
+        catch (Exception ex)
         {
-            Log($"[DB] Университет не найден: habr_id={data.UniversityHabrId}");
-            return;
+            Log($"[DB] Ошибка при сохранении связей пользователь-университет: {ex.Message}");
         }
-
-        // Сериализуем курсы в JSON
-        string? coursesJson = null;
-        if (data.Courses != null && data.Courses.Count > 0)
-        {
-            coursesJson = System.Text.Json.JsonSerializer.Serialize(data.Courses);
-        }
-
-        using var cmd = new NpgsqlCommand(@"
-            INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
-            VALUES (@user_id, @university_id, @courses::jsonb, @description, NOW(), NOW())
-            ON CONFLICT (user_id, university_id)
-            DO UPDATE SET
-                courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
-                description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
-                updated_at = NOW()", conn);
-
-        cmd.Parameters.AddWithValue("@user_id", userId.Value);
-        cmd.Parameters.AddWithValue("@university_id", universityId.Value);
-        cmd.Parameters.AddWithValue("@courses", coursesJson ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@description", data.Description ?? (object)DBNull.Value);
-
-        int rowsAffected = cmd.ExecuteNonQuery();
-        if (rowsAffected > 0)
-            _statistics.RecordUpdate("habr_resumes_universities", $"{userId}-{universityId}");
-        Log($"[DB] Связь пользователь-университет: user_id={userId}, university_id={universityId}, courses={data.Courses?.Count ?? 0}: ? UPSERT");
     }
 
     /// <summary>
-    /// Вставить запись дополнительного образования в БД
+    /// Вставить запись дополнительного образования в БД одним SQL-запросом.
+    /// При DeleteExisting=true сначала удаляет старые записи пользователя, затем вставляет новую.
     /// </summary>
     private void ResumesEducationsInsert(NpgsqlConnection conn, AdditionalEducationRecord data)
     {
-        EnsureConnectionOpen(conn);
+        if (conn is null) throw new ArgumentNullException(nameof(conn));
 
-        // Получаем resume_id по ссылке
-        int? resumeId = null;
-        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
+        try
         {
-            cmdUser.Parameters.AddWithValue("@link", data.UserLink);
-            var result = cmdUser.ExecuteScalar();
-            if (result != null)
+            EnsureConnectionOpen(conn);
+
+            using var cmd = new NpgsqlCommand(@"
+                WITH target_resume AS (
+                    SELECT id
+                    FROM habr_resumes
+                    WHERE link = @link
+                    LIMIT 1
+                ),
+                deleted AS (
+                    DELETE FROM habr_resumes_educations e
+                    USING target_resume r
+                    WHERE e.resume_id = r.id
+                      AND @delete_existing
+                    RETURNING e.resume_id
+                ),
+                inserted AS (
+                    INSERT INTO habr_resumes_educations (resume_id, title, course, duration, created_at, updated_at)
+                    SELECT id, @title, @course, @duration, NOW(), NOW()
+                    FROM target_resume
+                    ON CONFLICT DO NOTHING
+                    RETURNING resume_id, title
+                )
+                SELECT
+                    (SELECT id FROM target_resume) AS resume_id,
+                    (SELECT COUNT(*)::int FROM deleted) AS deleted_count,
+                    (SELECT resume_id FROM inserted) AS inserted_resume_id,
+                    (SELECT title FROM inserted) AS inserted_title", conn);
+
+            cmd.Parameters.AddWithValue("@link", data.UserLink);
+            cmd.Parameters.AddWithValue("@title", data.Title);
+            cmd.Parameters.AddWithValue("@course", data.Course ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@duration", data.Duration ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@delete_existing", data.DeleteExisting);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
             {
-                resumeId = Convert.ToInt32(result);
+                Log($"[DB] Дополнительное образование {data.UserLink}: ? ERROR - запрос не вернул результат");
+                return;
+            }
+
+            var resumeId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
+            var deletedCount = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
+            var insertedResumeId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
+            var insertedTitle = reader.IsDBNull(3) ? null : reader.GetString(3);
+
+            if (!resumeId.HasValue)
+            {
+                Log($"[DB] Пользователь не найден для дополнительного образования: {data.UserLink}");
+                return;
+            }
+
+           if (deletedCount > 0)
+           {
+               Log($"[DB] Дополнительное образование: resume_id={resumeId}: удалено старых записей={deletedCount}");
+           }
+
+            if (insertedResumeId.HasValue)
+            {
+                _statistics.RecordInsert("habr_resumes_educations", $"{insertedResumeId}-{insertedTitle}");
+                Log($"[DB] Дополнительное образование: resume_id={insertedResumeId}, title={insertedTitle}: ? INSERT");
+            }
+            else
+            {
+                _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{data.Title}");
+                Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}: ? SKIPPED");
             }
         }
-
-        if (!resumeId.HasValue)
+        catch (Exception ex)
         {
-            Log($"[DB] Пользователь не найден для дополнительного образования: {data.UserLink}");
-            return;
+            Log($"[DB] Ошибка при сохранении дополнительного образования для {data.UserLink}: {ex.Message}");
         }
-
-        using var cmd = new NpgsqlCommand(@"
-            INSERT INTO habr_resumes_educations (resume_id, title, course, duration, created_at, updated_at)
-            VALUES (@resume_id, @title, @course, @duration, NOW(), NOW())
-            ON CONFLICT DO NOTHING", conn);
-
-        cmd.Parameters.AddWithValue("@resume_id", resumeId.Value);
-        cmd.Parameters.AddWithValue("@title", data.Title);
-        cmd.Parameters.AddWithValue("@course", data.Course ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@duration", data.Duration ?? (object)DBNull.Value);
-
-        int rowsAffected = cmd.ExecuteNonQuery();
-        if (rowsAffected > 0)
-            _statistics.RecordInsert("habr_resumes_educations", $"{resumeId}-{data.Title}");
-        else
-            _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{data.Title}");
-        Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={data.Title}: {(rowsAffected > 0 ? "? INSERT" : "? SKIPPED")}");
-    }
-
-    /// <summary>
-    /// Удалить все записи дополнительного образования пользователя перед добавлением новых
-    /// </summary>
-    public void ResumesEducationsDelete(NpgsqlConnection conn, string userLink)
-    {
-        EnsureConnectionOpen(conn);
-
-        // Получаем resume_id по ссылке
-        int? resumeId = null;
-        using (var cmdUser = new NpgsqlCommand("SELECT id FROM habr_resumes WHERE link = @link LIMIT 1", conn))
-        {
-            cmdUser.Parameters.AddWithValue("@link", userLink);
-            var result = cmdUser.ExecuteScalar();
-            if (result != null)
-            {
-                resumeId = Convert.ToInt32(result);
-            }
-        }
-
-        if (!resumeId.HasValue)
-        {
-            return;
-        }
-
-        using var cmd = new NpgsqlCommand("DELETE FROM habr_resumes_educations WHERE resume_id = @resume_id", conn);
-        cmd.Parameters.AddWithValue("@resume_id", resumeId.Value);
-        cmd.ExecuteNonQuery();
     }
 
     /// <summary>
@@ -2647,9 +2844,13 @@ public sealed class DatabaseClient
         try
         {
             EnsureConnectionOpen(conn);
-            using var cmd = new NpgsqlCommand(
-                "DELETE FROM habr_resumes WHERE title LIKE '%Ошибка 404%' OR about LIKE '%Ошибка 404%'", conn);
-            int deleted = cmd.ExecuteNonQuery();
+
+            // SQL вынесен в sql/cleanup_404_pages.sql:
+            // CREATE OR REPLACE FUNCTION cleanup_404_resumes() RETURNS INTEGER
+            using var cmd = new NpgsqlCommand("SELECT cleanup_404_resumes()", conn);
+            var result = cmd.ExecuteScalar();
+            int deleted = result is null ? 0 : Convert.ToInt32(result);
+
             Log($"[DB] Очистка 404: удалено {deleted} записей");
             return deleted;
         }
