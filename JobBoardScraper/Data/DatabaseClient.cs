@@ -172,6 +172,13 @@ public sealed class DatabaseClient
     private ConcurrentQueue<DbRecord>? _saveQueue;
     private readonly ConsoleLogger? _logger;
 
+    private const string DbInsertIcon = "✅";
+    private const string DbUpdateIcon = "↻";
+    private const string DbErrorIcon = "❌";
+    private const string DbSkipIcon = "⏭";
+    private const string DbInfoIcon = "ℹ";
+    private const string DbDeleteIcon = "🗑";
+
     
     public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
     {
@@ -923,7 +930,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] Level {levelTitle}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] Level {levelTitle}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_levels", levelTitle);
                 return null;
             }
@@ -935,12 +942,12 @@ public sealed class DatabaseClient
             if (isInsert)
             {
                 _statistics.RecordInsert("habr_levels", $"{levelId}:{levelTitle}");
-                Log($"[DB] Level {levelTitle}: ? INSERT (id={levelId})");
+                Log($"[DB] Level {levelTitle}: {DbInsertIcon} INSERT (id={levelId})");
             }
             else
             {
                 _statistics.RecordUpdate("habr_levels", $"{levelId}:{levelTitle}");
-                Log($"[DB] Level {levelTitle}: ? UPDATE (id={levelId})");
+                Log($"[DB] Level {levelTitle}: {DbUpdateIcon} UPDATE (id={levelId})");
             }
 
             TryDumpStatistics();
@@ -1003,7 +1010,7 @@ public sealed class DatabaseClient
             {
                 if (title != null && title.Contains("Ошибка 404"))
                 {
-                    Log($"[DB] Resume {link}: ? SKIP (404 страница)");
+                    Log($"[DB] Resume {link}: {DbSkipIcon} SKIP (404 страница)");
                     _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
@@ -1038,7 +1045,7 @@ public sealed class DatabaseClient
                 var inserted = cmd.ExecuteScalar();
                 if (inserted == null)
                 {
-                    Log($"[DB] Resume {link}: ? SKIP (уже существует)");
+                    Log($"[DB] Resume {link}: {DbSkipIcon} SKIP (уже существует)");
                     _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
@@ -1096,7 +1103,7 @@ public sealed class DatabaseClient
                 if (jobSearchStatus != null)
                     logParts.Add($"JobStatus={jobSearchStatus}");
 
-                logParts.Add("? INSERT");
+                logParts.Add($"{DbInsertIcon} INSERT");
 
                 Log(string.Join(" | ", logParts));
                 TryDumpStatistics();
@@ -1105,14 +1112,14 @@ public sealed class DatabaseClient
             {
                 if (title != null && title.Contains("Ошибка 404"))
                 {
-                    Log($"[DB] Resume {link}: ? SKIP (404 страница)");
+                    Log($"[DB] Resume {link}: {DbSkipIcon} SKIP (404 страница)");
                     _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
 
                 if (title != null && title.Contains("Профиль удален") && isDeleted == true)
                 {
-                    Log($"[DB] Resume {link}: ? Обработка удалённого профиля");
+                    Log($"[DB] Resume {link}: {DbDeleteIcon} Обработка удалённого профиля");
                 }
 
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
@@ -1221,7 +1228,7 @@ public sealed class DatabaseClient
                 if (isPublic.HasValue)
                     logParts.Add($"Public={isPublic.Value}");
 
-                logParts.Add(isInsert ? "? INSERT" : "? UPDATE");
+                logParts.Add(isInsert ? $"{DbInsertIcon} INSERT" : $"{DbUpdateIcon} UPDATE");
 
                 Log(string.Join(" | ", logParts));
                 TryDumpStatistics();
@@ -1230,19 +1237,19 @@ public sealed class DatabaseClient
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
         {
-            Log($"[DB] Resume {link}: ? SKIP (уникальное ограничение)");
+            Log($"[DB] Resume {link}: {DbSkipIcon} SKIP (уникальное ограничение)");
             _statistics.RecordSkipped("habr_resumes", link);
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Resume {link}: ? ERROR - {dbEx.Message}");
+            Log($"[DB] Resume {link}: {DbErrorIcon} ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_resumes", link);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Resume {link}: ? ERROR - {ex.Message}");
+            Log($"[DB] Resume {link}: {DbErrorIcon} ERROR - {ex.Message}");
             _statistics.RecordError("habr_resumes", link);
             TryDumpStatistics();
         }
@@ -1432,7 +1439,7 @@ public sealed class DatabaseClient
             if (scores.HasValue)
                 logParts.Add($"Scores={scores.Value:F2}");
 
-            logParts.Add(isInsert ? "? INSERT" : "? UPDATE");
+            logParts.Add(isInsert ? $"{DbInsertIcon} INSERT" : $"{DbUpdateIcon} UPDATE");
 
             Log(string.Join(" | ", logParts));
             TryDumpStatistics();
@@ -1441,14 +1448,14 @@ public sealed class DatabaseClient
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Компания {companyCode}: ? ERROR - {dbEx.Message}");
+            Log($"[DB] Компания {companyCode}: {DbErrorIcon} ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_companies", companyCode);
             TryDumpStatistics();
             return null;
         }
         catch (Exception ex)
         {
-            Log($"[DB] Компания {companyCode}: ? ERROR - {ex.Message}");
+            Log($"[DB] Компания {companyCode}: {DbErrorIcon} ERROR - {ex.Message}");
             _statistics.RecordError("habr_companies", companyCode);
             TryDumpStatistics();
             return null;
@@ -1487,18 +1494,18 @@ public sealed class DatabaseClient
             else
                 _statistics.RecordUpdate("habr_category_root_ids", categoryId);
 
-            Log($"[DB] Category {categoryId} -> {categoryName}: {(isInsert ? "? INSERT" : "? UPDATE")}");
+            Log($"[DB] Category {categoryId} -> {categoryName}: {(isInsert ? $"{DbInsertIcon} INSERT" : $"{DbUpdateIcon} UPDATE")}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Category {categoryId}: ? ERROR - {dbEx.Message}");
+            Log($"[DB] Category {categoryId}: {DbErrorIcon} ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_category_root_ids", categoryId);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Category {categoryId}: ? ERROR - {ex.Message}");
+            Log($"[DB] Category {categoryId}: {DbErrorIcon} ERROR - {ex.Message}");
             _statistics.RecordError("habr_category_root_ids", categoryId);
             TryDumpStatistics();
         }
@@ -1765,7 +1772,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] CompanySkills {companyCode}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] CompanySkills {companyCode}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_company_skills", companyCode);
                 TryDumpStatistics();
                 return;
@@ -1782,7 +1789,7 @@ public sealed class DatabaseClient
 
             if (!companyId.HasValue)
             {
-                Log($"[DB] Компания {companyCode} не найдена в БД. Пропуск навыков.");
+                Log($"[DB] Компания {companyCode} не найдена в БД. {DbSkipIcon} Пропуск навыков.");
                 _statistics.RecordSkipped("habr_company_skills", companyCode);
                 TryDumpStatistics();
                 return;
@@ -1791,6 +1798,7 @@ public sealed class DatabaseClient
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_company_skills", $"{companyId}-{deletedCount}");
+                Log($"[DB] CompanySkills {companyCode}: {DbDeleteIcon} удалено старых связей={deletedCount}");
             }
 
             if (upsertedSkillsCount > 0)
@@ -1819,18 +1827,18 @@ public sealed class DatabaseClient
                 }
             }
  
-            Log($"[DB] CompanySkills {companyCode}: ? skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
+            Log($"[DB] CompanySkills {companyCode}: {DbInfoIcon} skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] CompanySkills {companyCode}: ? ERROR - {dbEx.Message}");
+            Log($"[DB] CompanySkills {companyCode}: {DbErrorIcon} ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_company_skills", companyCode);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] CompanySkills {companyCode}: ? ERROR - {ex.Message}");
+            Log($"[DB] CompanySkills {companyCode}: {DbErrorIcon} ERROR - {ex.Message}");
             _statistics.RecordError("habr_company_skills", companyCode);
             TryDumpStatistics();
         }
@@ -2065,7 +2073,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] UserSkills {userLink}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] UserSkills {userLink}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_user_skills", userLink);
                 TryDumpStatistics();
                 return;
@@ -2082,7 +2090,7 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск навыков.");
+                Log($"[DB] Пользователь {userLink} не найден в БД. {DbSkipIcon} Пропуск навыков.");
                 _statistics.RecordSkipped("habr_user_skills", userLink);
                 TryDumpStatistics();
                 return;
@@ -2091,6 +2099,7 @@ public sealed class DatabaseClient
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_user_skills", $"{userId}-{deletedCount}");
+                Log($"[DB] UserSkills {userLink}: {DbDeleteIcon} удалено старых связей={deletedCount}");
             }
 
             if (upsertedSkillsCount > 0)
@@ -2119,18 +2128,18 @@ public sealed class DatabaseClient
                 }
             }
 
-            Log($"[DB] UserSkills {userLink}: ? skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
+            Log($"[DB] UserSkills {userLink}: {DbInfoIcon} skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при добавлении навыков для {userLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении навыков для {userLink}: {DbErrorIcon} {dbEx.Message}");
             _statistics.RecordError("habr_user_skills", userLink);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_user_skills", userLink);
             TryDumpStatistics();
         }
@@ -2290,7 +2299,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] UserExperience {userLink}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] UserExperience {userLink}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_user_experience", userLink);
                 TryDumpStatistics();
                 return;
@@ -2311,7 +2320,7 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск опыта работы.");
+                Log($"[DB] Пользователь {userLink} не найден в БД. {DbSkipIcon} Пропуск опыта работы.");
                 _statistics.RecordSkipped("habr_user_experience", userLink);
                 TryDumpStatistics();
                 return;
@@ -2319,7 +2328,7 @@ public sealed class DatabaseClient
 
             if (!experienceId.HasValue)
             {
-                Log($"[DB] UserExperience {userLink}: ? ERROR - опыт работы не вставлен");
+                Log($"[DB] UserExperience {userLink}: {DbErrorIcon} ERROR - опыт работы не вставлен");
                 _statistics.RecordError("habr_user_experience", userLink);
                 TryDumpStatistics();
                 return;
@@ -2328,7 +2337,7 @@ public sealed class DatabaseClient
             if (deletedExperiencesCount > 0)
             {
                 _statistics.RecordDelete("habr_user_experience", $"{userId}-{deletedExperiencesCount}");
-                Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {userLink}");
+                Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {userLink}: {DbDeleteIcon}");
             }
 
             if (insertedCompanyCount > 0)
@@ -2367,19 +2376,19 @@ public sealed class DatabaseClient
                 }
             }
 
-            Log($"[DB] UserExperience {userLink}: ? experience_id={experienceId}, company_id={companyId}, skills_insert={insertedExperienceSkillsCount}, skills_update={updatedExperienceSkillsCount}, linked_skills_insert={linkedExperienceSkillsInsertedCount}, linked_skills_update={linkedExperienceSkillsUpdatedCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}, inserted_company={insertedCompanyCount}");
+            Log($"[DB] UserExperience {userLink}: {DbInfoIcon} experience_id={experienceId}, company_id={companyId}, skills_insert={insertedExperienceSkillsCount}, skills_update={updatedExperienceSkillsCount}, linked_skills_insert={linkedExperienceSkillsInsertedCount}, linked_skills_update={linkedExperienceSkillsUpdatedCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}, inserted_company={insertedCompanyCount}");
             _statistics.RecordInsert("habr_user_experience", $"{userId}-{companyTitle}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при добавлении опыта работы для {userLink}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении опыта работы для {userLink}: {DbErrorIcon} {dbEx.Message}");
             _statistics.RecordError("habr_user_experience", userLink);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {userLink}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {userLink}: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_user_experience", userLink);
             TryDumpStatistics();
         }
@@ -2445,7 +2454,9 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] SkillsInsert {skillId}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] SkillsInsert {skillId}: {DbErrorIcon} ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_skills", $"skill_id={skillId}");
+                TryDumpStatistics();
                 return;
             }
 
@@ -2455,7 +2466,7 @@ public sealed class DatabaseClient
 
             if (existingBySkillId.HasValue)
             {
-                Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
+                Log($"[DB] Навык уже существует: skill_id={skillId}, {DbSkipIcon} вставка пропущена");
                 _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
@@ -2463,7 +2474,7 @@ public sealed class DatabaseClient
 
             if (updatedByTitle.HasValue)
             {
-                Log($"[DB] Навык найден по title='{normalizedTitle}' (id={updatedByTitle}), skill_id обновлён на {skillId}");
+                Log($"[DB] Навык найден по title='{normalizedTitle}' (id={updatedByTitle}), {DbUpdateIcon} skill_id обновлён на {skillId}");
                 _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
@@ -2471,25 +2482,25 @@ public sealed class DatabaseClient
 
             if (insertedId.HasValue)
             {
-                Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}");
+                Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}: {DbInsertIcon}");
                 _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
             }
 
-            Log($"[DB] SkillsInsert {skillId}: ? навык не обработан");
+            Log($"[DB] SkillsInsert {skillId}: {DbSkipIcon} навык не обработан");
             _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка БД при добавлении навыка {skillId}: {dbEx.Message}");
+            Log($"[DB] Ошибка БД при добавлении навыка {skillId}: {DbErrorIcon} {dbEx.Message}");
             _statistics.RecordError("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
@@ -2576,7 +2587,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] CompanyReviews {companyId}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] CompanyReviews {companyId}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_company_reviews", companyId.ToString());
                 TryDumpStatistics();
                 return;
@@ -2589,18 +2600,18 @@ public sealed class DatabaseClient
             if (insertedCount > 0)
             {
                 _statistics.RecordInsert("habr_company_reviews", $"{companyId}:{insertedCount}");
-                Log($"[DB] Добавлено {insertedCount} новых отзывов для компании ID={companyId}");
+                Log($"[DB] Добавлено {insertedCount} новых отзывов для компании ID={companyId}: {DbInsertIcon}");
             }
 
             if (existingCount > 0)
             {
                 _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:{existingCount}");
-                Log($"[DB] Пропущено {existingCount} существующих отзывов для компании ID={companyId}");
+                Log($"[DB] Пропущено {existingCount} существующих отзывов для компании ID={companyId}: {DbSkipIcon}");
             }
 
             if (totalCount == 0)
             {
-                Log($"[DB] CompanyReviews {companyId}: ? отзывов для обработки не найдено");
+                Log($"[DB] CompanyReviews {companyId}: {DbInfoIcon} отзывов для обработки не найдено");
                 _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:0");
             }
 
@@ -2608,7 +2619,7 @@ public sealed class DatabaseClient
         }
         catch (Exception ex)
         {
-            Log($"[DB] Ошибка при сохранении отзывов для компании ID={companyId}: {ex.Message}");
+            Log($"[DB] Ошибка при сохранении отзывов для компании ID={companyId}: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_company_reviews", companyId.ToString());
             TryDumpStatistics();
         }
@@ -2642,7 +2653,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] Университет {name} (ID={habrId}): ? ERROR - запрос не вернул результат");
+                Log($"[DB] Университет {name} (ID={habrId}): {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_universities", habrId.ToString());
                 return;
             }
@@ -2654,25 +2665,25 @@ public sealed class DatabaseClient
             if (isInsert)
             {
                 _statistics.RecordInsert("habr_universities", $"{habrId}:{name}");
-                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): ? INSERT");
+                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): {DbInsertIcon} INSERT");
             }
             else
             {
                 _statistics.RecordUpdate("habr_universities", $"{habrId}:{name}");
-                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): ? UPDATE");
+                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): {DbUpdateIcon} UPDATE");
             }
 
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            Log($"[DB] Ошибка при сохранении университета {name} (ID={habrId}): {dbEx.Message}");
+            Log($"[DB] Ошибка при сохранении университета {name} (ID={habrId}): {DbErrorIcon} {dbEx.Message}");
             _statistics.RecordError("habr_universities", habrId.ToString());
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Неожиданная ошибка при сохранении университета {name} (ID={habrId}): {ex.Message}");
+            Log($"[DB] Неожиданная ошибка при сохранении университета {name} (ID={habrId}): {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_universities", habrId.ToString());
             TryDumpStatistics();
         }
@@ -2787,7 +2798,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log("[DB] ResumesUniversities: ? ERROR - запрос не вернул результат");
+                Log($"[DB] ResumesUniversities: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_resumes_universities", "query");
                 TryDumpStatistics();
                 return;
@@ -2813,21 +2824,21 @@ public sealed class DatabaseClient
             if (missingUsersCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_universities", $"missing_users:{missingUsersCount}");
-                Log($"[DB] Пропущено связей пользователь-университет: не найдено пользователей={missingUsersCount}");
+                Log($"[DB] Пропущено связей пользователь-университет: не найдено пользователей={missingUsersCount}: {DbSkipIcon}");
             }
 
             if (missingUniversitiesCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_universities", $"missing_universities:{missingUniversitiesCount}");
-                Log($"[DB] Пропущено связей пользователь-университет: не найдено университетов={missingUniversitiesCount}");
+                Log($"[DB] Пропущено связей пользователь-университет: не найдено университетов={missingUniversitiesCount}: {DbSkipIcon}");
             }
 
-            Log($"[DB] Связи пользователь-университет: input={inputCount}, upsert={upsertedCount}, inserted={insertedCount}, updated={updatedCount}, missing_users={missingUsersCount}, missing_universities={missingUniversitiesCount}");
+            Log($"[DB] Связи пользователь-университет: {DbInfoIcon} input={inputCount}, upsert={upsertedCount}, inserted={insertedCount}, updated={updatedCount}, missing_users={missingUsersCount}, missing_universities={missingUniversitiesCount}");
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Ошибка при сохранении связей пользователь-университет: {ex.Message}");
+            Log($"[DB] Ошибка при сохранении связей пользователь-университет: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_resumes_universities", "exception");
             TryDumpStatistics();
         }
@@ -2887,7 +2898,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                Log($"[DB] Дополнительное образование {userLink}: ? ERROR - запрос не вернул результат");
+                Log($"[DB] Дополнительное образование {userLink}: {DbErrorIcon} ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_resumes_educations", userLink);
                 TryDumpStatistics();
                 return;
@@ -2900,7 +2911,7 @@ public sealed class DatabaseClient
 
             if (!resumeId.HasValue)
             {
-                Log($"[DB] Пользователь не найден для дополнительного образования: {userLink}");
+                Log($"[DB] Пользователь не найден для дополнительного образования: {userLink}: {DbSkipIcon}");
                 _statistics.RecordSkipped("habr_resumes_educations", userLink);
                 TryDumpStatistics();
                 return;
@@ -2909,25 +2920,25 @@ public sealed class DatabaseClient
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_resumes_educations", $"{resumeId}-{deletedCount}");
-                Log($"[DB] Дополнительное образование: resume_id={resumeId}: удалено старых записей={deletedCount}");
+                Log($"[DB] Дополнительное образование: resume_id={resumeId}: {DbDeleteIcon} удалено старых записей={deletedCount}");
             }
 
             if (insertedResumeId.HasValue)
             {
                 _statistics.RecordInsert("habr_resumes_educations", $"{insertedResumeId}-{insertedTitle}");
-                Log($"[DB] Дополнительное образование: resume_id={insertedResumeId}, title={insertedTitle}: ? INSERT");
+                Log($"[DB] Дополнительное образование: resume_id={insertedResumeId}, title={insertedTitle}: {DbInsertIcon} INSERT");
             }
             else
             {
                 _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{title}");
-                Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={title}: ? SKIPPED");
+                Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={title}: {DbSkipIcon} SKIPPED");
             }
 
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            Log($"[DB] Ошибка при сохранении дополнительного образования для {userLink}: {ex.Message}");
+            Log($"[DB] Ошибка при сохранении дополнительного образования для {userLink}: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_resumes_educations", userLink);
             TryDumpStatistics();
         }
@@ -2956,13 +2967,13 @@ public sealed class DatabaseClient
                 _statistics.RecordDelete("habr_resumes", $"404:{deleted}");
             }
 
-            Log($"[DB] Очистка 404: удалено {deleted} записей");
+            Log($"[DB] Очистка 404: {DbDeleteIcon} удалено {deleted} записей");
             TryDumpStatistics();
             return deleted;
         }
         catch (Exception ex)
         {
-            Log($"[DB] Ошибка при очистке 404: {ex.Message}");
+            Log($"[DB] Ошибка при очистке 404: {DbErrorIcon} {ex.Message}");
             _statistics.RecordError("habr_resumes", "404_cleanup");
             TryDumpStatistics();
             return 0;
