@@ -874,7 +874,12 @@ public sealed class DatabaseClient
     /// <summary>
     /// Добавить дополнительное образование в основную очередь на сохранение
     /// </summary>
-    public void EnqueueAdditionalEducation(string userLink, string title, string? course = null, string? duration = null, bool deleteExisting = false)
+    public void EnqueueAdditionalEducation(
+        string userLink,
+        string title,
+        string? course = null,
+        string? duration = null,
+        bool deleteExisting = false)
     {
         if (_saveQueue == null) return;
 
@@ -906,15 +911,55 @@ public sealed class DatabaseClient
         if (string.IsNullOrWhiteSpace(levelTitle))
             return null;
 
-        EnsureConnectionOpen(conn);
-        using var cmd = new NpgsqlCommand(@"
-            INSERT INTO habr_levels (title, created_at, updated_at)
-            VALUES (@title, NOW(), NOW())
-            ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-            RETURNING id", conn);
-        cmd.Parameters.AddWithValue("@title", levelTitle);
-        var result = cmd.ExecuteScalar();
-        return result != null ? Convert.ToInt32(result) : null;
+        try
+        {
+            EnsureConnectionOpen(conn);
+            using var cmd = new NpgsqlCommand(@"
+                INSERT INTO habr_levels (title, created_at, updated_at)
+                VALUES (@title, NOW(), NOW())
+                ON CONFLICT (title) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+                RETURNING id, xmax", conn);
+            cmd.Parameters.AddWithValue("@title", levelTitle);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+            {
+                Log($"[DB] Level {levelTitle}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_levels", levelTitle);
+                return null;
+            }
+
+            var levelId = reader.GetInt32(0);
+            var xmax = Convert.ToUInt32(reader.GetValue(1));
+            var isInsert = xmax == 0;
+
+            if (isInsert)
+            {
+                _statistics.RecordInsert("habr_levels", $"{levelId}:{levelTitle}");
+                Log($"[DB] Level {levelTitle}: ? INSERT (id={levelId})");
+            }
+            else
+            {
+                _statistics.RecordUpdate("habr_levels", $"{levelId}:{levelTitle}");
+                Log($"[DB] Level {levelTitle}: ? UPDATE (id={levelId})");
+            }
+
+            TryDumpStatistics();
+            return levelId;
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] Ошибка при сохранении уровня {levelTitle}: {dbEx.Message}");
+            _statistics.RecordError("habr_levels", levelTitle);
+            TryDumpStatistics();
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Неожиданная ошибка при сохранении уровня {levelTitle}: {ex.Message}");
+            _statistics.RecordError("habr_levels", levelTitle);
+            TryDumpStatistics();
+        }
+
+        return null;
     }
 
 
@@ -1187,16 +1232,19 @@ public sealed class DatabaseClient
         {
             Log($"[DB] Resume {link}: ? SKIP (уникальное ограничение)");
             _statistics.RecordSkipped("habr_resumes", link);
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Resume {link}: ? ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_resumes", link);
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Resume {link}: ? ERROR - {ex.Message}");
             _statistics.RecordError("habr_resumes", link);
+            TryDumpStatistics();
         }
 
     }
@@ -1395,12 +1443,14 @@ public sealed class DatabaseClient
         {
             Log($"[DB] Компания {companyCode}: ? ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_companies", companyCode);
+            TryDumpStatistics();
             return null;
         }
         catch (Exception ex)
         {
             Log($"[DB] Компания {companyCode}: ? ERROR - {ex.Message}");
             _statistics.RecordError("habr_companies", companyCode);
+            TryDumpStatistics();
             return null;
         }
     }
@@ -1438,16 +1488,19 @@ public sealed class DatabaseClient
                 _statistics.RecordUpdate("habr_category_root_ids", categoryId);
 
             Log($"[DB] Category {categoryId} -> {categoryName}: {(isInsert ? "? INSERT" : "? UPDATE")}");
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Category {categoryId}: ? ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_category_root_ids", categoryId);
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Category {categoryId}: ? ERROR - {ex.Message}");
             _statistics.RecordError("habr_category_root_ids", categoryId);
+            TryDumpStatistics();
         }
     }
 
@@ -1686,7 +1739,7 @@ public sealed class DatabaseClient
                     FROM dedup_skills
                     ON CONFLICT (title)
                     DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                    RETURNING id
+                    RETURNING id, xmax
                 ),
                 linked AS (
                     INSERT INTO habr_company_skills (company_id, skill_id, created_at, updated_at)
@@ -1694,12 +1747,16 @@ public sealed class DatabaseClient
                     FROM company c
                     CROSS JOIN upserted_skills s
                     ON CONFLICT (company_id, skill_id) DO UPDATE SET updated_at = NOW()
-                    RETURNING 1
+                    RETURNING company_id, skill_id, xmax
                 )
                 SELECT
                     (SELECT id FROM company) AS company_id,
                     (SELECT COUNT(*)::int FROM linked) AS linked_count,
+                    (SELECT COUNT(*)::int FROM linked WHERE xmax = 0) AS linked_inserted_count,
+                    (SELECT COUNT(*)::int FROM linked WHERE xmax <> 0) AS linked_updated_count,
                     (SELECT COUNT(*)::int FROM upserted_skills) AS upserted_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills WHERE xmax = 0) AS inserted_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills WHERE xmax <> 0) AS updated_skills_count,
                     (SELECT COUNT(*)::int FROM deleted) AS deleted_count", conn);
 
             cmd.Parameters.AddWithValue("@company_code", companyCode);
@@ -1710,38 +1767,72 @@ public sealed class DatabaseClient
             {
                 Log($"[DB] CompanySkills {companyCode}: ? ERROR - запрос не вернул результат");
                 _statistics.RecordError("habr_company_skills", companyCode);
+                TryDumpStatistics();
                 return;
             }
 
             var companyId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
             var linkedCount = reader.GetInt32(1);
-            var upsertedSkillsCount = reader.GetInt32(2);
-            var deletedCount = reader.GetInt32(3);
+            var linkedInsertedCount = reader.GetInt32(2);
+            var linkedUpdatedCount = reader.GetInt32(3);
+            var upsertedSkillsCount = reader.GetInt32(4);
+            var insertedSkillsCount = reader.GetInt32(5);
+            var updatedSkillsCount = reader.GetInt32(6);
+            var deletedCount = reader.GetInt32(7);
 
             if (!companyId.HasValue)
             {
                 Log($"[DB] Компания {companyCode} не найдена в БД. Пропуск навыков.");
+                _statistics.RecordSkipped("habr_company_skills", companyCode);
+                TryDumpStatistics();
                 return;
             }
 
-            if (linkedCount > 0)
+            if (deletedCount > 0)
             {
-                _statistics.RecordInsert("habr_company_skills", companyCode);
-                _statistics.RecordInsert("habr_skills", $"{upsertedSkillsCount} навыков для компании {companyCode}");
+                _statistics.RecordDelete("habr_company_skills", $"{companyId}-{deletedCount}");
             }
 
-            Log($"[DB] CompanySkills {companyCode}: ? {linkedCount} навыков добавлено/обновлено, {deletedCount} устаревших связей удалено");
+            if (upsertedSkillsCount > 0)
+            {
+                if (insertedSkillsCount > 0)
+                {
+                    _statistics.RecordInsert("habr_skills", $"{insertedSkillsCount} навыков для компании {companyCode}");
+                }
+ 
+                if (updatedSkillsCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_skills", $"{updatedSkillsCount} навыков для компании {companyCode}");
+                }
+            }
+ 
+            if (linkedCount > 0)
+            {
+                if (linkedInsertedCount > 0)
+                {
+                    _statistics.RecordInsert("habr_company_skills", companyCode);
+                }
+ 
+                if (linkedUpdatedCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_company_skills", companyCode);
+                }
+            }
+ 
+            Log($"[DB] CompanySkills {companyCode}: ? skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] CompanySkills {companyCode}: ? ERROR - {dbEx.Message}");
             _statistics.RecordError("habr_company_skills", companyCode);
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] CompanySkills {companyCode}: ? ERROR - {ex.Message}");
             _statistics.RecordError("habr_company_skills", companyCode);
+            TryDumpStatistics();
         }
     }
 
@@ -1937,7 +2028,7 @@ public sealed class DatabaseClient
                     FROM dedup_skills
                     ON CONFLICT (title)
                     DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                    RETURNING id
+                    RETURNING id, xmax
                 ),
                 deleted AS (
                     DELETE FROM habr_user_skills hus
@@ -1956,12 +2047,16 @@ public sealed class DatabaseClient
                     FROM target_user u
                     CROSS JOIN upserted_skills s
                     ON CONFLICT (user_id, skill_id) DO UPDATE SET updated_at = NOW()
-                    RETURNING 1
+                    RETURNING user_id, skill_id, xmax
                 )
                 SELECT
                     (SELECT id FROM target_user) AS user_id,
                     (SELECT COUNT(*)::int FROM linked) AS linked_count,
+                    (SELECT COUNT(*)::int FROM linked WHERE xmax = 0) AS linked_inserted_count,
+                    (SELECT COUNT(*)::int FROM linked WHERE xmax <> 0) AS linked_updated_count,
                     (SELECT COUNT(*)::int FROM upserted_skills) AS upserted_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills WHERE xmax = 0) AS inserted_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_skills WHERE xmax <> 0) AS updated_skills_count,
                     (SELECT COUNT(*)::int FROM deleted) AS deleted_count", conn);
 
             cmd.Parameters.AddWithValue("@user_link", userLink);
@@ -1971,35 +2066,73 @@ public sealed class DatabaseClient
             if (!reader.Read())
             {
                 Log($"[DB] UserSkills {userLink}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_user_skills", userLink);
+                TryDumpStatistics();
                 return;
             }
 
             var userId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
             var linkedCount = reader.GetInt32(1);
-            var upsertedSkillsCount = reader.GetInt32(2);
-            var deletedCount = reader.GetInt32(3);
+            var linkedInsertedCount = reader.GetInt32(2);
+            var linkedUpdatedCount = reader.GetInt32(3);
+            var upsertedSkillsCount = reader.GetInt32(4);
+            var insertedSkillsCount = reader.GetInt32(5);
+            var updatedSkillsCount = reader.GetInt32(6);
+            var deletedCount = reader.GetInt32(7);
 
             if (!userId.HasValue)
             {
                 Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск навыков.");
+                _statistics.RecordSkipped("habr_user_skills", userLink);
+                TryDumpStatistics();
                 return;
+            }
+
+            if (deletedCount > 0)
+            {
+                _statistics.RecordDelete("habr_user_skills", $"{userId}-{deletedCount}");
+            }
+
+            if (upsertedSkillsCount > 0)
+            {
+                if (insertedSkillsCount > 0)
+                {
+                    _statistics.RecordInsert("habr_skills", $"{insertedSkillsCount} навыков для {userLink}");
+                }
+
+                if (updatedSkillsCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_skills", $"{updatedSkillsCount} навыков для {userLink}");
+                }
             }
 
             if (linkedCount > 0)
             {
-                _statistics.RecordInsert("habr_user_skills", $"{userId}-{userLink}");
-                _statistics.RecordInsert("habr_skills", $"{upsertedSkillsCount} навыков для {userLink}");
+                if (linkedInsertedCount > 0)
+                {
+                    _statistics.RecordInsert("habr_user_skills", $"{userId}-{userLink}");
+                }
+
+                if (linkedUpdatedCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_user_skills", $"{userId}-{userLink}");
+                }
             }
 
-            Log($"[DB] UserSkills {userLink}: ? {linkedCount} навыков добавлено/обновлено, {deletedCount} устаревших связей удалено");
+            Log($"[DB] UserSkills {userLink}: ? skills_insert={insertedSkillsCount}, skills_update={updatedSkillsCount}, linked_insert={linkedInsertedCount}, linked_update={linkedUpdatedCount}, deleted={deletedCount}");
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Ошибка БД при добавлении навыков для {userLink}: {dbEx.Message}");
+            _statistics.RecordError("habr_user_skills", userLink);
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при добавлении навыков для {userLink}: {ex.Message}");
+            _statistics.RecordError("habr_user_skills", userLink);
+            TryDumpStatistics();
         }
     }
 
@@ -2096,7 +2229,7 @@ public sealed class DatabaseClient
                     FROM dedup_experience_skills
                     ON CONFLICT (title)
                     DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
-                    RETURNING id
+                    RETURNING id, xmax
                 ),
                 inserted_experience AS (
                     INSERT INTO habr_user_experience (user_id, company_id, position, duration, description, created_at, updated_at)
@@ -2125,7 +2258,7 @@ public sealed class DatabaseClient
                     FROM inserted_experience ie
                     CROSS JOIN upserted_experience_skills s
                     ON CONFLICT (experience_id, skill_id) DO UPDATE SET updated_at = NOW()
-                    RETURNING 1
+                    RETURNING experience_id, skill_id, xmax
                 )
                 SELECT
                     (SELECT id FROM target_user) AS user_id,
@@ -2133,8 +2266,13 @@ public sealed class DatabaseClient
                     (SELECT id FROM inserted_experience) AS experience_id,
                     (SELECT COUNT(*)::int FROM deleted_experiences) AS deleted_experiences_count,
                     (SELECT COUNT(*)::int FROM upserted_experience_skills) AS upserted_experience_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_experience_skills WHERE xmax = 0) AS inserted_experience_skills_count,
+                    (SELECT COUNT(*)::int FROM upserted_experience_skills WHERE xmax <> 0) AS updated_experience_skills_count,
                     (SELECT COUNT(*)::int FROM linked_experience_skills) AS linked_experience_skills_count,
-                    (SELECT COUNT(*)::int FROM updated_company) AS updated_company_count", conn);
+                    (SELECT COUNT(*)::int FROM linked_experience_skills WHERE xmax = 0) AS linked_experience_skills_inserted_count,
+                    (SELECT COUNT(*)::int FROM linked_experience_skills WHERE xmax <> 0) AS linked_experience_skills_updated_count,
+                    (SELECT COUNT(*)::int FROM updated_company) AS updated_company_count,
+                    (SELECT COUNT(*)::int FROM inserted_company) AS inserted_company_count", conn);
 
             cmd.Parameters.AddWithValue("@user_link", userLink);
             cmd.Parameters.AddWithValue("@has_company", hasCompany);
@@ -2153,6 +2291,8 @@ public sealed class DatabaseClient
             if (!reader.Read())
             {
                 Log($"[DB] UserExperience {userLink}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_user_experience", userLink);
+                TryDumpStatistics();
                 return;
             }
 
@@ -2161,46 +2301,87 @@ public sealed class DatabaseClient
             var experienceId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
             var deletedExperiencesCount = reader.GetInt32(3);
             var upsertedExperienceSkillsCount = reader.GetInt32(4);
-            var linkedExperienceSkillsCount = reader.GetInt32(5);
-            var updatedCompanyCount = reader.GetInt32(6);
+            var insertedExperienceSkillsCount = reader.GetInt32(5);
+            var updatedExperienceSkillsCount = reader.GetInt32(6);
+            var linkedExperienceSkillsCount = reader.GetInt32(7);
+            var linkedExperienceSkillsInsertedCount = reader.GetInt32(8);
+            var linkedExperienceSkillsUpdatedCount = reader.GetInt32(9);
+            var updatedCompanyCount = reader.GetInt32(10);
+            var insertedCompanyCount = reader.GetInt32(11);
 
             if (!userId.HasValue)
             {
                 Log($"[DB] Пользователь {userLink} не найден в БД. Пропуск опыта работы.");
+                _statistics.RecordSkipped("habr_user_experience", userLink);
+                TryDumpStatistics();
                 return;
             }
 
             if (!experienceId.HasValue)
             {
                 Log($"[DB] UserExperience {userLink}: ? ERROR - опыт работы не вставлен");
+                _statistics.RecordError("habr_user_experience", userLink);
+                TryDumpStatistics();
                 return;
             }
 
             if (deletedExperiencesCount > 0)
             {
+                _statistics.RecordDelete("habr_user_experience", $"{userId}-{deletedExperiencesCount}");
                 Log($"[DB] Удалено {deletedExperiencesCount} старых записей опыта работы для пользователя {userLink}");
+            }
+
+            if (insertedCompanyCount > 0)
+            {
+                _statistics.RecordInsert("habr_companies", companyCode ?? companyId.ToString());
+            }
+
+            if (updatedCompanyCount > 0)
+            {
+                _statistics.RecordUpdate("habr_companies", companyCode ?? companyId.ToString());
             }
 
             if (linkedExperienceSkillsCount > 0)
             {
-                _statistics.RecordInsert("habr_user_experience_skills", $"{experienceId}");
+                if (linkedExperienceSkillsInsertedCount > 0)
+                {
+                    _statistics.RecordInsert("habr_user_experience_skills", $"{experienceId}");
+                }
+
+                if (linkedExperienceSkillsUpdatedCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_user_experience_skills", $"{experienceId}");
+                }
             }
 
             if (upsertedExperienceSkillsCount > 0)
             {
-                _statistics.RecordInsert("habr_skills", $"{upsertedExperienceSkillsCount} навыков для опыта {userLink}");
+                if (insertedExperienceSkillsCount > 0)
+                {
+                    _statistics.RecordInsert("habr_skills", $"{insertedExperienceSkillsCount} навыков для опыта {userLink}");
+                }
+
+                if (updatedExperienceSkillsCount > 0)
+                {
+                    _statistics.RecordUpdate("habr_skills", $"{updatedExperienceSkillsCount} навыков для опыта {userLink}");
+                }
             }
 
-            Log($"[DB] UserExperience {userLink}: ? experience_id={experienceId}, company_id={companyId}, skills={linkedExperienceSkillsCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}");
+            Log($"[DB] UserExperience {userLink}: ? experience_id={experienceId}, company_id={companyId}, skills_insert={insertedExperienceSkillsCount}, skills_update={updatedExperienceSkillsCount}, linked_skills_insert={linkedExperienceSkillsInsertedCount}, linked_skills_update={linkedExperienceSkillsUpdatedCount}, deleted_old_experiences={deletedExperiencesCount}, updated_company={updatedCompanyCount}, inserted_company={insertedCompanyCount}");
             _statistics.RecordInsert("habr_user_experience", $"{userId}-{companyTitle}");
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Ошибка БД при добавлении опыта работы для {userLink}: {dbEx.Message}");
+            _statistics.RecordError("habr_user_experience", userLink);
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при добавлении опыта работы для {userLink}: {ex.Message}");
+            _statistics.RecordError("habr_user_experience", userLink);
+            TryDumpStatistics();
         }
     }
 
@@ -2275,6 +2456,8 @@ public sealed class DatabaseClient
             if (existingBySkillId.HasValue)
             {
                 Log($"[DB] Навык уже существует: skill_id={skillId}, вставка пропущена");
+                _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
+                TryDumpStatistics();
                 return;
             }
 
@@ -2282,6 +2465,7 @@ public sealed class DatabaseClient
             {
                 Log($"[DB] Навык найден по title='{normalizedTitle}' (id={updatedByTitle}), skill_id обновлён на {skillId}");
                 _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
+                TryDumpStatistics();
                 return;
             }
 
@@ -2289,18 +2473,25 @@ public sealed class DatabaseClient
             {
                 Log($"[DB] Навык добавлен: skill_id={skillId}, title={normalizedTitle}");
                 _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
+                TryDumpStatistics();
                 return;
             }
 
             Log($"[DB] SkillsInsert {skillId}: ? навык не обработан");
+            _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
+            TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
             Log($"[DB] Ошибка БД при добавлении навыка {skillId}: {dbEx.Message}");
+            _statistics.RecordError("habr_skills", $"skill_id={skillId}");
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Неожиданная ошибка при добавлении навыка {skillId}: {ex.Message}");
+            _statistics.RecordError("habr_skills", $"skill_id={skillId}");
+            TryDumpStatistics();
         }
     }
 
@@ -2386,6 +2577,8 @@ public sealed class DatabaseClient
             if (!reader.Read())
             {
                 Log($"[DB] CompanyReviews {companyId}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_company_reviews", companyId.ToString());
+                TryDumpStatistics();
                 return;
             }
 
@@ -2395,22 +2588,29 @@ public sealed class DatabaseClient
 
             if (insertedCount > 0)
             {
+                _statistics.RecordInsert("habr_company_reviews", $"{companyId}:{insertedCount}");
                 Log($"[DB] Добавлено {insertedCount} новых отзывов для компании ID={companyId}");
             }
 
             if (existingCount > 0)
             {
+                _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:{existingCount}");
                 Log($"[DB] Пропущено {existingCount} существующих отзывов для компании ID={companyId}");
             }
 
             if (totalCount == 0)
             {
                 Log($"[DB] CompanyReviews {companyId}: ? отзывов для обработки не найдено");
+                _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:0");
             }
+
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при сохранении отзывов для компании ID={companyId}: {ex.Message}");
+            _statistics.RecordError("habr_company_reviews", companyId.ToString());
+            TryDumpStatistics();
         }
     }
 
@@ -2419,28 +2619,63 @@ public sealed class DatabaseClient
     /// </summary>
     private void UniversitiesInsert(NpgsqlConnection conn, int habrId, string name, string? city = null, int? graduateCount = null)
     {
-        EnsureConnectionOpen(conn);
+        try
+        {
+            EnsureConnectionOpen(conn);
 
-        using var cmd = new NpgsqlCommand(@"
-            INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
-            VALUES (@habr_id, @name, @city, @graduate_count, NOW(), NOW())
-            ON CONFLICT (habr_id)
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                city = COALESCE(EXCLUDED.city, habr_universities.city),
-                graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
-                updated_at = NOW()", conn);
+            using var cmd = new NpgsqlCommand(@"
+                INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
+                VALUES (@habr_id, @name, @city, @graduate_count, NOW(), NOW())
+                ON CONFLICT (habr_id)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    city = COALESCE(EXCLUDED.city, habr_universities.city),
+                    graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
+                    updated_at = NOW()
+                RETURNING id, xmax", conn);
 
-        cmd.Parameters.AddWithValue("@habr_id", habrId);
-        cmd.Parameters.AddWithValue("@name", name);
-        cmd.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@graduate_count", graduateCount ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@habr_id", habrId);
+            cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddWithValue("@city", city ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@graduate_count", graduateCount ?? (object)DBNull.Value);
 
-        int rowsAffected = cmd.ExecuteNonQuery();
-        // Для UPSERT без RETURNING xmax считаем как UPDATE если rowsAffected > 0
-        if (rowsAffected > 0)
-            _statistics.RecordUpdate("habr_universities", habrId.ToString());
-        Log($"[DB] Университет {name} (ID={habrId}): {(rowsAffected > 0 ? "? UPSERT" : "? NO CHANGE")}");
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+            {
+                Log($"[DB] Университет {name} (ID={habrId}): ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_universities", habrId.ToString());
+                return;
+            }
+
+            var universityId = reader.GetInt32(0);
+            var xmax = Convert.ToUInt32(reader.GetValue(1));
+            var isInsert = xmax == 0;
+
+            if (isInsert)
+            {
+                _statistics.RecordInsert("habr_universities", $"{habrId}:{name}");
+                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): ? INSERT");
+            }
+            else
+            {
+                _statistics.RecordUpdate("habr_universities", $"{habrId}:{name}");
+                Log($"[DB] Университет {name} (ID={habrId}, db_id={universityId}): ? UPDATE");
+            }
+
+            TryDumpStatistics();
+        }
+        catch (NpgsqlException dbEx)
+        {
+            Log($"[DB] Ошибка при сохранении университета {name} (ID={habrId}): {dbEx.Message}");
+            _statistics.RecordError("habr_universities", habrId.ToString());
+            TryDumpStatistics();
+        }
+        catch (Exception ex)
+        {
+            Log($"[DB] Неожиданная ошибка при сохранении университета {name} (ID={habrId}): {ex.Message}");
+            _statistics.RecordError("habr_universities", habrId.ToString());
+            TryDumpStatistics();
+        }
     }
 
     /// <summary>
@@ -2528,22 +2763,24 @@ public sealed class DatabaseClient
                     LEFT JOIN universities univ ON univ.university_habr_id = ir.university_habr_id
                     WHERE univ.university_id IS NULL
                 ),
-                upserted AS (
-                    INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
-                    SELECT user_id, university_id, courses, description, NOW(), NOW()
-                    FROM joined_rows
-                    ON CONFLICT (user_id, university_id)
-                    DO UPDATE SET
-                        courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
-                        description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
-                        updated_at = NOW()
-                    RETURNING user_id, university_id
-                )
-                SELECT
-                    (SELECT COUNT(*)::int FROM upserted) AS upserted_count,
-                    (SELECT COUNT(*)::int FROM missing_users) AS missing_users_count,
-                    (SELECT COUNT(*)::int FROM missing_universities) AS missing_universities_count,
-                    (SELECT COUNT(*)::int FROM input_rows) AS input_count", conn);
+               upserted AS (
+                   INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
+                   SELECT user_id, university_id, courses, description, NOW(), NOW()
+                   FROM joined_rows
+                   ON CONFLICT (user_id, university_id)
+                   DO UPDATE SET
+                       courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
+                       description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
+                       updated_at = NOW()
+                   RETURNING user_id, university_id, xmax
+               )
+               SELECT
+                   (SELECT COUNT(*)::int FROM upserted) AS upserted_count,
+                   (SELECT COUNT(*)::int FROM upserted WHERE xmax = 0) AS inserted_count,
+                   (SELECT COUNT(*)::int FROM upserted WHERE xmax <> 0) AS updated_count,
+                   (SELECT COUNT(*)::int FROM missing_users) AS missing_users_count,
+                   (SELECT COUNT(*)::int FROM missing_universities) AS missing_universities_count,
+                   (SELECT COUNT(*)::int FROM input_rows) AS input_count", conn);
 
             cmd.Parameters.AddWithValue("@user_universities", recordsJson);
 
@@ -2551,34 +2788,48 @@ public sealed class DatabaseClient
             if (!reader.Read())
             {
                 Log("[DB] ResumesUniversities: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_resumes_universities", "query");
+                TryDumpStatistics();
                 return;
             }
 
             var upsertedCount = reader.GetInt32(0);
-            var missingUsersCount = reader.GetInt32(1);
-            var missingUniversitiesCount = reader.GetInt32(2);
-            var inputCount = reader.GetInt32(3);
+            var insertedCount = reader.GetInt32(1);
+            var updatedCount = reader.GetInt32(2);
+            var missingUsersCount = reader.GetInt32(3);
+            var missingUniversitiesCount = reader.GetInt32(4);
+            var inputCount = reader.GetInt32(5);
 
-            if (upsertedCount > 0)
+            if (insertedCount > 0)
             {
-                _statistics.RecordUpdate("habr_resumes_universities", $"{upsertedCount}");
+                _statistics.RecordInsert("habr_resumes_universities", $"{insertedCount}");
+            }
+
+            if (updatedCount > 0)
+            {
+                _statistics.RecordUpdate("habr_resumes_universities", $"{updatedCount}");
             }
 
             if (missingUsersCount > 0)
             {
+                _statistics.RecordSkipped("habr_resumes_universities", $"missing_users:{missingUsersCount}");
                 Log($"[DB] Пропущено связей пользователь-университет: не найдено пользователей={missingUsersCount}");
             }
 
             if (missingUniversitiesCount > 0)
             {
+                _statistics.RecordSkipped("habr_resumes_universities", $"missing_universities:{missingUniversitiesCount}");
                 Log($"[DB] Пропущено связей пользователь-университет: не найдено университетов={missingUniversitiesCount}");
             }
 
-            Log($"[DB] Связи пользователь-университет: input={inputCount}, upsert={upsertedCount}, missing_users={missingUsersCount}, missing_universities={missingUniversitiesCount}");
+            Log($"[DB] Связи пользователь-университет: input={inputCount}, upsert={upsertedCount}, inserted={insertedCount}, updated={updatedCount}, missing_users={missingUsersCount}, missing_universities={missingUniversitiesCount}");
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при сохранении связей пользователь-университет: {ex.Message}");
+            _statistics.RecordError("habr_resumes_universities", "exception");
+            TryDumpStatistics();
         }
     }
 
@@ -2637,6 +2888,8 @@ public sealed class DatabaseClient
             if (!reader.Read())
             {
                 Log($"[DB] Дополнительное образование {userLink}: ? ERROR - запрос не вернул результат");
+                _statistics.RecordError("habr_resumes_educations", userLink);
+                TryDumpStatistics();
                 return;
             }
 
@@ -2648,11 +2901,14 @@ public sealed class DatabaseClient
             if (!resumeId.HasValue)
             {
                 Log($"[DB] Пользователь не найден для дополнительного образования: {userLink}");
+                _statistics.RecordSkipped("habr_resumes_educations", userLink);
+                TryDumpStatistics();
                 return;
             }
 
             if (deletedCount > 0)
             {
+                _statistics.RecordDelete("habr_resumes_educations", $"{resumeId}-{deletedCount}");
                 Log($"[DB] Дополнительное образование: resume_id={resumeId}: удалено старых записей={deletedCount}");
             }
 
@@ -2666,10 +2922,14 @@ public sealed class DatabaseClient
                 _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{title}");
                 Log($"[DB] Дополнительное образование: resume_id={resumeId}, title={title}: ? SKIPPED");
             }
+
+            TryDumpStatistics();
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при сохранении дополнительного образования для {userLink}: {ex.Message}");
+            _statistics.RecordError("habr_resumes_educations", userLink);
+            TryDumpStatistics();
         }
     }
 
@@ -2691,12 +2951,20 @@ public sealed class DatabaseClient
             var result = cmd.ExecuteScalar();
             int deleted = result is null ? 0 : Convert.ToInt32(result);
 
+            if (deleted > 0)
+            {
+                _statistics.RecordDelete("habr_resumes", $"404:{deleted}");
+            }
+
             Log($"[DB] Очистка 404: удалено {deleted} записей");
+            TryDumpStatistics();
             return deleted;
         }
         catch (Exception ex)
         {
             Log($"[DB] Ошибка при очистке 404: {ex.Message}");
+            _statistics.RecordError("habr_resumes", "404_cleanup");
+            TryDumpStatistics();
             return 0;
         }
     }

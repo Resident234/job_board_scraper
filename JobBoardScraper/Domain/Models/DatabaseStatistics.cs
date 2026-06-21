@@ -64,6 +64,14 @@ public class DatabaseStatistics
     }
 
     /// <summary>
+    /// Зарегистрировать DELETE операцию
+    /// </summary>
+    public void RecordDelete(string tableName, string? recordId = null)
+    {
+        GetTableStats(tableName).RecordDelete();
+    }
+
+    /// <summary>
     /// Зарегистрировать пропуск (запись уже существует, без изменений)
     /// </summary>
     public void RecordSkipped(string tableName, string? recordId = null)
@@ -97,10 +105,11 @@ public class DatabaseStatistics
 
         var totalInserts = _tableStats.Values.Sum(t => t.Inserts);
         var totalUpdates = _tableStats.Values.Sum(t => t.Updates);
+        var totalDeletes = _tableStats.Values.Sum(t => t.Deletes);
         var totalSkipped = _tableStats.Values.Sum(t => t.Skipped);
         var totalErrors = _tableStats.Values.Sum(t => t.Errors);
 
-        lines.Add($"--- ИТОГО: Вставлено={totalInserts}, Обновлено={totalUpdates}, Пропущено={totalSkipped}, Ошибок={totalErrors} ---");
+        lines.Add($"--- ИТОГО: Вставлено={totalInserts}, Обновлено={totalUpdates}, Удалено={totalDeletes}, Пропущено={totalSkipped}, Ошибок={totalErrors} ---");
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -119,16 +128,18 @@ public class DatabaseStatistics
 /// </summary>
 public class TableStatistics
 {
-    public string TableName { get; }
-    public int Inserts => _inserts;
-    public int Updates => _updates;
-    public int Skipped => _skipped;
-    public int Errors => _errors;
+   public string TableName { get; }
+   public int Inserts => _inserts;
+   public int Updates => _updates;
+   public int Deletes => _deletes;
+   public int Skipped => _skipped;
+   public int Errors => _errors;
 
-    private int _inserts;
-    private int _updates;
-    private int _skipped;
-    private int _errors;
+   private int _inserts;
+   private int _updates;
+   private int _deletes;
+   private int _skipped;
+   private int _errors;
 
     public TableStatistics(string tableName)
     {
@@ -137,11 +148,12 @@ public class TableStatistics
 
     public void RecordInsert() => Interlocked.Increment(ref _inserts);
     public void RecordUpdate() => Interlocked.Increment(ref _updates);
-    public void RecordSkipped() => Interlocked.Increment(ref _skipped);
-    public void RecordError() => Interlocked.Increment(ref _errors);
+   public void RecordDelete() => Interlocked.Increment(ref _deletes);
+   public void RecordSkipped() => Interlocked.Increment(ref _skipped);
+   public void RecordError() => Interlocked.Increment(ref _errors);
 
-    public override string ToString()
-    {
-        return $"  {TableName}: Вставлено={_inserts}, Обновлено={_updates}, Пропущено={_skipped}, Ошибок={_errors}";
-    }
+   public override string ToString()
+   {
+       return $"  {TableName}: Вставлено={_inserts}, Обновлено={_updates}, Удалено={_deletes}, Пропущено={_skipped}, Ошибок={_errors}";
+   }
 }
