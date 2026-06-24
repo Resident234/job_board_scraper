@@ -413,19 +413,10 @@ public sealed class UserResumeDetailScraper : IDisposable
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    const string notFoundMessage = "Ошибка 404";
-                    _db.EnqueueResume(
-                        link: userLink,
-                        title: notFoundMessage,
-                        mode: InsertMode.UpdateIfExists,
-                        userName: notFoundMessage,
-                        about: notFoundMessage);
-
                     _logger.WriteLine($"Пользователь {userLink}:");
-                    _logger.WriteLine($"  Статус: страница не найдена (404)");
-                    _logger.WriteLine($"  Title: {notFoundMessage}");
+                    _logger.WriteLine($"  Статус: страница не найдена (404) — пропуск без записи в БД");
 
-                    _statistics.IncrementSuccess();
+                    _statistics.IncrementSkipped();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }

@@ -1178,13 +1178,6 @@ public sealed class DatabaseClient
 
            if (mode == InsertMode.SkipIfExists)
             {
-                if (title != null && title.Contains("Ошибка 404"))
-                {
-                    LogSkip($"Resume {link}", "404 страница");
-                    _statistics.RecordSkipped("habr_resumes", link);
-                    return;
-                }
-
                 using var cmd = new NpgsqlCommand(
                     @"INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at)
                       VALUES (@link, @title, @slogan, @code, @expert, @work_experience, @level_id, @info_tech, @salary, @last_visit, @age, @registration, @citizenship, @remote_work, @public, @job_search_status, @is_empty, @is_deleted, @about, @community_participation, NOW(), NOW())
@@ -1247,18 +1240,6 @@ public sealed class DatabaseClient
             }
             else // UpdateIfExists
             {
-                if (title != null && title.Contains("Ошибка 404"))
-                {
-                    LogSkip($"Resume {link}", "404 страница");
-                    _statistics.RecordSkipped("habr_resumes", link);
-                    return;
-                }
-
-                if (title != null && title.Contains("Профиль удален") && isDeleted == true)
-                {
-                    LogDelete($"Resume {link}", "удалённый профиль обработан", 0);
-                }
-
                 // Используем RETURNING xmax для определения INSERT (xmax=0) или UPDATE (xmax>0)
                 using var cmd = new NpgsqlCommand(@"
                     INSERT INTO habr_resumes (link, title, slogan, code, expert, work_experience, level_id, info_tech, salary, last_visit, age, registration, citizenship, remote_work, public, job_search_status, is_empty, is_deleted, about, community_participation, created_at, updated_at)
