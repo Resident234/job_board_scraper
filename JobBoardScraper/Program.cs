@@ -36,12 +36,12 @@ class Program
         };
 
         using var httpClient = HttpClientFactory.CreateDefaultClient(timeoutSeconds: 10);
-        
+
         // Инициализация статистики трафика
         using var trafficStats = new TrafficStatistics(
             AppConfig.TrafficStatsOutputFile,
             AppConfig.TrafficStatsSaveInterval);
-        
+
         Console.WriteLine($"[Program] Статистика трафика будет сохраняться в: {AppConfig.TrafficStatsOutputFile}");
         Console.WriteLine($"[Program] Интервал сохранения статистики: {AppConfig.TrafficStatsSaveInterval.TotalMinutes} минут");
 
@@ -49,7 +49,7 @@ class Program
         var dbLogger = new ConsoleLogger("DatabaseClient");
         dbLogger.SetOutputMode(AppConfig.DatabaseClientOutputMode);
         Console.WriteLine($"[Program] DatabaseClient: Режим вывода логов - {AppConfig.DatabaseClientOutputMode}");
-        
+
         var db = new DatabaseClient(AppConfig.ConnectionString, dbLogger);
         using var conn = db.ConnectionInit();
         db.EnsureConnectionOpen(conn);
@@ -80,10 +80,10 @@ class Program
             {
                 Console.WriteLine($"[Program] Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
             }
-            
+
             var resumeListHttpClient = new SmartHttpClient(
-                httpClient, 
-                "ResumeListPageScraper", 
+                httpClient,
+                "ResumeListPageScraper",
                 trafficStats,
                 enableRetry: false,
                 enableTrafficMeasuring: AppConfig.ResumeListEnableTrafficMeasuring);
@@ -111,10 +111,10 @@ class Program
             Console.WriteLine("[Program] CompanyListScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
             Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
-            
+
             var companyListHttpClient = new SmartHttpClient(
-                httpClient, 
-                "CompanyListScraper", 
+                httpClient,
+                "CompanyListScraper",
                 trafficStats,
                 enableRetry: false,
                 enableTrafficMeasuring: AppConfig.CompaniesEnableTrafficMeasuring);
@@ -140,8 +140,8 @@ class Program
         {
             Console.WriteLine("[Program] CategoryScraper: ВКЛЮЧЕН");
             var categoryHttpClient = new SmartHttpClient(
-                httpClient, 
-                "CategoryScraper", 
+                httpClient,
+                "CategoryScraper",
                 trafficStats,
                 enableRetry: false,
                 enableTrafficMeasuring: AppConfig.CategoryEnableTrafficMeasuring);
@@ -167,14 +167,14 @@ class Program
             Console.WriteLine("[Program] CompanyFollowersScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
             Console.WriteLine($"[Program] Timeout CompanyFollowersScraper: {AppConfig.CompanyFollowersTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var companyFollowersBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.CompanyFollowersTimeout.TotalSeconds);
-            
+
             var companyFollowersHttpClient = new SmartHttpClient(
-                companyFollowersBaseHttpClient, 
-                "CompanyFollowersScraper", 
+                companyFollowersBaseHttpClient,
+                "CompanyFollowersScraper",
                 trafficStats,
                 enableRetry: false,
                 enableTrafficMeasuring: AppConfig.CompanyFollowersEnableTrafficMeasuring,
@@ -203,14 +203,14 @@ class Program
             Console.WriteLine("[Program] ExpertsScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода ExpertsScraper: {AppConfig.ExpertsOutputMode}");
             Console.WriteLine($"[Program] Timeout ExpertsScraper: {AppConfig.ExpertsTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var expertsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.ExpertsTimeout.TotalSeconds);
-            
+
             var expertsHttpClient = new SmartHttpClient(
-                expertsBaseHttpClient, 
-                "ExpertsScraper", 
+                expertsBaseHttpClient,
+                "ExpertsScraper",
                 trafficStats,
                 enableRetry: AppConfig.ExpertsEnableRetry,
                 enableTrafficMeasuring: AppConfig.ExpertsEnableTrafficMeasuring,
@@ -234,14 +234,14 @@ class Program
             Console.WriteLine("[Program] CompanyDetailScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода CompanyDetailScraper: {AppConfig.CompanyDetailOutputMode}");
             Console.WriteLine($"[Program] Timeout CompanyDetailScraper: {AppConfig.CompanyDetailTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var companyDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.CompanyDetailTimeout.TotalSeconds);
-            
+
             var companyDetailHttpClient = new SmartHttpClient(
-                companyDetailBaseHttpClient, 
-                "CompanyDetailScraper", 
+                companyDetailBaseHttpClient,
+                "CompanyDetailScraper",
                 trafficStats,
                 enableRetry: AppConfig.CompanyDetailEnableRetry,
                 enableTrafficMeasuring: AppConfig.CompanyDetailEnableTrafficMeasuring,
@@ -267,14 +267,14 @@ class Program
             Console.WriteLine("[Program] UserProfileScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода UserProfileScraper: {AppConfig.UserProfileOutputMode}");
             Console.WriteLine($"[Program] Timeout UserProfileScraper: {AppConfig.UserProfileTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var userProfileBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.UserProfileTimeout.TotalSeconds);
-            
+
             var userProfileHttpClient = new SmartHttpClient(
-                userProfileBaseHttpClient, 
-                "UserProfileScraper", 
+                userProfileBaseHttpClient,
+                "UserProfileScraper",
                 trafficStats,
                 enableRetry: AppConfig.UserProfileEnableRetry,
                 enableTrafficMeasuring: AppConfig.UserProfileEnableTrafficMeasuring,
@@ -300,14 +300,14 @@ class Program
             Console.WriteLine("[Program] UserFriendsScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода UserFriendsScraper: {AppConfig.UserFriendsOutputMode}");
             Console.WriteLine($"[Program] Timeout UserFriendsScraper: {AppConfig.UserFriendsTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var userFriendsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.UserFriendsTimeout.TotalSeconds);
-            
+
             var userFriendsHttpClient = new SmartHttpClient(
-                userFriendsBaseHttpClient, 
-                "UserFriendsScraper", 
+                userFriendsBaseHttpClient,
+                "UserFriendsScraper",
                 trafficStats,
                 enableRetry: AppConfig.UserFriendsEnableRetry,
                 enableTrafficMeasuring: AppConfig.UserFriendsEnableTrafficMeasuring,
@@ -331,19 +331,19 @@ class Program
         FreeProxyPool? freeProxyPool = null;
         FreeProxyListScraper? freeProxyListScraper = null;
         ProxyScrapeScraper? proxyScrapeScraper = null;
-        
+
         if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
         {
             Console.WriteLine("[Program] FreeProxyListScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Refresh interval: {AppConfig.ProxyRefreshIntervalMinutes} минут");
             Console.WriteLine($"[Program] Pool max size: {AppConfig.ProxyPoolMaxSize}");
             Console.WriteLine($"[Program] Proxy list URL: {AppConfig.FreeProxyListUrl}");
-            
+
             freeProxyPool = new FreeProxyPool(
                 maxSize: AppConfig.ProxyPoolMaxSize,
                 logger: new ConsoleLogger("FreeProxyPool"),
                 lowWaterMark: 200);
-            
+
             freeProxyListScraper = new FreeProxyListScraper(
                 freeProxyPool,
                 refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
@@ -351,9 +351,9 @@ class Program
                 proxyListUrl: AppConfig.FreeProxyListUrl,
                 adaptiveModeEnabled: true,
                 adaptiveTriggerThreshold: 200);
-            
+
             freeProxyListScraper.Start();
-            
+
             // Инициализация ProxyScrapeScraper (второй источник прокси)
             if (AppConfig.ProxyScrapeEnabled)
             {
@@ -364,7 +364,7 @@ class Program
                     outputMode: AppConfig.UserResumeDetailOutputMode,
                     adaptiveModeEnabled: true,
                     adaptiveTriggerThreshold: 200);
-                
+
                 proxyScrapeScraper.Start();
             }
             else
@@ -383,7 +383,7 @@ class Program
             Console.WriteLine("[Program] UserResumeDetailScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
             Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
-            
+
             // Инициализация ProxyCoordinator (координатор whitelist + general pool)
             ProxyCoordinator? proxyCoordinator = null;
             if (freeProxyPool != null)
@@ -433,14 +433,14 @@ class Program
             {
                 Console.WriteLine("[Program] UserResumeDetailScraper: Прокси ОТКЛЮЧЕНЫ (работа без прокси)");
             }
-            
+
             // Создаём отдельный HttpClient БЕЗ прокси (прокси будут применяться динамически)
             var userResumeDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.UserResumeDetailTimeout.TotalSeconds);
-            
+
             var userResumeDetailHttpClient = new SmartHttpClient(
-                userResumeDetailBaseHttpClient, 
-                "UserResumeDetailScraper", 
+                userResumeDetailBaseHttpClient,
+                "UserResumeDetailScraper",
                 trafficStats,
                 enableRetry: AppConfig.UserResumeDetailEnableRetry,
                 enableTrafficMeasuring: AppConfig.UserResumeDetailEnableTrafficMeasuring,
@@ -467,14 +467,14 @@ class Program
             Console.WriteLine("[Program] CompanyRatingScraper: ВКЛЮЧЕН");
             Console.WriteLine($"[Program] Режим вывода CompanyRatingScraper: {AppConfig.CompanyRatingOutputMode}");
             Console.WriteLine($"[Program] Timeout CompanyRatingScraper: {AppConfig.CompanyRatingTimeout.TotalSeconds} секунд");
-            
+
             // Создаём отдельный HttpClient с нужным timeout
             var companyRatingBaseHttpClient = HttpClientFactory.CreateDefaultClient(
                 timeoutSeconds: (int)AppConfig.CompanyRatingTimeout.TotalSeconds);
-            
+
             var companyRatingHttpClient = new SmartHttpClient(
-                companyRatingBaseHttpClient, 
-                "CompanyRatingScraper", 
+                companyRatingBaseHttpClient,
+                "CompanyRatingScraper",
                 trafficStats,
                 enableRetry: AppConfig.CompanyRatingEnableRetry,
                 enableTrafficMeasuring: AppConfig.CompanyRatingEnableTrafficMeasuring,
@@ -499,8 +499,8 @@ class Program
         {
             Console.WriteLine("[Program] BruteForceUsernameScraper: ВКЛЮЧЕН");
             var bruteForceHttpClient = new SmartHttpClient(
-                httpClient, 
-                "BruteForceUsernameScraper", 
+                httpClient,
+                "BruteForceUsernameScraper",
                 trafficStats,
                 enableRetry: AppConfig.BruteForceEnableRetry,
                 enableTrafficMeasuring: AppConfig.BruteForceEnableTrafficMeasuring,
@@ -509,8 +509,7 @@ class Program
                 maxDelay: TimeSpan.FromSeconds(30));
             bruteForceScraperTask = Task.Run(async () =>
             {
-                var bruteForceLogger = new ConsoleLogger("BruteForceScraper");
-                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller, bruteForceLogger);
+                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
                 await bruteForceScraper.RunAsync(cts.Token);
             }, cts.Token);
         }
