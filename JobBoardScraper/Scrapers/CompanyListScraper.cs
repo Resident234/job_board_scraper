@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
-using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;

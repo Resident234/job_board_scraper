@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
 using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Scrapers;
 using JobBoardScraper.Infrastructure.Logging;
 

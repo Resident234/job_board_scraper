@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 
-namespace JobBoardScraper.Domain.Models;
+namespace JobBoardScraper.Infrastructure.Statistics;
 
 /// <summary>
 /// Статистика работы скрапера
@@ -121,7 +121,7 @@ public class ScraperStatistics
 
         return sb.ToString();
     }
-    
+
     /// <summary>
     /// Получить полную статистику включая коды ответов
     /// </summary>
@@ -142,7 +142,7 @@ public class ScraperStatistics
 
         return sb.ToString();
     }
-    
+
     /// <summary>
     /// Записать статистику в лог-файл
     /// </summary>

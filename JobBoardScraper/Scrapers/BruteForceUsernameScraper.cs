@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Logging;
-using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Parsing;

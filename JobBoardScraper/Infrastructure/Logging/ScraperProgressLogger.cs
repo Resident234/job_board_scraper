@@ -1,4 +1,4 @@
-using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Infrastructure.Utils;
 
 namespace JobBoardScraper.Infrastructure.Logging;

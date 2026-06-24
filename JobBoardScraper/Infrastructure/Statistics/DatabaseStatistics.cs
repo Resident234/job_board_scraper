@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace JobBoardScraper.Domain.Models;
+namespace JobBoardScraper.Infrastructure.Statistics;
 
 /// <summary>
 /// Статистика операций с базой данных по таблицам

@@ -3,7 +3,7 @@ using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Throttling;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Proxy;
-using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Collections.Concurrent;
