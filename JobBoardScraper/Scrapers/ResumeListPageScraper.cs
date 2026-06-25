@@ -9,7 +9,6 @@ using JobBoardScraper.Parsing;
 namespace JobBoardScraper.Scrapers;
 
 public readonly record struct ResumeItem(string link, string title);
-
 /// <summary>
 /// Периодически обходит страницы "/resumes?order=last_visited" и "/resumes?skills[]=N"
 /// и извлекает ссылки на профили пользователей для сохранения в базу данных.
@@ -199,8 +198,13 @@ public sealed class ResumeListPageScraper : IDisposable
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                    // Парсим профили на странице
-                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    // Парсим профили на странице и сохраняем их в БД
+                    var profiles = await ParseProfilesFromPage(doc, ct);
+                    foreach (var profile in profiles)
+                    {
+                        _db.EnqueueResume(profile);
+                    }
+                    var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
@@ -267,8 +271,13 @@ public sealed class ResumeListPageScraper : IDisposable
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                    // Парсим профили на странице
-                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    // Парсим профили на странице и сохраняем их в БД
+                    var profiles = await ParseProfilesFromPage(doc, ct);
+                    foreach (var profile in profiles)
+                    {
+                        _db.EnqueueResume(profile);
+                    }
+                    var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
@@ -337,8 +346,13 @@ public sealed class ResumeListPageScraper : IDisposable
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                    // Парсим профили на странице
-                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    // Парсим профили на странице и сохраняем их в БД
+                    var profiles = await ParseProfilesFromPage(doc, ct);
+                    foreach (var profile in profiles)
+                    {
+                        _db.EnqueueResume(profile);
+                    }
+                    var profilesFound = profiles.Count;
                     _statistics.AddItemsCollected(profilesFound);
 
                     progressLogger.LogFilterProgress($"Qid {qid}{orderDesc}", profilesFound);
@@ -432,8 +446,13 @@ public sealed class ResumeListPageScraper : IDisposable
                         var html = await response.Content.ReadAsStringAsync(ct);
                         var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                        // Парсим профили на странице
-                        var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                        // Парсим профили на странице и сохраняем их в БД
+                        var profiles = await ParseProfilesFromPage(doc, ct);
+                        foreach (var profile in profiles)
+                        {
+                            _db.EnqueueResume(profile);
+                        }
+                        var profilesFound = profiles.Count;
                         totalProfiles += profilesFound;
                         _statistics.AddItemsCollected(profilesFound);
 
@@ -512,8 +531,13 @@ public sealed class ResumeListPageScraper : IDisposable
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                    // Парсим профили на странице
-                    var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+                    // Парсим профили на странице и сохраняем их в БД
+                    var profiles = await ParseProfilesFromPage(doc, ct);
+                    foreach (var profile in profiles)
+                    {
+                        _db.EnqueueResume(profile);
+                    }
+                    var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
@@ -541,8 +565,13 @@ public sealed class ResumeListPageScraper : IDisposable
         var html = await response.Content.ReadAsStringAsync(ct);
         var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-        // Используем новый метод парсинга профилей
-        var profilesFound = await ParseProfilesFromPage(doc, 0, ct);
+        // Используем метод парсинга профилей и сохраняем их в БД
+        var profiles = await ParseProfilesFromPage(doc, ct);
+        foreach (var profile in profiles)
+        {
+            _db.EnqueueResume(profile);
+        }
+        var profilesFound = profiles.Count;
 
         _logger.WriteLine($"Обход завершён. Найдено профилей: {profilesFound}");
     }
@@ -620,9 +649,14 @@ public sealed class ResumeListPageScraper : IDisposable
                         skillExists = true;
                     }
 
-                    // Парсим профили на странице
+                    // Парсим профили на странице и сохраняем их в БД
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-                    var profilesFound = await ParseProfilesFromPage(doc, skillId, ct);
+                    var profiles = await ParseProfilesFromPage(doc, ct);
+                    foreach (var profile in profiles)
+                    {
+                        _db.EnqueueResume(profile);
+                    }
+                    var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
 
                     progressLogger.LogFilterProgress($"Навык {skillId}{orderDesc}", profilesFound);
@@ -652,13 +686,23 @@ public sealed class ResumeListPageScraper : IDisposable
         progressLogger.LogCompletion(totalProfiles, $"Найдено навыков: {skillsFound}, Не найдено: {skillsNotFound}. {_statistics}");
     }
 
-    private async Task<int> ParseProfilesFromPage(AngleSharp.Dom.IDocument doc, int skillId, CancellationToken ct)
+    /// <summary>
+    /// Чистый парсинг: извлекает из HTML-документа данные профилей, найденных на странице списка резюме.
+    /// Не выполняет никаких операций с БД — только разбирает DOM.
+    /// Возвращает готовые ResumeRecord (с Mode = UpdateIfExists), которые вызывающий код кладёт в очередь через EnqueueResume.
+    /// </summary>
+    /// <param name="doc">Распарсенный HTML-документ страницы списка резюме.</param>
+    /// <param name="ct">Токен отмены.</param>
+    /// <returns>Список распарсенных ResumeRecord (без постановки в очередь БД).</returns>
+    private async Task<List<ResumeRecord>> ParseProfilesFromPage(AngleSharp.Dom.IDocument doc, CancellationToken ct)
     {
-        var profileCount = 0;
+        var profiles = new List<ResumeRecord>();
         var sections = doc.QuerySelectorAll(AppConfig.ResumeListProfileSectionSelector);
 
         foreach (var section in sections)
         {
+            if (ct.IsCancellationRequested) break;
+
             try
             {
                 // 1) Извлекаем ссылку и имя
@@ -666,7 +710,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 if (profileLink == null) continue;
 
                 var href = profileLink.GetAttribute("href");
-                
+
                 if (string.IsNullOrWhiteSpace(href))
                     continue;
 
@@ -677,11 +721,11 @@ public sealed class ResumeListPageScraper : IDisposable
                 var match = System.Text.RegularExpressions.Regex.Match(cleanHref, AppConfig.ResumeListProfileLinkRegex);
                 if (!match.Success)
                     continue;
-                
+
                 var code = match.Groups[1].Value;
                 if (string.IsNullOrWhiteSpace(code))
                     continue;
-                
+
                 var link = string.Format(AppConfig.ResumeListProfileUrlTemplate, code);
 
                 // 2) Проверяем признак эксперта
@@ -690,13 +734,13 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 // 3) Извлекаем имя, должности и уровень используя ProfileDataExtractor
                 var (name, infoTech, levelTitle) = ProfileDataExtractor.ExtractNameInfoTechAndLevel(
-                    section, 
-                    AppConfig.ResumeListProfileLinkSelector, 
+                    section,
+                    AppConfig.ResumeListProfileLinkSelector,
                     AppConfig.ResumeListSeparatorSelector);
 
                 // 4) Извлекаем зарплату используя ProfileDataExtractor
                 var salary = ProfileDataExtractor.ExtractSalaryFromSection(
-                    section, 
+                    section,
                     AppConfig.ResumeListSalaryRegex);
 
                 // 5) Извлекаем навыки
@@ -719,21 +763,20 @@ public sealed class ResumeListPageScraper : IDisposable
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
 
-                _db.EnqueueResume(
-                    link: link,
-                    title: name,
-                    code: code,
-                    expert: isExpert,
-                    userCode: code,
-                    userName: name,
-                    isExpert: isExpert,
-                    infoTech: infoTech,
-                    levelTitle: levelTitle,
-                    salary: salary,
-                    skills: skills.Count > 0 ? skills : null,
-                    mode: InsertMode.UpdateIfExists
-                );
-                profileCount++;
+                profiles.Add(new ResumeRecord(
+                    Link: link,
+                    Title: name,
+                    Code: code,
+                    Expert: isExpert,
+                    UserCode: code,
+                    UserName: name,
+                    IsExpert: isExpert,
+                    LevelTitle: levelTitle,
+                    InfoTech: infoTech,
+                    Salary: salary,
+                    Skills: skills.Count > 0 ? skills : null,
+                    Mode: InsertMode.UpdateIfExists
+                ));
             }
             catch (Exception ex)
             {
@@ -741,6 +784,9 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        return profileCount;
+        // Метод оставлен async для единообразия сигнатуры и возможного расширения (например, await внешних парсеров).
+        await Task.CompletedTask;
+        return profiles;
     }
+
 }

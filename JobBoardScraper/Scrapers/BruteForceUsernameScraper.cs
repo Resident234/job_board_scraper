@@ -31,10 +31,11 @@ public sealed class BruteForceUsernameScraper
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _statistics = new ScraperStatistics("BruteForceUsernameScraper");
+        
         _logger = new ConsoleLogger("BruteForceUsernameScraper");
         _logger.SetOutputMode(OutputMode.ConsoleOnly);
         _logger.WriteLine("Инициализация BruteForceUsernameScraper");
-        _statistics = new ScraperStatistics("BruteForceUsernameScraper");
     }
 
     public async Task RunAsync(CancellationToken ct)

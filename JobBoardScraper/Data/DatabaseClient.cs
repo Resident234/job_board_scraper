@@ -885,6 +885,25 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Добавить резюме в очередь на запись в базу данных, используя готовый ResumeRecord.
+    /// Удобно для парсеров, которые формируют ResumeRecord целиком (например, ResumeListPageScraper).
+    /// </summary>
+    public bool EnqueueResume(ResumeRecord resumeRecord)
+    {
+        if (_saveQueue == null) return false;
+        if (string.IsNullOrWhiteSpace(resumeRecord.Link)) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.Resume,
+            Resume: resumeRecord
+        );
+        _saveQueue.Enqueue(record);
+        LogEnqueue("Resume", resumeRecord);
+
+        return true;
+    }
+
+    /// <summary>
     /// Добавить компанию в очередь на запись в базу данных
     /// </summary>
     public bool EnqueueCompany(
