@@ -8,7 +8,7 @@ ER-диаграмма оформлена в формате [Mermaid](https://mer
 - **PK** — первичный ключ (`id`, обычно `SERIAL`/`BIGSERIAL`).
 - **FK** — внешний ключ (ссылка на PK другой таблицы).
 - **UQ** — уникальный ключ (`UNIQUE` constraint).
-- Все таблицы имеют `created_at`/`updated_at TIMESTAMPTZ` (там, где встречается в коде).
+- Все таблицы имеют `created_at` / `updated_at TIMESTAMPTZ`.
 - Поле `is_deleted` в `habr_resumes` используется как мягкое удаление (см. `sql/add_is_deleted_column.sql`).
 
 ## ER-диаграмма
@@ -17,169 +17,184 @@ ER-диаграмма оформлена в формате [Mermaid](https://mer
 erDiagram
     habr_resumes {
         BIGSERIAL id PK
-        TEXT      link UQ "ON CONFLICT (link)"
-        TEXT      title
-        TEXT      slogan
-        TEXT      code
-        BOOLEAN   expert
-        TEXT      work_experience
-        INTEGER   level_id FK
-        TEXT      info_tech
-        INTEGER   salary
+        TEXT link UQ
+        TEXT title
+        TEXT slogan
+        TEXT code
+        BOOLEAN expert
+        TEXT work_experience
+        INTEGER level_id FK
+        TEXT info_tech
+        INTEGER salary
         TIMESTAMPTZ last_visit
-        TEXT      age
-        TEXT      registration
-        TEXT      citizenship
-        BOOLEAN   remote_work
-        BOOLEAN   public
-        TEXT      job_search_status
-        BOOLEAN   is_empty
-        BOOLEAN   is_deleted "soft delete"
-        TEXT      about
-        JSONB     community_participation
+        TEXT age
+        TEXT registration
+        TEXT citizenship
+        BOOLEAN remote_work
+        BOOLEAN public
+        TEXT job_search_status
+        BOOLEAN is_empty
+        BOOLEAN is_deleted
+        TEXT about
+        JSONB community_participation
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_levels {
         BIGSERIAL id PK
-        TEXT      title UQ "ON CONFLICT (title)"
+        TEXT title UQ
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_companies {
         BIGSERIAL id PK
-        TEXT      code UQ "ON CONFLICT (code)"
-        TEXT      url
-        BIGINT    company_id "из career.habr.com"
-        TEXT      title
-        TEXT      about
-        TEXT      description
-        TEXT      site
-        NUMERIC   rating
-        INTEGER   current_employees
-        INTEGER   past_employees
-        INTEGER   followers
-        INTEGER   want_work
-        TEXT      employees_count
-        BOOLEAN   habr
-        TEXT      city
-        TEXT[]    awards
-        NUMERIC   scores
+        TEXT code UQ
+        TEXT url
+        BIGINT company_id
+        TEXT title
+        TEXT about
+        TEXT description
+        TEXT site
+        NUMERIC rating
+        INTEGER current_employees
+        INTEGER past_employees
+        INTEGER followers
+        INTEGER want_work
+        TEXT employees_count
+        BOOLEAN habr
+        TEXT city
+        TEXT awards
+        NUMERIC scores
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_skills {
         BIGSERIAL id PK
-        INTEGER   skill_id "из career.habr.com, не NULL после insert"
-        TEXT      title UQ "ON CONFLICT (title)"
+        INTEGER skill_id
+        TEXT title UQ
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_user_skills {
         BIGSERIAL id PK
-        INTEGER   user_id FK
-        INTEGER   skill_id FK
+        INTEGER user_id FK
+        INTEGER skill_id FK
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_company_skills {
         BIGSERIAL id PK
-        INTEGER   company_id FK
-        INTEGER   skill_id FK
+        INTEGER company_id FK
+        INTEGER skill_id FK
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_company_reviews {
         BIGSERIAL id PK
-        INTEGER   company_id FK
-        TEXT      review_hash UQ "хеш текста отзыва"
-        TEXT      review_text
+        INTEGER company_id FK
+        TEXT review_hash UQ
+        TEXT review_text
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_user_experience {
         BIGSERIAL id PK
-        INTEGER   user_id FK
-        INTEGER   company_id FK
-        TEXT      position
-        TEXT      duration
-        TEXT      description
+        INTEGER user_id FK
+        INTEGER company_id FK
+        TEXT position
+        TEXT duration
+        TEXT description
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_user_experience_skills {
         BIGSERIAL id PK
-        INTEGER   experience_id FK
-        INTEGER   skill_id FK
+        INTEGER experience_id FK
+        INTEGER skill_id FK
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_universities {
         BIGSERIAL id PK
-        INTEGER   habr_id UQ "ON CONFLICT (habr_id)"
-        TEXT      name
-        TEXT      city
-        INTEGER   graduate_count
+        INTEGER habr_id UQ
+        TEXT name
+        TEXT city
+        INTEGER graduate_count
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_resumes_universities {
         BIGSERIAL id PK
-        INTEGER   user_id FK
-        INTEGER   university_id FK
-        JSONB     courses
-        TEXT      description
+        INTEGER user_id FK
+        INTEGER university_id FK
+        JSONB courses
+        TEXT description
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_resumes_educations {
         BIGSERIAL id PK
-        INTEGER   resume_id FK
-        TEXT      title
-        TEXT      course
-        TEXT      duration
+        INTEGER resume_id FK
+        TEXT title
+        TEXT course
+        TEXT duration
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     habr_category_root_ids {
         BIGSERIAL id PK
-        TEXT      category_id UQ "ON CONFLICT (category_id)"
-        TEXT      category_name
+        TEXT category_id UQ
+        TEXT category_name
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
-    habr_resumes       ||--o| habr_levels              : "level_id"
-    habr_resumes       ||--o{ habr_user_skills          : "user_id"
-    habr_resumes       ||--o{ habr_user_experience      : "user_id"
-    habr_resumes       ||--o{ habr_resumes_universities  : "user_id"
-    habr_resumes       ||--o{ habr_resumes_educations    : "resume_id"
-    habr_resumes       }o..o{ habr_skills               : "through habr_user_skills"
+    habr_resumes ||--o| habr_levels : level_id
+    habr_resumes ||--o{ habr_user_skills : user_id
+    habr_resumes ||--o{ habr_user_experience : user_id
+    habr_resumes ||--o{ habr_resumes_universities : user_id
+    habr_resumes ||--o{ habr_resumes_educations : resume_id
 
-    habr_user_experience ||--|| habr_companies          : "company_id"
-    habr_user_experience ||--o{ habr_user_experience_skills : "experience_id"
+    habr_user_experience ||--|| habr_companies : company_id
+    habr_user_experience ||--o{ habr_user_experience_skills : experience_id
 
-    habr_user_experience_skills }o--|| habr_skills         : "skill_id"
-    habr_user_skills            }o--|| habr_skills         : "skill_id"
+    habr_user_experience_skills }o--|| habr_skills : skill_id
+    habr_user_skills }o--|| habr_skills : skill_id
 
-    habr_companies    ||--o{ habr_company_skills        : "company_id"
-    habr_companies    ||--o{ habr_company_reviews        : "company_id"
-    habr_company_skills }o--|| habr_skills               : "skill_id"
+    habr_companies ||--o{ habr_company_skills : company_id
+    habr_companies ||--o{ habr_company_reviews : company_id
+    habr_company_skills }o--|| habr_skills : skill_id
 
-    habr_resumes_universities }o--|| habr_universities   : "university_id"
+    habr_resumes_universities }o--|| habr_universities : university_id
 ```
+
+## Уникальные ключи — отдельная таблица
+
+Комментарии в строках атрибутов GitHub-Mermaid не поддерживает — они ломают парсер. Поэтому привожу соответствие колонок и `ON CONFLICT`-индексов здесь:
+
+| Таблица | Колонка с UQ | `ON CONFLICT (...) DO UPDATE` |
+| --- | --- | --- |
+| `habr_resumes` | `link` | `link` |
+| `habr_levels` | `title` | `title` |
+| `habr_companies` | `code` | `code` |
+| `habr_skills` | `title` | `title` |
+| `habr_company_reviews` | `review_hash` | (хеш + фильтр `WHERE NOT EXISTS`) |
+| `habr_universities` | `habr_id` | `habr_id` |
+| `habr_category_root_ids` | `category_id` | `category_id` |
+
+Связующие таблицы (`habr_user_skills`, `habr_company_skills`, `habr_user_experience_skills`, `habr_resumes_universities`, `habr_resumes_educations`) не имеют дополнительных UQ поверх PK — целостность обеспечивается составным ключом (`user_id`+`skill_id` и т.п.) через `ON CONFLICT (...) DO UPDATE`.
 
 ## Пояснения к сущностям
 
@@ -221,7 +236,7 @@ erDiagram
 ## Соответствие скрейперов и таблиц
 
 | Скрейпер | Заполняемые таблицы |
-|---|---|
+| --- | --- |
 | `ResumeListPageScraper` | `habr_resumes` (только базовые поля), `habr_skills` |
 | `UserResumeDetailScraper` | `habr_resumes` (полностью), `habr_user_experience`, `habr_user_experience_skills`, `habr_resumes_universities`, `habr_resumes_educations`, `habr_user_skills` |
 | `UserFriendsScraper` | (friend-relations — отсутствует в БД, если есть — отдельная таблица) |
