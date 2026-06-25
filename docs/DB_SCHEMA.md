@@ -16,149 +16,149 @@ ER-диаграмма оформлена в формате [Mermaid](https://mer
 ```mermaid
 erDiagram
     habr_resumes {
-        BIGSERIAL id PK
-        TEXT link UQ
-        TEXT title
-        TEXT slogan
-        TEXT code
-        BOOLEAN expert
-        TEXT work_experience
-        INTEGER level_id FK
-        TEXT info_tech
-        INTEGER salary
-        TIMESTAMPTZ last_visit
-        TEXT age
-        TEXT registration
-        TEXT citizenship
-        BOOLEAN remote_work
-        BOOLEAN public
-        TEXT job_search_status
-        BOOLEAN is_empty
-        BOOLEAN is_deleted
-        TEXT about
-        JSONB community_participation
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        text link
+        text title
+        text slogan
+        text code
+        boolean expert
+        text work_experience
+        integer level_id
+        text info_tech
+        integer salary
+        timestamptz last_visit
+        text age
+        text registration
+        text citizenship
+        boolean remote_work
+        boolean public
+        text job_search_status
+        boolean is_empty
+        boolean is_deleted
+        text about
+        jsonb community_participation
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_levels {
-        BIGSERIAL id PK
-        TEXT title UQ
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        text title
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_companies {
-        BIGSERIAL id PK
-        TEXT code UQ
-        TEXT url
-        BIGINT company_id
-        TEXT title
-        TEXT about
-        TEXT description
-        TEXT site
-        NUMERIC rating
-        INTEGER current_employees
-        INTEGER past_employees
-        INTEGER followers
-        INTEGER want_work
-        TEXT employees_count
-        BOOLEAN habr
-        TEXT city
-        TEXT awards
-        NUMERIC scores
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        text code
+        text url
+        bigint company_id
+        text title
+        text about
+        text description
+        text site
+        numeric rating
+        integer current_employees
+        integer past_employees
+        integer followers
+        integer want_work
+        text employees_count
+        boolean habr
+        text city
+        text awards
+        numeric scores
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_skills {
-        BIGSERIAL id PK
-        INTEGER skill_id
-        TEXT title UQ
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer skill_id
+        text title
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_user_skills {
-        BIGSERIAL id PK
-        INTEGER user_id FK
-        INTEGER skill_id FK
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer user_id
+        integer skill_id
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_company_skills {
-        BIGSERIAL id PK
-        INTEGER company_id FK
-        INTEGER skill_id FK
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer company_id
+        integer skill_id
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_company_reviews {
-        BIGSERIAL id PK
-        INTEGER company_id FK
-        TEXT review_hash UQ
-        TEXT review_text
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer company_id
+        text review_hash
+        text review_text
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_user_experience {
-        BIGSERIAL id PK
-        INTEGER user_id FK
-        INTEGER company_id FK
-        TEXT position
-        TEXT duration
-        TEXT description
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer user_id
+        integer company_id
+        text position
+        text duration
+        text description
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_user_experience_skills {
-        BIGSERIAL id PK
-        INTEGER experience_id FK
-        INTEGER skill_id FK
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer experience_id
+        integer skill_id
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_universities {
-        BIGSERIAL id PK
-        INTEGER habr_id UQ
-        TEXT name
-        TEXT city
-        INTEGER graduate_count
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer habr_id
+        text name
+        text city
+        integer graduate_count
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_resumes_universities {
-        BIGSERIAL id PK
-        INTEGER user_id FK
-        INTEGER university_id FK
-        JSONB courses
-        TEXT description
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer user_id
+        integer university_id
+        jsonb courses
+        text description
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_resumes_educations {
-        BIGSERIAL id PK
-        INTEGER resume_id FK
-        TEXT title
-        TEXT course
-        TEXT duration
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        integer resume_id
+        text title
+        text course
+        text duration
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_category_root_ids {
-        BIGSERIAL id PK
-        TEXT category_id UQ
-        TEXT category_name
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        bigserial id
+        text category_id
+        text category_name
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     habr_resumes ||--o| habr_levels : level_id
@@ -180,21 +180,25 @@ erDiagram
     habr_resumes_universities }o--|| habr_universities : university_id
 ```
 
-## Уникальные ключи — отдельная таблица
+## Ключи и индексы — отдельная таблица
 
-Комментарии в строках атрибутов GitHub-Mermaid не поддерживает — они ломают парсер. Поэтому привожу соответствие колонок и `ON CONFLICT`-индексов здесь:
+GitHub Mermaid внутри `{}`-блока атрибутов принимает только `type name`. Маркеры `PK`/`FK`/`UQ` ломают парсер, поэтому они вынесены в таблицу ниже.
 
-| Таблица | Колонка с UQ | `ON CONFLICT (...) DO UPDATE` |
-| --- | --- | --- |
-| `habr_resumes` | `link` | `link` |
-| `habr_levels` | `title` | `title` |
-| `habr_companies` | `code` | `code` |
-| `habr_skills` | `title` | `title` |
-| `habr_company_reviews` | `review_hash` | (хеш + фильтр `WHERE NOT EXISTS`) |
-| `habr_universities` | `habr_id` | `habr_id` |
-| `habr_category_root_ids` | `category_id` | `category_id` |
-
-Связующие таблицы (`habr_user_skills`, `habr_company_skills`, `habr_user_experience_skills`, `habr_resumes_universities`, `habr_resumes_educations`) не имеют дополнительных UQ поверх PK — целостность обеспечивается составным ключом (`user_id`+`skill_id` и т.п.) через `ON CONFLICT (...) DO UPDATE`.
+| Таблица | PK | UQ | FK |
+| --- | --- | --- | --- |
+| `habr_resumes` | `id` | `link` (ON CONFLICT `link`) | `level_id` → `habr_levels.id` |
+| `habr_levels` | `id` | `title` (ON CONFLICT `title`) | — |
+| `habr_companies` | `id` | `code` (ON CONFLICT `code`) | — |
+| `habr_skills` | `id` | `title` (ON CONFLICT `title`) | — |
+| `habr_user_skills` | `id` | — | `user_id` → `habr_resumes.id`, `skill_id` → `habr_skills.id` |
+| `habr_company_skills` | `id` | — | `company_id` → `habr_companies.id`, `skill_id` → `habr_skills.id` |
+| `habr_company_reviews` | `id` | `review_hash` | `company_id` → `habr_companies.id` |
+| `habr_user_experience` | `id` | — | `user_id` → `habr_resumes.id`, `company_id` → `habr_companies.id` |
+| `habr_user_experience_skills` | `id` | — | `experience_id` → `habr_user_experience.id`, `skill_id` → `habr_skills.id` |
+| `habr_universities` | `id` | `habr_id` (ON CONFLICT `habr_id`) | — |
+| `habr_resumes_universities` | `id` | — (составной `user_id`+`university_id`) | `user_id` → `habr_resumes.id`, `university_id` → `habr_universities.id` |
+| `habr_resumes_educations` | `id` | — | `resume_id` → `habr_resumes.id` |
+| `habr_category_root_ids` | `id` | `category_id` (ON CONFLICT `category_id`) | — |
 
 ## Пояснения к сущностям
 
