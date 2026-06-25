@@ -743,17 +743,18 @@ public sealed class UserResumeDetailScraper : IDisposable
                 }
                 
                 // Извлекаем данные о дополнительном образовании
+                // ResumesEducationsInsert всегда делает полную замену набора курсов
+                // для каждого пользователя в пачке, поэтому флаг DeleteExisting не нужен.
                 var additionalEducationData = ProfileDataExtractor.ExtractAdditionalEducationData(doc, userLink);
-                var additionalEducationCount = 0;
+                var additionalEducationCount = additionalEducationData.Count;
+                var additionalEducations = new List<AdditionalEducationRecord>(additionalEducationCount);
                 foreach (var additionalEducation in additionalEducationData)
                 {
-                    _db.EnqueueAdditionalEducation(
-                        additionalEducation.UserLink,
-                        additionalEducation.Title,
-                        additionalEducation.Course,
-                        additionalEducation.Duration,
-                        deleteExisting: additionalEducationCount == 0);
-                    additionalEducationCount++;
+                    additionalEducations.Add(new AdditionalEducationRecord(
+                        UserLink: additionalEducation.UserLink,
+                        Title: additionalEducation.Title,
+                        Course: additionalEducation.Course,
+                        Duration: additionalEducation.Duration));
                 }
                 
                 // Извлекаем данные об участии в профсообществах
@@ -812,6 +813,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                     about: about,
                     communityParticipation: communityParticipation,
                     userUniversities: userUniversities,
+                    additionalEducations: additionalEducations,
                     isPublic: true);
 
                 _logger.WriteLine($"Пользователь {userLink}:");

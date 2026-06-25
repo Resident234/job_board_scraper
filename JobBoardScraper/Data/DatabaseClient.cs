@@ -19,8 +19,7 @@ public enum DbRecordType
     CategoryRootId,
     Skills,
     UserExperience,
-    University,
-    AdditionalEducation
+    University
 }
 
 public enum InsertMode
@@ -36,7 +35,10 @@ public enum InsertMode
     UpdateIfExists
 }
 
+
 /// <summary>
+/// Entity
+/// 
 /// Data structure for Resume record type.
 /// </summary>
 public readonly record struct ResumeRecord(
@@ -64,10 +66,13 @@ public readonly record struct ResumeRecord(
     List<SkillsRecord>? Skills = null,
     List<CommunityParticipationData>? CommunityParticipation = null,
     List<UserUniversityRecord>? UserUniversities = null,
+    List<AdditionalEducationRecord>? AdditionalEducations = null,
     bool? IsDeleted = null,
     string? About = null);
 
 /// <summary>
+/// Entity
+/// 
 /// Data structure for Company record type.
 /// </summary>
 public readonly record struct CompanyRecord(
@@ -107,6 +112,16 @@ public readonly record struct SkillsRecord(
 
 
 /// <summary>
+/// Additional education record type.
+/// </summary>
+public readonly record struct AdditionalEducationRecord(
+    string UserLink,
+    string Title,
+    string? Course = null,
+    string? Duration = null);
+
+
+/// <summary>
 /// Data structure for UserExperience record type.
 /// </summary>
 public readonly record struct UserExperienceRecord(
@@ -140,15 +155,6 @@ public readonly record struct UserUniversityRecord(
     List<CourseData>? Courses = null,
     string? Description = null);
 
-/// <summary>
-/// Additional education record type.
-/// </summary>
-public readonly record struct AdditionalEducationRecord(
-    string UserLink,
-    string Title,
-    string? Course = null,
-    string? Duration = null,
-    bool DeleteExisting = false);
 
 /// <summary>
 /// Record structure for database queue operations with specific fields for each record type.
@@ -162,8 +168,7 @@ public readonly record struct DbRecord(
     CategoryRootIdRecord? CategoryRootId = null,
     SkillsRecord? Skills = null,
     UserExperienceRecord? UserExperience = null,
-    UniversityRecord? University = null,
-    AdditionalEducationRecord? AdditionalEducation = null);
+    UniversityRecord? University = null);
 
 public sealed class DatabaseClient
 {
@@ -611,6 +616,12 @@ public sealed class DatabaseClient
                                         {
                                             ResumesUniversitiesInsert(conn, resume.UserUniversities);
                                         }
+
+                                        // Если есть записи дополнительного образования, добавляем их через ResumeRecord
+                                        if (resume.AdditionalEducations != null && resume.AdditionalEducations.Count > 0)
+                                        {
+                                            ResumesEducationsInsert(conn, resume.AdditionalEducations);
+                                        }
                                     }
                                     break;
                                 case DbRecordType.Company:
@@ -705,19 +716,6 @@ public sealed class DatabaseClient
                                             university.Name,
                                             university.City,
                                             university.GraduateCount);
-                                    }
-                                    break;
-                                case DbRecordType.AdditionalEducation:
-                                    if (record.AdditionalEducation.HasValue)
-                                    {
-                                        var additionalEducation = record.AdditionalEducation.Value;
-                                        ResumesEducationsInsert(
-                                            conn,
-                                            additionalEducation.UserLink,
-                                            additionalEducation.Title,
-                                            additionalEducation.Course,
-                                            additionalEducation.Duration,
-                                            additionalEducation.DeleteExisting);
                                     }
                                     break;
                             }
@@ -839,6 +837,7 @@ public sealed class DatabaseClient
         List<SkillsRecord>? skills = null,
         List<CommunityParticipationData>? communityParticipation = null,
         List<UserUniversityRecord>? userUniversities = null,
+        List<AdditionalEducationRecord>? additionalEducations = null,
         string? about = null,
         bool? isDeleted = null)
     {
@@ -869,6 +868,7 @@ public sealed class DatabaseClient
             Skills: skills,
             CommunityParticipation: communityParticipation,
             UserUniversities: userUniversities,
+            AdditionalEducations: additionalEducations,
             About: about,
             IsDeleted: isDeleted,
             Mode: mode
@@ -1066,33 +1066,6 @@ public sealed class DatabaseClient
         );
         _saveQueue.Enqueue(record);
         LogEnqueue("University", universityRecord);
-    }
-
-    /// <summary>
-    /// Добавить дополнительное образование в основную очередь на сохранение
-    /// </summary>
-    public void EnqueueAdditionalEducation(
-        string userLink,
-        string title,
-        string? course = null,
-        string? duration = null,
-        bool deleteExisting = false)
-    {
-        if (_saveQueue == null) return;
-
-        var additionalEducationRecord = new AdditionalEducationRecord(
-            UserLink: userLink,
-            Title: title,
-            Course: course,
-            Duration: duration,
-            DeleteExisting: deleteExisting);
-
-        var record = new DbRecord(
-            Type: DbRecordType.AdditionalEducation,
-            AdditionalEducation: additionalEducationRecord
-        );
-        _saveQueue.Enqueue(record);
-        LogEnqueue("AdditionalEducation", additionalEducationRecord);
     }
 
     #endregion
@@ -2936,101 +2909,154 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
-    /// Вставить запись дополнительного образования в БД одним SQL-запросом.
-    /// При DeleteExisting=true сначала удаляет старые записи пользователя, затем вставляет новую.
+    /// Вставить записи дополнительного образования в БД одним SQL-запросом.
+    /// Все записи одного пользователя обрабатываются пачкой:
+    /// - если хоть одна запись имеет DeleteExisting=true, сначала удаляются все старые записи пользователя;
+    /// - записи дедуплицируются по (resume_id, title);
+    /// - вставка делается через ON CONFLICT DO NOTHING;
+    /// - в конце возвращается статистика: удалено, вставлено, пропущено, не найдено резюме.
     /// </summary>
+    /// <remarks>
+    /// Полный аналог по подходу: UserSkillsInsert (пачка навыков одного пользователя) и
+    /// ResumesUniversitiesInsert (пачка связей резюме-ВУЗ) — все в одном CTE.
+    /// </remarks>
     private void ResumesEducationsInsert(
         NpgsqlConnection conn,
-        string userLink,
-        string title,
-        string? course = null,
-        string? duration = null,
-        bool deleteExisting = false)
+        List<AdditionalEducationRecord>? additionalEducations)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
+        if (additionalEducations == null || additionalEducations.Count == 0) return;
 
         try
         {
             EnsureConnectionOpen(conn);
 
+            // Нормализация и сериализация входных записей в JSON для CTE.
+            var records = additionalEducations
+                .Where(education =>
+                    !string.IsNullOrWhiteSpace(education.UserLink) &&
+                    !string.IsNullOrWhiteSpace(education.Title))
+                .Select(education => new
+                {
+                    user_link = education.UserLink,
+                    title = education.Title.Trim(),
+                    course = education.Course?.Trim(),
+                    duration = education.Duration?.Trim()
+                })
+                .ToArray();
+
+            if (records.Length == 0) return;
+
+            var recordsJson = System.Text.Json.JsonSerializer.Serialize(records);
+
             using var cmd = new NpgsqlCommand(@"
-                WITH target_resume AS (
-                    SELECT id
-                    FROM habr_resumes
-                    WHERE link = @link
-                    LIMIT 1
+                WITH input_rows AS (
+                    SELECT user_link, title, course, duration
+                    FROM jsonb_to_recordset(@educations::jsonb)
+                         AS r(user_link text, title text, course text, duration text)
+                    WHERE user_link IS NOT NULL
+                      AND btrim(title) <> ''
                 ),
+                target_resumes AS (
+                    SELECT hr.id AS resume_id, ir.user_link
+                    FROM input_rows ir
+                    JOIN habr_resumes hr ON hr.link = ir.user_link
+                ),
+                -- Всегда удаляем все старые записи дополнительного образования для каждого
+                -- пользователя в пачке: при повторном парсинге профиля его набор курсов
+                -- полностью перезаписывается, а не дополняется.
                 deleted AS (
                     DELETE FROM habr_resumes_educations e
-                    USING target_resume r
-                    WHERE e.resume_id = r.id
-                      AND @delete_existing
+                    USING target_resumes tr
+                    WHERE e.resume_id = tr.resume_id
                     RETURNING e.resume_id
+                ),
+                dedup_rows AS (
+                    -- Дедупликация по (resume_id, title), чтобы один и тот же курс
+                    -- с одинаковым названием не вставлялся дважды.
+                    SELECT DISTINCT ON (tr.resume_id, ir.title)
+                        tr.resume_id,
+                        ir.title,
+                        ir.course,
+                        ir.duration
+                    FROM input_rows ir
+                    JOIN target_resumes tr ON tr.user_link = ir.user_link
                 ),
                 inserted AS (
                     INSERT INTO habr_resumes_educations (resume_id, title, course, duration, created_at, updated_at)
-                    SELECT id, @title, @course, @duration, NOW(), NOW()
-                    FROM target_resume
+                    SELECT resume_id, title, course, duration, NOW(), NOW()
+                    FROM dedup_rows
                     ON CONFLICT DO NOTHING
                     RETURNING resume_id, title
                 )
                 SELECT
-                    (SELECT id FROM target_resume) AS resume_id,
+                    (SELECT COUNT(*)::int FROM (SELECT DISTINCT user_link FROM input_rows) t) AS input_user_count,
+                    (SELECT COUNT(*)::int FROM target_resumes) AS found_user_count,
                     (SELECT COUNT(*)::int FROM deleted) AS deleted_count,
-                    (SELECT resume_id FROM inserted) AS inserted_resume_id,
-                    (SELECT title FROM inserted) AS inserted_title", conn);
+                    (SELECT COUNT(*)::int FROM dedup_rows) AS deduped_count,
+                    (SELECT COUNT(*)::int FROM inserted) AS inserted_count", conn);
 
-            cmd.Parameters.AddWithValue("@link", userLink);
-            cmd.Parameters.AddWithValue("@title", title);
-            cmd.Parameters.AddWithValue("@course", course ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@duration", duration ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@delete_existing", deleteExisting);
+            cmd.Parameters.AddWithValue("@educations", recordsJson);
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("Дополнительное образование", userLink, "запрос не вернул результат");
-                _statistics.RecordError("habr_resumes_educations", userLink);
+                LogError("Дополнительное образование", "", "запрос не вернул результат");
+                _statistics.RecordError("habr_resumes_educations", "query");
                 TryDumpStatistics();
                 return;
             }
 
-            var resumeId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
-            var deletedCount = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
-            var insertedResumeId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
-            var insertedTitle = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var inputUserCount = reader.GetInt32(0);
+            var foundUserCount = reader.GetInt32(1);
+            var deletedCount = reader.GetInt32(2);
+            var dedupedCount = reader.GetInt32(3);
+            var insertedCount = reader.GetInt32(4);
 
-            if (!resumeId.HasValue)
+            var missingUsersCount = inputUserCount - foundUserCount;
+
+            if (missingUsersCount > 0)
             {
-                LogSkip($"Дополнительное образование {userLink}", "пользователь не найден в БД");
-                _statistics.RecordSkipped("habr_resumes_educations", userLink);
-                TryDumpStatistics();
-                return;
+                _statistics.RecordSkipped("habr_resumes_educations", $"missing_users:{missingUsersCount}");
+                LogSkip("ResumesEducations", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
             }
 
             if (deletedCount > 0)
             {
-                _statistics.RecordDelete("habr_resumes_educations", $"{resumeId}-{deletedCount}");
-                LogDelete("Дополнительное образование", "старых записей", deletedCount, ("ResumeID", resumeId));
+                _statistics.RecordDelete("habr_resumes_educations", $"{deletedCount}");
+                LogDelete("Дополнительное образование", "старых записей", deletedCount);
             }
 
-            if (insertedResumeId.HasValue)
+            if (insertedCount > 0)
             {
-                _statistics.RecordInsert("habr_resumes_educations", $"{insertedResumeId}-{insertedTitle}");
-                LogParts($"Дополнительное образование", isInsert: true, ("ResumeID", insertedResumeId), ("Title", insertedTitle));
+                _statistics.RecordInsert("habr_resumes_educations", $"{insertedCount}");
+                LogInsert($"Дополнительное образование", "записей", $"{insertedCount}");
             }
-            else
+
+            var skippedCount = dedupedCount - insertedCount;
+            if (skippedCount > 0)
             {
-                _statistics.RecordSkipped("habr_resumes_educations", $"{resumeId}-{title}");
-                LogSkip($"Дополнительное образование {userLink}", "запись уже существует", ("ResumeID", resumeId), ("Title", title));
+                _statistics.RecordSkipped("habr_resumes_educations", $"already_exists:{skippedCount}");
+                LogSkip($"Дополнительное образование", "записи уже существуют", ("SkippedCount", skippedCount));
             }
+
+            LogParts(
+                "ResumesEducations summary",
+                isInsert: false,
+                ("Input", inputUserCount),
+                ("FoundUsers", foundUserCount),
+                ("Deleted", deletedCount),
+                ("Deduped", dedupedCount),
+                ("Inserted", insertedCount),
+                ("Skipped", skippedCount),
+                ("MissingUsers", missingUsersCount));
 
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("ResumesEducationsInsert", userLink, ex.Message);
-            _statistics.RecordError("habr_resumes_educations", userLink);
+            LogError("ResumesEducationsInsert", "", ex.Message);
+            _statistics.RecordError("habr_resumes_educations", "exception");
             TryDumpStatistics();
         }
     }
