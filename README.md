@@ -12,6 +12,7 @@ JobBoardScraper - .NET 9 консольное приложение для сбо
 - **[Architecture](docs/ARCHITECTURE.md)** - Общее описание архитектуры проекта
 - **[Configuration](docs/CONFIGURATION.md)** - Настройка параметров и конфигурации
 - **[Quickstart](docs/QUICKSTART.md)** - Быстрый старт и основные команды
+- **[DB Schema](docs/DB_SCHEMA.md)** - ER-диаграмма базы данных (Mermaid)
 
 Основные документы:
 
@@ -22,6 +23,7 @@ JobBoardScraper - .NET 9 консольное приложение для сбо
 - [BUILD.md](docs/BUILD.md) - сборка и публикация.
 - [EXAMPLES.md](docs/EXAMPLES.md) - практические примеры.
 - [TESTING_AND_DEPLOYMENT.md](docs/TESTING_AND_DEPLOYMENT.md) - тестирование и деплой.
+- [DB_SCHEMA.md](docs/DB_SCHEMA.md) - модель данных PostgreSQL (ER-диаграмма в формате Mermaid).
 
 Модули:
 
