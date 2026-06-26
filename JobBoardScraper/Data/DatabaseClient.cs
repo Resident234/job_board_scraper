@@ -93,7 +93,7 @@ public readonly record struct CompanyRecord(
     string? City = null,
     List<string>? Awards = null,
     decimal? Scores = null,
-    List<string>? ReviewTexts = null,
+    List<CompanyReviewRecord>? ReviewRecords = null,
     List<SkillsRecord>? Skills = null);
 
 /// <summary>
@@ -120,6 +120,14 @@ public readonly record struct AdditionalEducationRecord(
     string? Course = null,
     string? Duration = null);
 
+
+/// <summary>
+/// Data structure for Company Review record type.
+/// </summary>
+public readonly record struct CompanyReviewRecord(
+    string CompanyCode,
+    string ReviewHash,
+    string ReviewText);
 
 /// <summary>
 /// Data structure for UserExperience record type.
@@ -650,12 +658,12 @@ public sealed class DatabaseClient
                                         );
 
                                         // Если есть отзывы, добавляем их
-                                        if (company.ReviewTexts != null && company.ReviewTexts.Count > 0)
+                                        if (company.ReviewRecords != null && company.ReviewRecords.Count > 0)
                                         {
                                             var companyInternalId = CompaniesGetInternalId(conn, company.CompanyCode);
                                             if (companyInternalId.HasValue)
                                             {
-                                                CompanyReviewsInsert(conn, companyInternalId.Value, company.ReviewTexts);
+                                                CompanyReviewsInsert(conn, companyInternalId.Value, company.ReviewRecords);
                                             }
                                             else
                                             {
@@ -924,7 +932,7 @@ public sealed class DatabaseClient
         string? city = null,
         List<string>? awards = null,
         decimal? scores = null,
-        List<string>? reviewTexts = null,
+        List<CompanyReviewRecord>? reviewRecords = null,
         List<SkillsRecord>? skills = null)
     {
         if (_saveQueue == null) return false;
@@ -947,7 +955,7 @@ public sealed class DatabaseClient
             City: city,
             Awards: awards,
             Scores: scores,
-            ReviewTexts: reviewTexts,
+            ReviewRecords: reviewRecords,
             Skills: skills
         );
 
@@ -2580,21 +2588,21 @@ public sealed class DatabaseClient
     /// <summary>
     /// Сохранить отзывы о компании одним SQL-запросом с проверкой дубликатов по хешу.
     /// </summary>
-    public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, List<string> reviewTexts)
+    public void CompanyReviewsInsert(NpgsqlConnection conn, int companyId, List<CompanyReviewRecord> reviewsRecords)
     {
         if (conn is null) throw new ArgumentNullException(nameof(conn));
-        if (reviewTexts == null || reviewTexts.Count == 0) return;
+        if (reviewsRecords == null || reviewsRecords.Count == 0) return;
 
         try
         {
             EnsureConnectionOpen(conn);
 
-            var reviews = reviewTexts
-                .Where(reviewText => !string.IsNullOrWhiteSpace(reviewText))
-                .Select(reviewText => new
+            var reviews = reviewsRecords
+                .Where(r => !string.IsNullOrWhiteSpace(r.ReviewText))
+                .Select(r => new
                 {
-                    review_hash = CompanyRatingScraper.ComputeReviewHash(reviewText),
-                    review_text = reviewText
+                    review_hash = r.ReviewHash,
+                    review_text = r.ReviewText
                 })
                 .ToArray();
 

@@ -181,13 +181,30 @@ public sealed class CompanyRatingScraper : IDisposable
             var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
             // Парсим компании на странице
-            var companiesFound = await ParseCompaniesFromPage(doc, ct);
-            _statistics.AddItemsCollected(companiesFound);
+            var companies = await ParseCompaniesFromPage(doc, ct);
+            
+            // Добавляем в очередь БД
+            foreach (var company in companies)
+            {
+                _db.EnqueueCompany(
+                    companyCode: company.CompanyCode,
+                    companyUrl: company.CompanyUrl,
+                    companyTitle: company.CompanyTitle,
+                    companyRating: company.Rating,
+                    companyAbout: company.About,
+                    city: company.City,
+                    awards: company.Awards,
+                    scores: company.Scores,
+                    reviewRecords: company.ReviewRecords);
+            }
 
-            _logger.WriteLine($"URL {url}: найдено {companiesFound} компаний");
+            var companiesCount = companies.Count;
+            _statistics.AddItemsCollected(companiesCount);
+
+            _logger.WriteLine($"URL {url}: найдено {companiesCount} компаний");
 
             // Если компаний не найдено, останавливаем пагинацию
-            if (companiesFound == 0)
+            if (companiesCount == 0)
             {
                 hasMorePages = false;
             }
@@ -198,9 +215,9 @@ public sealed class CompanyRatingScraper : IDisposable
         }
     }
 
-    private async Task<int> ParseCompaniesFromPage(AngleSharp.Dom.IDocument doc, CancellationToken ct)
+    private async Task<List<CompanyRecord>> ParseCompaniesFromPage(AngleSharp.Dom.IDocument doc, CancellationToken ct)
     {
-        var companiesCount = 0;
+        var companies = new List<CompanyRecord>();
         var sections = doc.QuerySelectorAll(AppConfig.CompanyRatingSectionSelector);
 
         foreach (var section in sections)
@@ -209,18 +226,7 @@ public sealed class CompanyRatingScraper : IDisposable
             {
                 if (ExtractCompanyData(section) is { } company)
                 {
-                    _db.EnqueueCompany(
-                        companyCode: company.CompanyCode,
-                        companyUrl: company.CompanyUrl,
-                        companyTitle: company.CompanyTitle,
-                        companyRating: company.Rating,
-                        companyAbout: company.About,
-                        city: company.City,
-                        awards: company.Awards,
-                        scores: company.Scores,
-                        reviewTexts: company.ReviewTexts);
-
-                    companiesCount++;
+                    companies.Add(company);
                 }
             }
             catch (Exception ex)
@@ -229,7 +235,7 @@ public sealed class CompanyRatingScraper : IDisposable
             }
         }
 
-        return companiesCount;
+        return companies;
     }
 
     private CompanyRecord? ExtractCompanyData(AngleSharp.Dom.IElement section)
@@ -315,29 +321,36 @@ public sealed class CompanyRatingScraper : IDisposable
             }
         }
 
-        // 8. Извлекаем текст отзыва (очищенный от HTML)
-        List<string>? reviewTexts = null;
-        var reviewElement = section.QuerySelector(AppConfig.CompanyRatingReviewSelector);
-        if (reviewElement != null)
-        {
-            var reviewText = reviewElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(reviewText))
-            {
-                reviewTexts = new List<string> { reviewText };
-            }
-        }
+                // 8. Извлекаем текст отзыва (очищенный от HTML) и вычисляем хеш
+                List<CompanyReviewRecord>? reviewRecords = null;
+                var reviewElement = section.QuerySelector(AppConfig.CompanyRatingReviewSelector);
+                if (reviewElement != null)
+                {
+                    var reviewText = reviewElement.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(reviewText))
+                    {
+                        reviewRecords = new List<CompanyReviewRecord> 
+                        { 
+                            new CompanyReviewRecord(
+                                CompanyCode: code, 
+                                ReviewHash: ComputeReviewHash(reviewText), 
+                                ReviewText: reviewText
+                            ) 
+                        };
+                    }
+                }
 
-        return new CompanyRecord(
-            CompanyCode: code,
-            CompanyUrl: url,
-            CompanyTitle: title,
-            Rating: rating,
-            About: about,
-            City: city,
-            Awards: awards.Count > 0 ? awards : null,
-            Scores: scores,
-            ReviewTexts: reviewTexts
-        );
+                return new CompanyRecord(
+                    CompanyCode: code,
+                    CompanyUrl: url,
+                    CompanyTitle: title,
+                    Rating: rating,
+                    About: about,
+                    City: city,
+                    Awards: awards.Count > 0 ? awards : null,
+                    Scores: scores,
+                    ReviewRecords: reviewRecords
+                );
     }
 
     /// <summary>
