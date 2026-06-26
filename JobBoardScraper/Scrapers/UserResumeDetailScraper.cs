@@ -725,23 +725,22 @@ public sealed class UserResumeDetailScraper : IDisposable
                 var userUniversities = new List<UserUniversityRecord>();
                 foreach (var education in educationData)
                 {
-                    // Сохраняем университет
-                    _db.EnqueueUniversity(
-                        education.University.HabrId,
-                        education.University.Name,
-                        education.University.City,
-                        education.University.GraduateCount);
-
                     // Сохраняем связь пользователь-университет через ResumeRecord
+                    // Университеты будут сохранены через EnqueueResume (как навыки)
                     userUniversities.Add(new UserUniversityRecord(
                         UserLink: userLink,
-                        UniversityHabrId: education.University.HabrId,
+                        University: new UniversityRecord(
+                            HabrId: education.University.HabrId,
+                            Name: education.University.Name,
+                            City: education.University.City,
+                            GraduateCount: education.University.GraduateCount
+                        ),
                         Courses: education.Courses,
                         Description: education.Description
                     ));
                     educationCount++;
                 }
-                
+
                 // Извлекаем данные о дополнительном образовании
                 // ResumesEducationsInsert всегда делает полную замену набора курсов
                 // для каждого пользователя в пачке, поэтому флаг DeleteExisting не нужен.

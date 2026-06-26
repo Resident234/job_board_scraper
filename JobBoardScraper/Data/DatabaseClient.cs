@@ -151,7 +151,7 @@ public readonly record struct UniversityRecord(
 /// </summary>
 public readonly record struct UserUniversityRecord(
     string UserLink,
-    int UniversityHabrId,
+    UniversityRecord University,
     List<CourseData>? Courses = null,
     string? Description = null);
 
@@ -369,13 +369,13 @@ public sealed class DatabaseClient
     {
         var parts = new List<string> { $"[DB] {entityLabel}:" };
 
-        foreach (var (name, value) in fields)
-        {
+            foreach (var (name, value) in fields)
+            {
             if (value is null)
                 continue;
 
             parts.Add(FormatLogField(name, value));
-        }
+            }
 
         parts.Add(isInsert ? $"{DbInsertIcon} INSERT" : $"{DbUpdateIcon} UPDATE");
 
@@ -442,7 +442,7 @@ public sealed class DatabaseClient
     }
 
     private static string FormatObjectProperties(object value, int depth)
-    {
+        {
         var properties = value.GetType()
             .GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .Where(property => property.GetIndexParameters().Length == 0)
@@ -452,11 +452,11 @@ public sealed class DatabaseClient
                 try
                 {
                     return $"{property.Name}={FormatValue(property.GetValue(value), depth + 1)}";
-                }
-                catch (Exception ex)
-                {
+        }
+        catch (Exception ex)
+        {
                     return $"{property.Name}=<error reading property: {EscapeLogValue(ex.Message)}>";
-                }
+        }
             });
 
         return "{" + string.Join(", ", properties) + "}";
@@ -2755,7 +2755,7 @@ public sealed class DatabaseClient
     /// - входные записи передаются одним JSON-параметром;
     /// - записи дедуплицируются по паре user_link + university_habr_id;
     /// - пользователи находятся в habr_resumes;
-    /// - университеты находятся в habr_universities;
+    /// - университеты upsert-ятся в habr_universities (с использованием переданных данных имени, города, количества выпускников);
     /// - связи upsert-ятся в habr_resumes_universities через ON CONFLICT (user_id, university_id);
     /// - отдельно считаются пропущенные пользователи и университеты.
     /// </remarks>
@@ -2770,7 +2770,7 @@ public sealed class DatabaseClient
 
             var records = userUniversities
                 .Where(userUniversity => !string.IsNullOrWhiteSpace(userUniversity.UserLink))
-                .GroupBy(userUniversity => (userUniversity.UserLink, userUniversity.UniversityHabrId))
+                .GroupBy(userUniversity => (userUniversity.UserLink, userUniversity.University.HabrId))
                 .Select(group =>
                 {
                     var first = group.First();
@@ -2781,7 +2781,10 @@ public sealed class DatabaseClient
                     return new
                     {
                         user_link = first.UserLink,
-                        university_habr_id = first.UniversityHabrId,
+                        university_habr_id = first.University.HabrId,
+                        university_name = first.University.Name,
+                        university_city = first.University.City,
+                        university_graduate_count = first.University.GraduateCount,
                         courses = coursesJson,
                         description = first.Description
                     };
@@ -2794,9 +2797,16 @@ public sealed class DatabaseClient
 
             using var cmd = new NpgsqlCommand(@"
                 WITH input_rows AS (
-                    SELECT user_link, university_habr_id, courses::jsonb AS courses, description
+                    SELECT 
+                        user_link, 
+                        university_habr_id, 
+                        university_name,
+                        university_city,
+                        university_graduate_count,
+                        courses::jsonb AS courses, 
+                        description
                     FROM jsonb_to_recordset(@user_universities::jsonb)
-                         AS r(user_link text, university_habr_id int, courses jsonb, description text)
+                         AS r(user_link text, university_habr_id int, university_name text, university_city text, university_graduate_count int, courses jsonb, description text)
                     WHERE user_link IS NOT NULL
                       AND university_habr_id IS NOT NULL
                 ),
@@ -2804,6 +2814,25 @@ public sealed class DatabaseClient
                     SELECT hr.id AS user_id, ir.user_link
                     FROM input_rows ir
                     JOIN habr_resumes hr ON hr.link = ir.user_link
+                ),
+                upserted_universities AS (
+                    INSERT INTO habr_universities (habr_id, name, city, graduate_count, created_at, updated_at)
+                    SELECT DISTINCT ON (university_habr_id)
+                        university_habr_id,
+                        university_name,
+                        university_city,
+                        university_graduate_count,
+                        NOW(),
+                        NOW()
+                    FROM input_rows
+                    WHERE university_name IS NOT NULL AND btrim(university_name) <> ''
+                    ON CONFLICT (habr_id)
+                    DO UPDATE SET
+                        name = COALESCE(EXCLUDED.name, habr_universities.name),
+                        city = COALESCE(EXCLUDED.city, habr_universities.city),
+                        graduate_count = COALESCE(EXCLUDED.graduate_count, habr_universities.graduate_count),
+                        updated_at = NOW()
+                    RETURNING id, habr_id
                 ),
                 universities AS (
                     SELECT hu.id AS university_id, ir.university_habr_id
@@ -2826,30 +2855,24 @@ public sealed class DatabaseClient
                     LEFT JOIN users u ON u.user_link = ir.user_link
                     WHERE u.user_id IS NULL
                 ),
-                missing_universities AS (
-                    SELECT DISTINCT ir.university_habr_id
-                    FROM input_rows ir
-                    LEFT JOIN universities univ ON univ.university_habr_id = ir.university_habr_id
-                    WHERE univ.university_id IS NULL
-                ),
-               upserted AS (
-                   INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
-                   SELECT user_id, university_id, courses, description, NOW(), NOW()
-                   FROM joined_rows
-                   ON CONFLICT (user_id, university_id)
-                   DO UPDATE SET
-                       courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
-                       description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
-                       updated_at = NOW()
-                   RETURNING user_id, university_id, xmax
-               )
-               SELECT
-                   (SELECT COUNT(*)::int FROM upserted) AS upserted_count,
-                   (SELECT COUNT(*)::int FROM upserted WHERE xmax = 0) AS inserted_count,
-                   (SELECT COUNT(*)::int FROM upserted WHERE xmax <> 0) AS updated_count,
-                   (SELECT COUNT(*)::int FROM missing_users) AS missing_users_count,
-                   (SELECT COUNT(*)::int FROM missing_universities) AS missing_universities_count,
-                   (SELECT COUNT(*)::int FROM input_rows) AS input_count", conn);
+                upserted AS (
+                    INSERT INTO habr_resumes_universities (user_id, university_id, courses, description, created_at, updated_at)
+                    SELECT user_id, university_id, courses, description, NOW(), NOW()
+                    FROM joined_rows
+                    ON CONFLICT (user_id, university_id)
+                    DO UPDATE SET
+                        courses = COALESCE(EXCLUDED.courses, habr_resumes_universities.courses),
+                        description = COALESCE(EXCLUDED.description, habr_resumes_universities.description),
+                        updated_at = NOW()
+                    RETURNING user_id, university_id, xmax
+                )
+                SELECT
+                    (SELECT COUNT(*)::int FROM upserted) AS upserted_count,
+                    (SELECT COUNT(*)::int FROM upserted WHERE xmax = 0) AS inserted_count,
+                    (SELECT COUNT(*)::int FROM upserted WHERE xmax <> 0) AS updated_count,
+                    (SELECT COUNT(*)::int FROM missing_users) AS missing_users_count,
+                    (SELECT COUNT(*)::int FROM upserted_universities) AS upserted_universities_count,
+                    (SELECT COUNT(*)::int FROM input_rows) AS input_count", conn);
 
             cmd.Parameters.AddWithValue("@user_universities", recordsJson);
 
@@ -2866,7 +2889,7 @@ public sealed class DatabaseClient
             var insertedCount = reader.GetInt32(1);
             var updatedCount = reader.GetInt32(2);
             var missingUsersCount = reader.GetInt32(3);
-            var missingUniversitiesCount = reader.GetInt32(4);
+            var upsertedUniversitiesCount = reader.GetInt32(4);
             var inputCount = reader.GetInt32(5);
 
             if (insertedCount > 0)
@@ -2879,16 +2902,15 @@ public sealed class DatabaseClient
                 _statistics.RecordUpdate("habr_resumes_universities", $"{updatedCount}");
             }
 
+            if (upsertedUniversitiesCount > 0)
+            {
+                _statistics.RecordInsert("habr_universities", $"{upsertedUniversitiesCount}");
+            }
+
             if (missingUsersCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_universities", $"missing_users:{missingUsersCount}");
                 LogSkip("ResumesUniversities", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
-            }
-
-            if (missingUniversitiesCount > 0)
-            {
-                _statistics.RecordSkipped("habr_resumes_universities", $"missing_universities:{missingUniversitiesCount}");
-                LogSkip("ResumesUniversities", "не найдены университеты", ("MissingUniversitiesCount", missingUniversitiesCount));
             }
 
             LogParts("ResumesUniversities summary", isInsert: false,
@@ -2896,8 +2918,8 @@ public sealed class DatabaseClient
                 ("Upserted", upsertedCount),
                 ("Inserted", insertedCount),
                 ("Updated", updatedCount),
-                ("MissingUsers", missingUsersCount),
-                ("MissingUniversities", missingUniversitiesCount));
+                ("UpsertedUniversities", upsertedUniversitiesCount),
+                ("MissingUsers", missingUsersCount));
             TryDumpStatistics();
         }
         catch (Exception ex)
@@ -2907,6 +2929,7 @@ public sealed class DatabaseClient
             TryDumpStatistics();
         }
     }
+
 
     /// <summary>
     /// Вставить записи дополнительного образования в БД одним SQL-запросом.
