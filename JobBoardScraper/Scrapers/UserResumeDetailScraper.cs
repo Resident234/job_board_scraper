@@ -585,6 +585,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем опыт работы
                 var experienceCount = 0;
                 var isFirstExperience = true;
+                var userExperiences = new List<UserExperienceRecord>();
                 var experienceContainer = doc.QuerySelector(AppConfig.UserResumeDetailExperienceContainerSelector);
                 if (experienceContainer != null)
                 {
@@ -692,20 +693,22 @@ public sealed class UserResumeDetailScraper : IDisposable
                                 }
                             }
 
-                            // Создаём структуру данных и добавляем в очередь
-                            _db.EnqueueUserExperience(
-                                userLink: userLink,
-                                companyCode: companyCode,
-                                companyUrl: companyUrl,
-                                companyTitle: companyTitle,
-                                companyAbout: companyAbout,
-                                companySize: companySize,
-                                position: position,
-                                duration: duration,
-                                description: description,
-                                skills: experienceSkills,
-                                isFirstRecord: isFirstExperience
-                            );
+                            // Создаём структуру данных и добавляем в список
+                            userExperiences.Add(new UserExperienceRecord(
+                                UserLink: userLink,
+                                Company: new CompanyRecord(
+                                    CompanyCode: companyCode ?? string.Empty,
+                                    CompanyUrl: companyUrl ?? string.Empty,
+                                    CompanyTitle: companyTitle,
+                                    About: companyAbout,
+                                    EmployeesCount: companySize
+                                ),
+                                Position: position,
+                                Duration: duration,
+                                Description: description,
+                                Skills: experienceSkills,
+                                IsFirstRecord: isFirstExperience
+                            ));
                             experienceCount++;
                             isFirstExperience = false;
                         }
@@ -811,6 +814,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         .ToList(),
                     about: about,
                     communityParticipation: communityParticipation,
+                    userExperience: userExperiences,
                     userUniversities: userUniversities,
                     additionalEducations: additionalEducations,
                     isPublic: true);
