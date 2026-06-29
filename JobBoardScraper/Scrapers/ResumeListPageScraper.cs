@@ -142,7 +142,7 @@ public sealed class ResumeListPageScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -203,6 +203,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
+                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -212,7 +213,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке статуса {workState}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке статуса {workState}", ex);
                 }
             }
         }
@@ -276,6 +277,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
+                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -285,7 +287,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке опыта {experience}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке опыта {experience}", ex);
                 }
             }
         }
@@ -351,6 +353,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
+                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                     }
                     var profilesFound = profiles.Count;
                     _statistics.AddItemsCollected(profilesFound);
@@ -359,7 +362,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке qid {qid}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке qid {qid}", ex);
                 }
             }
         }
@@ -451,6 +454,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         foreach (var profile in profiles)
                         {
                             _db.EnqueueResume(profile);
+                            ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                         }
                         var profilesFound = profiles.Count;
                         totalProfiles += profilesFound;
@@ -460,7 +464,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     }
                     catch (Exception ex)
                     {
-                        _logger.WriteLine($"Ошибка при обработке company_id {companyId}: {ex.Message}");
+                        ScraperLogger.LogError(_logger, $"Ошибка при обработке company_id {companyId}", ex);
                     }
                 }
             }
@@ -536,6 +540,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
+                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -545,7 +550,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке university_id {universityId}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке university_id {universityId}", ex);
                 }
             }
         }
@@ -570,6 +575,7 @@ public sealed class ResumeListPageScraper : IDisposable
         foreach (var profile in profiles)
         {
             _db.EnqueueResume(profile);
+            ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
         }
         var profilesFound = profiles.Count;
 
@@ -646,6 +652,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     if (!skillExists)
                     {
                         _db.EnqueueSkill(skillId, "");
+                        ScraperLogger.LogEnqueue(_logger, skillId.ToString(), "", "| skill");
                         skillExists = true;
                     }
 
@@ -655,6 +662,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
+                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -665,7 +673,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке навыка {skillId}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке навыка {skillId}", ex);
                 }
             }
             
@@ -780,7 +788,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка при парсинге профиля: {ex.Message}");
+                ScraperLogger.LogError(_logger, "Ошибка при парсинге профиля", ex);
             }
         }
 

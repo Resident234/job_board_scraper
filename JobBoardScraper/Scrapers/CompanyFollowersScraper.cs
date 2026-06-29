@@ -80,7 +80,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -127,7 +127,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 catch (Exception ex)
                 {
                     sw.Stop();
-                    _logger.WriteLine($"Ошибка при обработке компании {companyCode}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке компании {companyCode}", ex);
                 }
                 finally
                 {
@@ -245,7 +245,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                     }
                     catch (Exception ex)
                     {
-                        _logger.WriteLine($"Ошибка при обработке пользователя: {ex.Message}");
+                        ScraperLogger.LogError(_logger, "Ошибка при обработке пользователя", ex);
                     }
                 }
 
@@ -267,7 +267,7 @@ public sealed class CompanyFollowersScraper : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка на странице {page} компании {companyCode}: {ex.Message}");
+                ScraperLogger.LogError(_logger, $"Ошибка на странице {page} компании {companyCode}", ex);
                 hasMorePages = false;
             }
         }

@@ -81,7 +81,7 @@ public sealed class ExpertsScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -206,6 +206,7 @@ public sealed class ExpertsScraper : IDisposable
                                 code: code,
                                 expert: true,
                                 workExperience: workExperience);
+                            ScraperLogger.LogEnqueue(_logger, name, fullUrl, workExperience != null ? $"| Exp: {workExperience}" : null);
 
                             _logger.WriteLine($"Эксперт: {name} ({code}) -> {fullUrl}" + 
                                 (workExperience != null ? $" | Стаж: {workExperience}" : ""));
@@ -231,6 +232,7 @@ public sealed class ExpertsScraper : IDisposable
                                             : $"https://career.habr.com{companyHref}";
 
                                         _db.EnqueueCompany(companyCode, companyUrl);
+                                        ScraperLogger.LogEnqueue(_logger, companyCode, companyUrl);
                                         _logger.WriteLine($"Компания: {companyName} ({companyCode}) -> {companyUrl}");
                                         _statistics.IncrementItemsCollected();
                                     }
@@ -239,7 +241,7 @@ public sealed class ExpertsScraper : IDisposable
                         }
                         catch (Exception ex)
                         {
-                            _logger.WriteLine($"Ошибка при обработке карточки эксперта: {ex.Message}");
+                            ScraperLogger.LogError(_logger, "Ошибка при обработке карточки эксперта", ex);
                             _statistics.IncrementFailed();
                         }
                     }
@@ -286,7 +288,7 @@ public sealed class ExpertsScraper : IDisposable
                     
                     if (pageRetryCount >= maxPageRetries)
                     {
-                        _logger.WriteLine($"Ошибка на странице {page} после {maxPageRetries} попыток: {ex.Message}");
+                        ScraperLogger.LogError(_logger, $"Ошибка на странице {page} после {maxPageRetries} попыток", ex);
                         _logger.WriteLine($"Пропускаем страницу {page} и переходим к следующей.");
                         
                         // Пропускаем проблемную страницу и переходим к следующей

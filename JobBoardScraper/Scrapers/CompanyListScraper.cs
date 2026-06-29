@@ -84,7 +84,7 @@ public sealed class CompanyListScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -279,7 +279,7 @@ public sealed class CompanyListScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка при получении общего количества компаний: {ex.Message}");
+            ScraperLogger.LogError(_logger, "Ошибка при получении общего количества компаний", ex);
         }
 
         return 0;
@@ -399,7 +399,7 @@ public sealed class CompanyListScraper : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка на странице {page}: {ex.Message}");
+                ScraperLogger.LogError(_logger, $"Ошибка на странице {page}", ex);
                 _statistics.IncrementFailed();
                 hasMorePages = false;
             }

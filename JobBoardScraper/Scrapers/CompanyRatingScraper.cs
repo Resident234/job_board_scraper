@@ -86,7 +86,7 @@ public sealed class CompanyRatingScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -196,6 +196,8 @@ public sealed class CompanyRatingScraper : IDisposable
                     awards: company.Awards,
                     scores: company.Scores,
                     reviewRecords: company.ReviewRecords);
+                    
+                ScraperLogger.LogEnqueue(_logger, company.CompanyCode, company.CompanyUrl);
             }
 
             var companiesCount = companies.Count;
@@ -231,7 +233,7 @@ public sealed class CompanyRatingScraper : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка при парсинге компании: {ex.Message}");
+                ScraperLogger.LogError(_logger, "Ошибка при парсинге компании", ex);
             }
         }
 

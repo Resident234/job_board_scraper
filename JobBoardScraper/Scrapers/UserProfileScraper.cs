@@ -93,7 +93,7 @@ namespace JobBoardScraper.Scrapers;
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -205,6 +205,7 @@ namespace JobBoardScraper.Scrapers;
                             code: userCode,
                             userCode: userCode,
                             isPublic: false);
+                        ScraperLogger.LogEnqueue(_logger, userCode, userLink, "(private)");
                         _statistics.IncrementSuccess();
                         return;
                     }
@@ -250,6 +251,7 @@ namespace JobBoardScraper.Scrapers;
                         lastVisit: lastVisit,
                         isPublic: true
                     );
+                    ScraperLogger.LogEnqueue(_logger, userCode, userLink, $"| {(isExpert == true ? "Expert" : "User")}");
                     
                     _logger.WriteLine($"Пользователь {userLink} (code={userCode}):");
                     _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
@@ -265,7 +267,7 @@ namespace JobBoardScraper.Scrapers;
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке пользователя {userLink}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке пользователя {userLink}", ex);
                     _statistics.IncrementFailed();
                 }
                 finally

@@ -127,11 +127,12 @@ public sealed class BruteForceUsernameScraper
                         _logger.WriteLine($"Страница {link}: {title}");
 
                         _db.EnqueueResume(link, title);
+                        ScraperLogger.LogEnqueue(_logger, link, link);
                     }
                     catch (Exception ex)
                     {
                         _statistics.IncrementFailed();
-                        _logger.WriteLine($"Error for {link}: {ex.Message}");
+                        ScraperLogger.LogError(_logger, $"Error for {link}", ex);
                     }
                     finally
                     {

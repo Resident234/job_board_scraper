@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Text;
+
 namespace JobBoardScraper.Infrastructure.Logging;
 
 /// <summary>
@@ -123,7 +126,8 @@ public static class ScraperLogger
     }
 
     /// <summary>
-    /// Логирует постановку записи в очередь (enqueue).
+    /// Простая перегрузка LogEnqueue для обратной совместимости.
+    /// Логирует постановку записи в очередь (enqueue) с произвольной строкой extra.
     /// Пример: "⇪ В очередь: {key} -> {url}"
     /// </summary>
     public static void LogEnqueue(ConsoleLogger? logger, string key, string url, string? extra = null)
@@ -131,6 +135,30 @@ public static class ScraperLogger
         var msg = $"{EnqueueIcon} В очередь: {key} -> {url}";
         if (!string.IsNullOrEmpty(extra))
             msg += $" {extra}";
+        WriteLine(logger, msg);
+    }
+
+    /// <summary>
+    /// Расширенная перегрузка LogEnqueue: принимает тип сущности,
+    /// её идентификатор и список пар "имя поля" → "значение", которые были поставлены в очередь.
+    /// Формирует единое форматированное сообщение, заменяющее множественный verbose-вывод
+    /// через <c>_logger.WriteLine(...)</c>.
+    /// Пример:
+    /// "⇪ В очередь: Resume[userLink] { Name = 'Иван', Level = 'Senior', Skills = '12 шт.', Experience = '3 записей', ... }"
+    /// </summary>
+    /// <param name="logger">Логгер (может быть null — тогда пишется в Console).</param>
+    /// <param name="entityType">Название сущности (например, "Resume", "Company", "UserProfile").</param>
+    /// <param name="entityId">Идентификатор сущности (например, userLink, companyCode).</param>
+    /// <param name="fields">Пары (имя, значение) для каждого поля, добавленного в очередь.</param>
+    public static void LogEnqueue(
+        ConsoleLogger? logger,
+        string entityType,
+        string entityId,
+        params (string Name, object? Value)[] fields)
+    {
+        var header = $"{EnqueueIcon} В очередь: {entityType}[{entityId}]";
+        var body = FormatFields(fields);
+        var msg = string.IsNullOrEmpty(body) ? header : $"{header} {body}";
         WriteLine(logger, msg);
     }
 
@@ -165,6 +193,55 @@ public static class ScraperLogger
         if (!string.IsNullOrEmpty(suffix))
             msg += suffix;
         WriteLine(logger, msg);
+    }
+
+    /// <summary>
+    /// Форматирует набор пар (Name, Value) в читаемую строку: "{ Name = '...', Age = '...', ... }".
+    /// Значение null выводится как "null". Значения-строки оборачиваются в кавычки.
+    /// Коллекции выводятся как "N шт.".
+    /// </summary>
+    private static string FormatFields((string Name, object? Value)[] fields)
+    {
+        if (fields == null || fields.Length == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+        sb.Append("{ ");
+        for (int i = 0; i < fields.Length; i++)
+        {
+            var (name, value) = fields[i];
+            sb.Append(name).Append(" = ").Append(FormatValue(value));
+            if (i < fields.Length - 1)
+                sb.Append(", ");
+        }
+        sb.Append(" }");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Форматирует одно значение поля для LogEnqueue.
+    /// </summary>
+    private static string FormatValue(object? value)
+    {
+        if (value == null)
+            return "null";
+
+        // Коллекции (исключая строки) выводим как "N шт."
+        if (value is string s)
+        {
+            // Ограничиваем длину строки, чтобы не засорять лог
+            const int maxLen = 100;
+            if (s.Length > maxLen)
+                s = s.Substring(0, maxLen) + "…";
+            return $"'{s}'";
+        }
+
+        if (value is System.Collections.ICollection col)
+        {
+            return $"{col.Count} шт.";
+        }
+
+        return value.ToString() ?? "null";
     }
 
     private static void WriteLine(ConsoleLogger? logger, string message)

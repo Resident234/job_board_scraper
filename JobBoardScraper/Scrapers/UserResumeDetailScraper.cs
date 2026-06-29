@@ -164,7 +164,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -346,14 +346,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                         catch (Exception ex) when (attempt < maxRetriesPerProxy)
                         {
                             var proxyErrorDelay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                            _logger.WriteLine($"Ошибка (попытка {attempt}/{maxRetriesPerProxy}): {ex.Message}. " +
-                                $"Backoff: {ExponentialBackoff.GetDelayDescription(proxyErrorDelay)}");
+                            ScraperLogger.LogError(_logger, $"Ошибка (попытка {attempt}/{maxRetriesPerProxy}). Backoff: {ExponentialBackoff.GetDelayDescription(proxyErrorDelay)}", ex);
                             await Task.Delay(proxyErrorDelay, ct);
                         }
                         catch (Exception ex) when (attempt >= maxRetriesPerProxy)
                         {
-                            _logger.WriteLine($"Ошибка (попытка {attempt}/{maxRetriesPerProxy}): {ex.Message}. " +
-                                $"Исчерпаны попытки с текущим прокси");
+                            ScraperLogger.LogError(_logger, $"Ошибка (попытка {attempt}/{maxRetriesPerProxy}). Исчерпаны попытки с текущим прокси", ex);
                             break; // Выходим из внутреннего цикла, чтобы сменить прокси
                         }
                     }
@@ -437,6 +435,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         mode: InsertMode.UpdateIfExists,
                         isDeleted: true,
                         about: deletedAbout);
+                    ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| deleted");
 
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: профиль удалён");
@@ -477,6 +476,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         mode: InsertMode.UpdateIfExists,
                         about: privateMessage,
                         isPublic: false);
+                    ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| private");
 
                     _logger.WriteLine($"Пользователь {userLink}:");
                     _logger.WriteLine($"  Статус: приватный профиль");
@@ -571,7 +571,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 // Извлекаем навыки
                 var skills = new List<string>();
                 var skillElements = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector);
-                _logger.WriteLine($"  [DEBUG] Найдено элементов навыков: {skillElements.Length} (селектор: {AppConfig.UserResumeDetailSkillSelector})");
+                ScraperLogger.LogCount(_logger, "Найдено элементов навыков:", skillElements.Length, "шт.", $" (селектор: {AppConfig.UserResumeDetailSkillSelector})");
                 foreach (var skillElement in skillElements)
                 {
                     var skillTitle = skillElement.TextContent?.Trim();
@@ -580,7 +580,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                         skills.Add(skillTitle);
                     }
                 }
-                _logger.WriteLine($"  [DEBUG] Извлечено навыков: {skills.Count}");
+                ScraperLogger.LogCount(_logger, "Извлечено навыков:", skills.Count, "шт.");
+
 
                 // Извлекаем опыт работы
                 var experienceCount = 0;
@@ -714,7 +715,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                         }
                         catch (Exception expEx)
                         {
-                            _logger.WriteLine($"Ошибка при парсинге опыта работы для {userLink}: {expEx.Message}");
+                            ScraperLogger.LogError(_logger, $"Ошибка при парсинге опыта работы для {userLink}", expEx);
                         }
                     }
                 }
@@ -818,27 +819,30 @@ public sealed class UserResumeDetailScraper : IDisposable
                     userUniversities: userUniversities,
                     additionalEducations: additionalEducations,
                     isPublic: true);
+                    
+                ScraperLogger.LogEnqueue(
+                    _logger,
+                    entityType: "Resume",
+                    entityId: userLink,
+                    ("Name", userName ?? "(не найдено)"),
+                    ("InfoTech", infoTech ?? "(не найдено)"),
+                    ("Level", levelTitle ?? "(не найдено)"),
+                    ("Salary", salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)"),
+                    ("JobSearchStatus", jobSearchStatus ?? "(не найдено)"),
+                    ("About", string.IsNullOrWhiteSpace(about) ? "(не найдено)" : about),
+                    ("Skills", skills),
+                    ("Experience", $"{experienceCount} записей"),
+                    ("Age", age ?? "(не найдено)"),
+                    ("ExperienceText", experienceText ?? "(не найдено)"),
+                    ("Registration", registration ?? "(не найдено)"),
+                    ("LastVisit", lastVisit ?? "(не найдено)"),
+                    ("Citizenship", citizenship ?? "(не найдено)"),
+                    ("RemoteWork", remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)"),
+                    ("Education", $"{educationCount} записей"),
+                    ("AdditionalEducation", $"{additionalEducationCount} записей"),
+                    ("CommunityParticipation", communityParticipation),
+                    ("IsPublic", true));
 
-                _logger.WriteLine($"Пользователь {userLink}:");
-                _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
-                _logger.WriteLine($"  Техническая информация: {infoTech ?? "(не найдено)"}");
-                _logger.WriteLine($"  Уровень: {levelTitle ?? "(не найдено)"}");
-                _logger.WriteLine($"  Зарплата: {(salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)")}");
-                _logger.WriteLine($"  Статус поиска работы: {jobSearchStatus ?? "(не найдено)"}");
-                _logger.WriteLine($"  О себе: {(string.IsNullOrWhiteSpace(about) ? "(не найдено)" : $"{about.Substring(0, Math.Min(100, about.Length))}...")}");
-                _logger.WriteLine($"  Навыки: {skills.Count} шт.");
-                _logger.WriteLine($"  Опыт работы: {experienceCount} записей");
-                _logger.WriteLine($"  Возраст: {age ?? "(не найдено)"}");
-                _logger.WriteLine($"  Опыт работы (текст): {experienceText ?? "(не найдено)"}");
-                _logger.WriteLine($"  Регистрация: {registration ?? "(не найдено)"}");
-                _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
-                _logger.WriteLine($"  Гражданство: {citizenship ?? "(не найдено)"}");
-                _logger.WriteLine($"  Удаленная работа: {(remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)")}");
-                _logger.WriteLine($"  Высшее образование: {educationCount} записей");
-                _logger.WriteLine($"  Дополнительное образование: {additionalEducationCount} записей");
-                _logger.WriteLine($"  Участие в профсообществах: {communityParticipation.Count} записей");
-                _logger.WriteLine($"  Статус: публичный профиль");
-                
                 // Сообщаем об успехе для coordinator
                 if (_proxyCoordinator != null && proxyUrl != null)
                 {
@@ -849,7 +853,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.WriteLine($"Ошибка при обработке {userLink}: {ex.Message}");
+                ScraperLogger.LogError(_logger, $"Ошибка при обработке {userLink}", ex);
                 
                 // Сообщаем об ошибке для coordinator
                 if (_proxyCoordinator != null && proxyUrl != null)

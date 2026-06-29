@@ -92,7 +92,7 @@ public sealed class CompanyDetailScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
@@ -404,12 +404,13 @@ public sealed class CompanyDetailScraper : IDisposable
                                 expert: null,
                                 workExperience: null
                             );
+                            ScraperLogger.LogEnqueue(_logger, memberCode, memberLink);
 
                             memberCount++;
                         }
                         catch (Exception ex)
                         {
-                            _logger.WriteLine($"Ошибка при обработке контактного лица: {ex.Message}");
+                            ScraperLogger.LogError(_logger, "Ошибка при обработке контактного лица", ex);
                         }
                     }
 
@@ -455,12 +456,13 @@ public sealed class CompanyDetailScraper : IDisposable
                                     expert: null,
                                     workExperience: null
                                 );
+                                ScraperLogger.LogEnqueue(_logger, userCode, userFullLink);
 
                                 employeeCount++;
                             }
                             catch (Exception ex)
                             {
-                                _logger.WriteLine($"Ошибка при обработке сотрудника: {ex.Message}");
+                                ScraperLogger.LogError(_logger, "Ошибка при обработке сотрудника", ex);
                             }
                         }
                     }
@@ -507,12 +509,13 @@ public sealed class CompanyDetailScraper : IDisposable
 
                                 // Сохраняем в БД (code = код, url = полная ссылка, title = название)
                                 _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);
+                                ScraperLogger.LogEnqueue(_logger, companyCode, companyUrl);
 
                                 relatedCompanyCount++;
                             }
                             catch (Exception ex)
                             {
-                                _logger.WriteLine($"Ошибка при обработке связанной компании: {ex.Message}");
+                                ScraperLogger.LogError(_logger, "Ошибка при обработке связанной компании", ex);
                             }
                         }
                     }
@@ -561,6 +564,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     _db.EnqueueCompany(code, url, companyId, companyTitle, companyAbout, companyDescription,
                         companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
                         employeesCount, habr, skills: skills.Count > 0 ? skills : null);
+                    ScraperLogger.LogEnqueue(_logger, code, url);
 
                     // Детальный вывод всех спарсенных данных
                     _logger.WriteLine($"=== Компания {code} ===");
@@ -587,7 +591,7 @@ public sealed class CompanyDetailScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.WriteLine($"Ошибка при обработке компании {code}: {ex.Message}");
+                    ScraperLogger.LogError(_logger, $"Ошибка при обработке компании {code}", ex);
                     _statistics.IncrementFailed();
                 }
                 finally
