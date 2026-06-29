@@ -10,7 +10,6 @@ using JobBoardScraper.Domain.Models;
 using System.Collections.Concurrent;
 using JobBoardScraper.Parsing;
 
-
 namespace JobBoardScraper.Scrapers;
 
 /// <summary>
@@ -25,7 +24,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Func<List<string>> _getUserCodes;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
@@ -46,7 +45,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _proxyCoordinator = proxyCoordinator;
         _interval = interval ?? TimeSpan.FromDays(30);
         _statistics = new ScraperStatistics("UserResumeDetailScraper");
@@ -144,7 +143,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 _activeRequests.TryRemove(userLink, out _);
             }
         },
-        controller: _controller,
+        controller: _adaptiveConcurrencyController,
         ct: ct
         );
 
@@ -171,7 +170,6 @@ public sealed class UserResumeDetailScraper : IDisposable
             proxySend: client => client.GetAsync(userLink, ct),
             ct: ct).ConfigureAwait(false);
 
-
         if (result.Response == null)
         {
             _statistics.IncrementFailed();
@@ -186,7 +184,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             _statistics.RecordAllStatusCodes((int)response.StatusCode);
 
             sw.Stop();
-            _controller.ReportLatency(sw.Elapsed);
+            _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
             double elapsedSeconds = sw.Elapsed.TotalSeconds;
             _statistics.RecordFinalStatusCode((int)response.StatusCode);
@@ -609,6 +607,7 @@ public sealed class UserResumeDetailScraper : IDisposable
     /// <summary>
     /// Определяет, является ли профиль пустым (нет ни одного блока данных).
     /// </summary>
+
     private static bool ComputeIsEmpty(
         string? about,
         int experienceCount,
