@@ -573,7 +573,7 @@ public sealed class ResumeListPageScraper : IDisposable
         }
         var profilesFound = profiles.Count;
 
-        _logger.WriteLine($"Обход завершён. Найдено профилей: {profilesFound}");
+        ScraperLogger.LogEnd(_logger, $"Найдено профилей: {profilesFound}");
     }
 
     private async Task ScrapeSkillsEnumerationAsync(CancellationToken ct)

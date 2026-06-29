@@ -306,6 +306,7 @@ public sealed class ExpertsScraper : IDisposable
         }
         
         _statistics.EndTime = DateTime.Now;
+        ScraperLogger.LogEnd(_logger, _statistics);
         _progressLogger?.LogCompletion(totalExperts, $"Страниц: {page - 1}. {_statistics}");
     }
 

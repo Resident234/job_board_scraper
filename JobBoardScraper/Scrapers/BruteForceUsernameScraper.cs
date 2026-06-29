@@ -20,7 +20,6 @@ public sealed class BruteForceUsernameScraper
     private readonly AdaptiveConcurrencyController _controller;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
-    private readonly ConcurrentDictionary<int, int> _responseStats = new();
     private readonly ScraperStatistics _statistics;
 
     public BruteForceUsernameScraper(
@@ -85,7 +84,7 @@ public sealed class BruteForceUsernameScraper
                         var result = await _httpClient.FetchAsync(
                             link,
                             infoLog: msg => _logger.WriteLine(msg),
-                            responseStats: r => RecordResponseStats((int)r.StatusCode)
+                            responseStats: r => _statistics.RecordAllStatusCodes((int)r.StatusCode)
                         );
 
                         sw.Stop();
@@ -145,6 +144,9 @@ public sealed class BruteForceUsernameScraper
             );
         }
 
+        _statistics.EndTime = DateTime.Now;
+        ScraperLogger.LogEnd(_logger, _statistics);
+
         _db.ConnectionClose(conn);
     }
 
@@ -169,10 +171,4 @@ public sealed class BruteForceUsernameScraper
         }
     }
 
-    private void RecordResponseStats(int code)
-    {
-        _responseStats.AddOrUpdate(code, 1, (k, v) => v + 1);
-        var statsString = string.Join(", ", _responseStats.Select(kv => $"{kv.Key} - {kv.Value} раз"));
-        _logger.WriteLine($"Статистика кодов ответов: {statsString}");
-    }
 }

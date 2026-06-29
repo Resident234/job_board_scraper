@@ -870,7 +870,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         );
 
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine(_statistics.ToDetailedString());
+        ScraperLogger.LogEnd(_logger, _statistics);
 
         _statistics.WriteToLogFile();
     }

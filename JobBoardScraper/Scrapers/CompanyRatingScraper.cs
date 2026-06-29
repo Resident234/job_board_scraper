@@ -120,7 +120,7 @@ public sealed class CompanyRatingScraper : IDisposable
         }
 
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine($"Обход рейтингов завершён. {_statistics}");
+        ScraperLogger.LogEnd(_logger, _statistics);
     }
 
     private List<string> GenerateUrlCombinations()

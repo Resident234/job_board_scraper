@@ -27,7 +27,7 @@ public sealed class CategoryScraper : IDisposable
         _enqueueCategory = enqueueCategory ?? throw new ArgumentNullException(nameof(enqueueCategory));
         _interval = interval ?? TimeSpan.FromDays(7);
         _statistics = new ScraperStatistics("CategoryScraper");
-        
+
         _logger = new ConsoleLogger("CategoryScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация CategoryScraper с режимом вывода: {outputMode}");
@@ -73,24 +73,24 @@ public sealed class CategoryScraper : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка: {ex.Message}");
+            ScraperLogger.LogError(_logger, ex);
         }
     }
 
     private async Task ScrapeCategoryRootIdsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало сбора category_root_id...");
-        
+        ScraperLogger.LogStart(_logger, "Начало сбора category_root_id...");
+
         try
         {
             var url = AppConfig.CompaniesListUrl;
-            _logger.WriteLine($"Загрузка страницы: {url}");
+            ScraperLogger.LogPage(_logger, url);
 
             var response = await _httpClient.GetAsync(url, ct);
-            
+
             if (!response.IsSuccessStatusCode)
             {
-                _logger.WriteLine($"Страница вернула код {response.StatusCode}. Завершение.");
+                ScraperLogger.LogEnd(_logger, (int)response.StatusCode);
                 return;
             }
 
@@ -99,10 +99,10 @@ public sealed class CategoryScraper : IDisposable
 
             // Ищем select с id="category_root_id"
             var selectElement = doc.QuerySelector(AppConfig.CategorySelectElementSelector);
-            
+
             if (selectElement == null)
             {
-                _logger.WriteLine("Не найден элемент select#category_root_id");
+                ScraperLogger.LogError(_logger, "Не найден элемент select#category_root_id");
                 return;
             }
 
@@ -113,21 +113,21 @@ public sealed class CategoryScraper : IDisposable
             {
                 var value = option.GetAttribute("value");
                 var text = option.TextContent?.Trim() ?? "";
-                
+
                 if (string.IsNullOrWhiteSpace(value))
                     continue;
 
                 _enqueueCategory(value, text);
-                _logger.WriteLine($"В очередь: category_root_id={value} ({text})");
+                ScraperLogger.LogEnqueue(_logger, $"category_root_id={value}", $"({text})");
                 _statistics.IncrementItemsCollected();
             }
 
             _statistics.EndTime = DateTime.Now;
-            _logger.WriteLine($"Сбор завершён. {_statistics}");
+            ScraperLogger.LogEnd(_logger, _statistics);
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"Ошибка при сборе category_root_id: {ex.Message}");
+            ScraperLogger.LogError(_logger, "Ошибка при сборе category_root_id", ex);
             _statistics.IncrementFailed();
         }
     }

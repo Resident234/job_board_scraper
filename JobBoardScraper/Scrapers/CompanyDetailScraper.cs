@@ -600,6 +600,6 @@ public sealed class CompanyDetailScraper : IDisposable
         );
 
         _statistics.EndTime = DateTime.Now;
-        _logger.WriteLine($"Обход завершён. {_statistics}");
+        ScraperLogger.LogEnd(_logger, _statistics);
     }
 }

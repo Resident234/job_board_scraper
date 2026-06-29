@@ -122,6 +122,7 @@ public sealed class CompanyListScraper : IDisposable
         }
         
         _statistics.EndTime = DateTime.Now;
+        ScraperLogger.LogEnd(_logger, _statistics);
         var completionMessage = totalCompaniesOnSite > 0 
             ? $"Собрано {_statistics.TotalItemsCollected:N0} из {totalCompaniesOnSite:N0} компаний ({(double)_statistics.TotalItemsCollected / totalCompaniesOnSite:P1}). {_statistics}"
             : _statistics.ToString();
