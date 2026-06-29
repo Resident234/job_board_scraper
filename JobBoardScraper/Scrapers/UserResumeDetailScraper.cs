@@ -95,17 +95,9 @@ public sealed class UserResumeDetailScraper : IDisposable
     }
     
     /// <summary>
-    /// Проверяет, содержит ли HTML сообщение о суточном лимите
-    /// </summary>
-    private bool ContainsDailyLimitMessage(string html)
-    {
-        var dailyLimitMessage = AppConfig.ProxyWhitelistDailyLimitMessage;
-        return html.Contains(dailyLimitMessage, StringComparison.OrdinalIgnoreCase);
-    }
-    
-    /// <summary>
     /// Create HttpClient configured with proxy
     /// </summary>
+
     private HttpClient CreateHttpClientWithProxy(string proxyUrl)
     {
         var proxy = new System.Net.WebProxy(new Uri(proxyUrl));
@@ -437,10 +429,6 @@ public sealed class UserResumeDetailScraper : IDisposable
                         about: deletedAbout);
                     ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| deleted");
 
-                    _logger.WriteLine($"Пользователь {userLink}:");
-                    _logger.WriteLine($"  Статус: профиль удалён");
-                    _logger.WriteLine($"  Title: {deletedTitle}");
-
                     _statistics.IncrementSuccess();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
@@ -477,10 +465,6 @@ public sealed class UserResumeDetailScraper : IDisposable
                         about: privateMessage,
                         isPublic: false);
                     ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| private");
-
-                    _logger.WriteLine($"Пользователь {userLink}:");
-                    _logger.WriteLine($"  Статус: приватный профиль");
-                    _logger.WriteLine($"  Сообщение: {privateMessage}");
                     
                     // Сообщаем об успехе для coordinator
                     if (_proxyCoordinator != null && proxyUrl != null)
@@ -494,9 +478,10 @@ public sealed class UserResumeDetailScraper : IDisposable
                 }
                 
                 // Проверяем на сообщение о суточном лимите
-                if (ContainsDailyLimitMessage(html))
+                if (HtmlParser.ContainsDailyLimitMessage(html))
                 {
                     _logger.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
+
 
                     if (_proxyCoordinator != null && proxyUrl != null)
                     {
@@ -506,19 +491,21 @@ public sealed class UserResumeDetailScraper : IDisposable
                         var newProxy = _proxyCoordinator.GetNextProxy();
                         if (newProxy != null)
                         {
-                            _logger.WriteLine($"Переключение на новый прокси: {newProxy}");
+                            ScraperLogger.LogSkip(_logger, $"Переключение на новый прокси: {newProxy}");
                             // Не сохраняем результат, пропускаем этот профиль для повторной обработки
                             _activeRequests.TryRemove(userLink, out _);
                             return;
                         }
+
                     }
                     
                     // Нет доступных прокси - пропускаем профиль
-                    _logger.WriteLine($"Нет доступных прокси, пропускаем профиль: {userLink}");
+                    ScraperLogger.LogSkip(_logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
                     _statistics.IncrementSkipped();
                     _activeRequests.TryRemove(userLink, out _);
                     return;
                 }
+
 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 

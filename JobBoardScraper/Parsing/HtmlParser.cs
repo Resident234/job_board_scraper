@@ -1,5 +1,6 @@
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
+using JobBoardScraper.Core;
 
 namespace JobBoardScraper.Parsing;
 
@@ -28,4 +29,22 @@ public static class HtmlParser
     {
         return _parser.ParseDocumentAsync(html, ct);
     }
+
+    /// <summary>
+    /// Проверяет, содержит ли HTML-код сообщение о суточном лимите на просмотр профилей.
+    /// Используется скраперами для определения момента, когда IP-адрес заблокирован на сутки
+    /// и нужно переключиться на другой прокси/прервать обработку.
+    /// </summary>
+    /// <param name="html">HTML-код страницы</param>
+    /// <returns>true, если в HTML найден маркер суточного лимита; иначе false.</returns>
+    public static bool ContainsDailyLimitMessage(string html)
+    {
+        if (string.IsNullOrEmpty(html))
+            return false;
+
+        var dailyLimitMessage = AppConfig.ProxyWhitelistDailyLimitMessage;
+        return dailyLimitMessage != null && html.Contains(dailyLimitMessage, StringComparison.OrdinalIgnoreCase);
+    }
 }
+
+
