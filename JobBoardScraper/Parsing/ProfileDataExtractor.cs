@@ -534,7 +534,7 @@ public static class ProfileDataExtractor
     {
         var pattern = salaryRegex ?? @"От\s+([\d\s]+)\s*₽";
         var salarySpans = section.QuerySelectorAll("span");
-        
+
         foreach (var span in salarySpans)
         {
             var text = span.TextContent?.Trim();
@@ -552,10 +552,10 @@ public static class ProfileDataExtractor
                 break;
             }
         }
-        
+
         return null;
     }
-    
+
     /// <summary>
     /// Извлекает статус поиска работы из секции профиля в списке резюме
     /// </summary>
@@ -1039,5 +1039,173 @@ public static class ProfileDataExtractor
             Contribution = contribution,
             Topics = topics
         };
+    }
+
+    /// <summary>
+    /// Извлекает список навыков из профиля.
+    /// </summary>
+    public static List<string> ExtractSkills(IDocument doc)
+    {
+        var skills = new List<string>();
+        var skillElements = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector);
+        foreach (var skillElement in skillElements)
+        {
+            var skillTitle = skillElement.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(skillTitle))
+                skills.Add(skillTitle);
+        }
+        return skills;
+    }
+
+    /// <summary>
+    /// Извлекает данные об опыте работы и возвращает количество записей и список.
+    /// </summary>
+    public static (int Count, List<UserExperienceRecord> Experiences) ExtractExperience(
+        IDocument doc, string userLink)
+    {
+        var experiences = new List<UserExperienceRecord>();
+        var experienceContainer = doc.QuerySelector(AppConfig.UserResumeDetailExperienceContainerSelector);
+        if (experienceContainer == null)
+            return (0, experiences);
+
+        var experienceItems = experienceContainer.QuerySelectorAll(AppConfig.UserResumeDetailExperienceItemSelector);
+        var isFirst = true;
+        foreach (var item in experienceItems)
+        {
+            try
+            {
+                experiences.Add(BuildExperienceRecord(item, userLink, isFirst));
+                isFirst = false;
+            }
+            catch
+            {
+                // Подавляем ошибки парсинга отдельных записей — они не критичны для всего профиля.
+            }
+        }
+        return (experiences.Count, experiences);
+    }
+
+    private static UserExperienceRecord BuildExperienceRecord(
+        IElement item, string userLink, bool isFirst)
+    {
+        string? companyCode = null;
+        string? companyUrl = null;
+        string? companyTitle = null;
+
+        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
+        if (companyLink != null)
+        {
+            companyUrl = companyLink.GetAttribute("href");
+            companyTitle = companyLink.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(companyUrl))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
+                if (match.Success)
+                {
+                    companyCode = match.Groups[1].Value;
+                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
+                }
+            }
+        }
+
+        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
+
+        string? companySize = null;
+        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+        {
+            var href = link.GetAttribute("href");
+            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
+            {
+                companySize = link.TextContent?.Trim();
+                break;
+            }
+        }
+
+        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
+        }
+
+        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
+        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
+
+        var experienceSkills = new List<SkillsRecord>();
+        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
+        if (tagsContainer != null)
+        {
+            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+            {
+                var skillName = skillLink.TextContent?.Trim();
+                if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                int? skillId = null;
+                var skillHref = skillLink.GetAttribute("href");
+                if (!string.IsNullOrWhiteSpace(skillHref))
+                {
+                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
+                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
+                        skillId = id;
+                }
+                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
+            }
+        }
+
+        return new UserExperienceRecord(
+            UserLink: userLink,
+            Company: new CompanyRecord(
+                CompanyCode: companyCode ?? string.Empty,
+                CompanyUrl: companyUrl ?? string.Empty,
+                CompanyTitle: companyTitle,
+                About: companyAbout,
+                EmployeesCount: companySize),
+            Position: position,
+            Duration: duration,
+            Description: description,
+            Skills: experienceSkills,
+            IsFirstRecord: isFirst);
+    }
+
+    /// <summary>
+    /// Извлекает данные о высшем образовании.
+    /// </summary>
+    public static (int Count, List<UserUniversityRecord> Universities) ExtractEducation(
+        IDocument doc, string userLink)
+    {
+        var educationData = ExtractEducationData(doc);
+        var universities = new List<UserUniversityRecord>();
+        foreach (var education in educationData)
+        {
+            universities.Add(new UserUniversityRecord(
+                UserLink: userLink,
+                University: new UniversityRecord(
+                    HabrId: education.University.HabrId,
+                    Name: education.University.Name,
+                    City: education.University.City,
+                    GraduateCount: education.University.GraduateCount),
+                Courses: education.Courses,
+                Description: education.Description));
+        }
+        return (universities.Count, universities);
+    }
+
+    /// <summary>
+    /// Извлекает данные о дополнительном образовании.
+    /// </summary>
+    public static (int Count, List<AdditionalEducationRecord> Educations) ExtractAdditionalEducation(
+        IDocument doc, string userLink)
+    {
+        var data = ExtractAdditionalEducationData(doc, userLink);
+        var educations = new List<AdditionalEducationRecord>(data.Count);
+        foreach (var item in data)
+        {
+            educations.Add(new AdditionalEducationRecord(
+                UserLink: item.UserLink,
+                Title: item.Title,
+                Course: item.Course,
+                Duration: item.Duration));
+        }
+        return (educations.Count, educations);
     }
 }

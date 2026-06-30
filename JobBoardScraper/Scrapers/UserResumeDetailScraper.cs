@@ -329,20 +329,20 @@ public sealed class UserResumeDetailScraper : IDisposable
         string? about = ProfileDataExtractor.ExtractAboutSection(doc);
 
         // Извлекаем навыки
-        var skills = ExtractSkills(doc);
+        var skills = ProfileDataExtractor.ExtractSkills(doc);
 
         // Извлекаем опыт работы
-        var (experienceCount, userExperiences) = ExtractExperience(doc, userLink);
+        var (experienceCount, userExperiences) = ProfileDataExtractor.ExtractExperience(doc, userLink);
 
         // Извлекаем дополнительные данные профиля
         var (age, experienceText, registration, lastVisit, citizenship, remoteWork) =
             ProfileDataExtractor.ExtractAdditionalProfileData(doc);
 
         // Извлекаем данные о высшем образовании
-        var (educationCount, userUniversities) = ExtractEducation(doc, userLink);
+        var (educationCount, userUniversities) = ProfileDataExtractor.ExtractEducation(doc, userLink);
 
         // Извлекаем данные о дополнительном образовании
-        var (additionalEducationCount, additionalEducations) = ExtractAdditionalEducation(doc, userLink);
+        var (additionalEducationCount, additionalEducations) = ProfileDataExtractor.ExtractAdditionalEducation(doc, userLink);
 
         // Извлекаем данные об участии в профсообществах
         var communityParticipation = ProfileDataExtractor.ExtractCommunityParticipationRecords(doc);
@@ -404,174 +404,6 @@ public sealed class UserResumeDetailScraper : IDisposable
             ("AdditionalEducation", $"{additionalEducationCount} записей"),
             ("CommunityParticipation", communityParticipation),
             ("IsPublic", true));
-    }
-
-    /// <summary>
-    /// Извлекает список навыков из профиля.
-    /// </summary>
-    private static List<string> ExtractSkills(AngleSharp.Html.Dom.IHtmlDocument doc)
-    {
-        var skills = new List<string>();
-        var skillElements = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector);
-        foreach (var skillElement in skillElements)
-        {
-            var skillTitle = skillElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(skillTitle))
-                skills.Add(skillTitle);
-        }
-        return skills;
-    }
-
-    /// <summary>
-    /// Извлекает данные об опыте работы и возвращает количество записей и список.
-    /// </summary>
-    private static (int Count, List<UserExperienceRecord> Experiences) ExtractExperience(
-        AngleSharp.Html.Dom.IHtmlDocument doc, string userLink)
-    {
-        var experiences = new List<UserExperienceRecord>();
-        var experienceContainer = doc.QuerySelector(AppConfig.UserResumeDetailExperienceContainerSelector);
-        if (experienceContainer == null)
-            return (0, experiences);
-
-        var experienceItems = experienceContainer.QuerySelectorAll(AppConfig.UserResumeDetailExperienceItemSelector);
-        var isFirst = true;
-        foreach (var item in experienceItems)
-        {
-            try
-            {
-                experiences.Add(BuildExperienceRecord(item, userLink, isFirst));
-                isFirst = false;
-            }
-            catch
-            {
-                // Подавляем ошибки парсинга отдельных записей — они не критичны для всего профиля.
-            }
-        }
-        return (experiences.Count, experiences);
-    }
-
-    private static UserExperienceRecord BuildExperienceRecord(
-        AngleSharp.Dom.IElement item, string userLink, bool isFirst)
-    {
-        string? companyCode = null;
-        string? companyUrl = null;
-        string? companyTitle = null;
-
-        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
-        if (companyLink != null)
-        {
-            companyUrl = companyLink.GetAttribute("href");
-            companyTitle = companyLink.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(companyUrl))
-            {
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
-                if (match.Success)
-                {
-                    companyCode = match.Groups[1].Value;
-                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
-                }
-            }
-        }
-
-        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
-
-        string? companySize = null;
-        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-        {
-            var href = link.GetAttribute("href");
-            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
-            {
-                companySize = link.TextContent?.Trim();
-                break;
-            }
-        }
-
-        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
-        }
-
-        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
-        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
-
-        var experienceSkills = new List<SkillsRecord>();
-        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
-        if (tagsContainer != null)
-        {
-            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-            {
-                var skillName = skillLink.TextContent?.Trim();
-                if (string.IsNullOrWhiteSpace(skillName)) continue;
-
-                int? skillId = null;
-                var skillHref = skillLink.GetAttribute("href");
-                if (!string.IsNullOrWhiteSpace(skillHref))
-                {
-                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
-                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
-                        skillId = id;
-                }
-                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
-            }
-        }
-
-        return new UserExperienceRecord(
-            UserLink: userLink,
-            Company: new CompanyRecord(
-                CompanyCode: companyCode ?? string.Empty,
-                CompanyUrl: companyUrl ?? string.Empty,
-                CompanyTitle: companyTitle,
-                About: companyAbout,
-                EmployeesCount: companySize),
-            Position: position,
-            Duration: duration,
-            Description: description,
-            Skills: experienceSkills,
-            IsFirstRecord: isFirst);
-    }
-
-    /// <summary>
-    /// Извлекает данные о высшем образовании.
-    /// </summary>
-    private static (int Count, List<UserUniversityRecord> Universities) ExtractEducation(
-        AngleSharp.Html.Dom.IHtmlDocument doc, string userLink)
-    {
-        var educationData = ProfileDataExtractor.ExtractEducationData(doc);
-        var universities = new List<UserUniversityRecord>();
-        foreach (var education in educationData)
-        {
-            universities.Add(new UserUniversityRecord(
-                UserLink: userLink,
-                University: new UniversityRecord(
-                    HabrId: education.University.HabrId,
-                    Name: education.University.Name,
-                    City: education.University.City,
-                    GraduateCount: education.University.GraduateCount),
-                Courses: education.Courses,
-                Description: education.Description));
-        }
-        return (universities.Count, universities);
-    }
-
-    /// <summary>
-    /// Извлекает данные о дополнительном образовании.
-    /// </summary>
-    private static (int Count, List<AdditionalEducationRecord> Educations) ExtractAdditionalEducation(
-        AngleSharp.Html.Dom.IHtmlDocument doc, string userLink)
-    {
-        var data = ProfileDataExtractor.ExtractAdditionalEducationData(doc, userLink);
-        var educations = new List<AdditionalEducationRecord>(data.Count);
-        foreach (var item in data)
-        {
-            educations.Add(new AdditionalEducationRecord(
-                UserLink: item.UserLink,
-                Title: item.Title,
-                Course: item.Course,
-                Duration: item.Duration));
-        }
-        return (educations.Count, educations);
     }
 
 }
