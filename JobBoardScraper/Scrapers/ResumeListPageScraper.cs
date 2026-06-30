@@ -394,7 +394,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
         if (totalCompanyIds == 0)
         {
-            _logger.WriteLine("Нет company_ids для обработки.");
+            ScraperLogger.LogSkip(_logger, "Нет company_ids для обработки.");
             return;
         }
 
@@ -494,7 +494,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
         if (totalUniversityIds == 0)
         {
-            _logger.WriteLine("Нет university_ids для обработки.");
+            ScraperLogger.LogSkip(_logger, "Нет university_ids для обработки.");
             return;
         }
 

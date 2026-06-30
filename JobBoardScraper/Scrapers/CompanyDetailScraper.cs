@@ -111,7 +111,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
         if (totalCompanies == 0)
         {
-            _logger.WriteLine("Нет компаний для обработки.");
+            ScraperLogger.LogSkip(_logger, "Нет компаний для обработки.");
             return;
         }
 

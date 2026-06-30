@@ -112,7 +112,7 @@ namespace JobBoardScraper.Scrapers;
 
         if (totalLinks == 0)
         {
-            _logger.WriteLine("Нет пользователей для обработки.");
+            ScraperLogger.LogSkip(_logger, "Нет пользователей для обработки.");
             return;
         }
 
