@@ -331,8 +331,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         var (experienceCount, userExperiences) = ProfileDataExtractor.ExtractExperience(doc, userLink);
 
         // Извлекаем дополнительные данные профиля
-        var (age, experienceText, registration, lastVisit, citizenship, remoteWork) =
-            ProfileDataExtractor.ExtractAdditionalProfileData(doc);
+        var additionalProfile = ProfileDataExtractor.ExtractAdditionalProfileData(doc);
 
         // Извлекаем данные о высшем образовании
         var (educationCount, userUniversities) = ProfileDataExtractor.ExtractEducation(doc, userLink);
@@ -359,12 +358,12 @@ public sealed class UserResumeDetailScraper : IDisposable
             levelTitle: levelTitle,
             infoTech: infoTech,
             salary: salary,
-            lastVisit: lastVisit,
-            workExperience: experienceText,
-            age: age,
-            registration: registration,
-            citizenship: citizenship,
-            remoteWork: remoteWork,
+            lastVisit: additionalProfile.LastVisit,
+            workExperience: additionalProfile.WorkExperience,
+            age: additionalProfile.Age,
+            registration: additionalProfile.Registration,
+            citizenship: additionalProfile.Citizenship,
+            remoteWork: additionalProfile.RemoteWork,
             jobSearchStatus: jobSearchStatus,
             isEmpty: isEmpty,
             skills: skills,
@@ -387,12 +386,12 @@ public sealed class UserResumeDetailScraper : IDisposable
             ("About", string.IsNullOrWhiteSpace(about) ? "(не найдено)" : about),
             ("Skills", skills),
             ("Experience", $"{experienceCount} записей"),
-            ("Age", age ?? "(не найдено)"),
-            ("ExperienceText", experienceText ?? "(не найдено)"),
-            ("Registration", registration ?? "(не найдено)"),
-            ("LastVisit", lastVisit ?? "(не найдено)"),
-            ("Citizenship", citizenship ?? "(не найдено)"),
-            ("RemoteWork", remoteWork.HasValue ? (remoteWork.Value ? "Да" : "Нет") : "(не найдено)"),
+            ("Age", additionalProfile.Age ?? "(не найдено)"),
+            ("ExperienceText", additionalProfile.WorkExperience ?? "(не найдено)"),
+            ("Registration", additionalProfile.Registration ?? "(не найдено)"),
+            ("LastVisit", additionalProfile.LastVisit ?? "(не найдено)"),
+            ("Citizenship", additionalProfile.Citizenship ?? "(не найдено)"),
+            ("RemoteWork", additionalProfile.RemoteWork.HasValue ? (additionalProfile.RemoteWork.Value ? "Да" : "Нет") : "(не найдено)"),
             ("Education", $"{educationCount} записей"),
             ("AdditionalEducation", $"{additionalEducationCount} записей"),
             ("CommunityParticipation", communityParticipation),

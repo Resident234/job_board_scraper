@@ -235,11 +235,13 @@ public static class ProfileDataExtractor
     
     /// <summary>
     /// Извлекает дополнительные данные профиля из секций .basic-section
+    /// и возвращает частично заполненную <see cref="ResumeRecord"/> (Age, WorkExperience,
+    /// Registration, LastVisit, Citizenship, RemoteWork).
     /// </summary>
     /// <param name="doc">Документ для парсинга</param>
     /// <param name="basicSectionSelector">Селектор для .basic-section</param>
-    /// <returns>Кортеж (age, experienceText, registration, lastVisit, citizenship, remoteWork)</returns>
-    public static (string? age, string? experienceText, string? registration, string? lastVisit, string? citizenship, bool? remoteWork) ExtractAdditionalProfileData(
+    /// <returns>Частично заполненная <see cref="ResumeRecord"/>.</returns>
+    public static ResumeRecord ExtractAdditionalProfileData(
         IDocument doc,
         string basicSectionSelector = ".basic-section")
     {
@@ -249,7 +251,7 @@ public static class ProfileDataExtractor
         string? lastVisit = null;
         string? citizenship = null;
         bool? remoteWork = null;
-        
+
         var basicSectionElements = doc.QuerySelectorAll(basicSectionSelector);
         foreach (var basicSectionElement in basicSectionElements)
         {
@@ -259,7 +261,7 @@ public static class ProfileDataExtractor
                 var textContent = div.TextContent?.Trim();
                 if (string.IsNullOrWhiteSpace(textContent))
                     continue;
-                
+
                 // Извлекаем возраст
                 if (textContent.Contains("Возраст:"))
                 {
@@ -269,7 +271,7 @@ public static class ProfileDataExtractor
                         age = parts[1].Trim();
                     }
                 }
-                
+
                 // Извлекаем опыт работы (текстовое описание)
                 if (textContent.Contains("Опыт работы:"))
                 {
@@ -279,7 +281,7 @@ public static class ProfileDataExtractor
                         experienceText = parts[1].Trim();
                     }
                 }
-                
+
                 // Извлекаем регистрацию
                 if (textContent.Contains("Регистрация:"))
                 {
@@ -289,7 +291,7 @@ public static class ProfileDataExtractor
                         registration = parts[1].Trim();
                     }
                 }
-                
+
                 // Извлекаем последний визит
                 if (textContent.Contains("Последний визит:"))
                 {
@@ -299,7 +301,7 @@ public static class ProfileDataExtractor
                         lastVisit = parts[1].Trim();
                     }
                 }
-                
+
                 // Извлекаем гражданство
                 if (textContent.Contains("Гражданство:"))
                 {
@@ -309,7 +311,7 @@ public static class ProfileDataExtractor
                         citizenship = parts[1].Trim();
                     }
                 }
-                
+
                 // Извлекаем дополнительную информацию (готовность к удаленной работе)
                 if (textContent.Contains("Дополнительно:"))
                 {
@@ -326,8 +328,14 @@ public static class ProfileDataExtractor
                 }
             }
         }
-        
-        return (age, experienceText, registration, lastVisit, citizenship, remoteWork);
+
+        return new ResumeRecord(
+            Age: age,
+            WorkExperience: experienceText,
+            Registration: registration,
+            LastVisit: lastVisit,
+            Citizenship: citizenship,
+            RemoteWork: remoteWork);
     }
     
     /// <summary>
