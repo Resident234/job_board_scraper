@@ -121,7 +121,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalLinks, "UserResumeDetail");
 
-        _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
+        ScraperLogger.LogCount(_logger, "Загружено", totalLinks, "пользователей", " из БД.");
 
         if (totalLinks == 0)
         {
@@ -243,20 +243,8 @@ public sealed class UserResumeDetailScraper : IDisposable
                 return;
             }
 
-            // Проверяем на приватный профиль сразу в HTML
-            // Проверяем несколько признаков приватного профиля:
-            // 1. Текст "Доступ ограничен настройками приватности"
-            // 2. Текст "Информация скрыта"
-            // 3. CSS класс "user-page-sidebar--status-hidden"
-            const string privateProfileText1 = "Доступ ограничен настройками приватности";
-            const string privateProfileText2 = "Информация скрыта";
-            const string privateProfileClass = "user-page-sidebar--status-hidden";
-
-            bool isPrivateProfile = html.Contains(privateProfileText1) ||
-                                    html.Contains(privateProfileText2) ||
-                                    html.Contains(privateProfileClass);
-
-            if (isPrivateProfile)
+            // Проверяем на приватный профиль (доступ ограничен настройками приватности)
+            if (ProfileDataExtractor.IsPrivateProfile(doc))
             {
                 // Профиль приватный - сохраняем статус и переходим к следующему
                 const string privateMessage = "Доступ ограничен настройками приватности";
@@ -276,8 +264,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             // Проверяем на сообщение о суточном лимите
             if (HtmlParser.ContainsDailyLimitMessage(html))
             {
-                bool hasNewProxy = ProxyRetryExecutor.HandleDailyLimit(
-                    _proxyCoordinator, proxyUrl, userLink, _logger);
+                bool hasNewProxy = ProxyRetryExecutor.HandleDailyLimit(_proxyCoordinator, proxyUrl, userLink, _logger);
 
                 if (hasNewProxy)
                 {

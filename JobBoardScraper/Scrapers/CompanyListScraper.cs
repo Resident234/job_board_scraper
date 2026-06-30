@@ -110,7 +110,7 @@ public sealed class CompanyListScraper : IDisposable
         
         // Получаем категории из БД
         var categoryIds = _getCategoryIds();
-        _logger.WriteLine($"Загружено {categoryIds.Count} категорий для обхода");
+        ScraperLogger.LogCount(_logger, "Загружено", categoryIds.Count, "категорий", " для обхода");
 
         if (AppConfig.CompaniesUseFilterCombinations)
         {

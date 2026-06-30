@@ -89,7 +89,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         _logger.WriteLine("Начало обхода подписчиков компаний...");
         
         var companyCodes = _getCompanyCodes();
-        _logger.WriteLine($"Загружено {companyCodes.Count} компаний для обхода");
+        ScraperLogger.LogCount(_logger, "Загружено", companyCodes.Count, "компаний", " для обхода");
         
         var totalUsersFound = 0;
         var completed = 0;

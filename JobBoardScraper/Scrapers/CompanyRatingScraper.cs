@@ -100,7 +100,7 @@ public sealed class CompanyRatingScraper : IDisposable
         // Используем ScraperProgressLogger для отслеживания и вывода прогресса
         _progressLogger = new ScraperProgressLogger(urlCombinations.Count, "CompanyRatingScraper", _logger, "RatingUrls");
         
-        _logger.WriteLine($"Сгенерировано {urlCombinations.Count} комбинаций URL для обхода");
+        ScraperLogger.LogCount(_logger, "Сгенерировано", urlCombinations.Count, "комбинаций URL", " для обхода");
 
         foreach (var url in urlCombinations)
         {
