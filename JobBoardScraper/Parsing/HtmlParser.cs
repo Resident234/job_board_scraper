@@ -45,6 +45,7 @@ public static class HtmlParser
         var dailyLimitMessage = AppConfig.ProxyWhitelistDailyLimitMessage;
         return dailyLimitMessage != null && html.Contains(dailyLimitMessage, StringComparison.OrdinalIgnoreCase);
     }
+
 }
 
 

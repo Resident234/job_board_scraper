@@ -217,7 +217,16 @@ public sealed class UserResumeDetailScraper : IDisposable
                 : System.Text.Encoding.UTF8;
             var html = encoding.GetString(htmlBytes);
 
-            if (IsDeletedProfile(html))
+            if (!response.IsSuccessStatusCode)
+            {
+                _statistics.IncrementFailed();
+                return;
+            }
+
+            // Парсим документ заранее, чтобы использовать его в проверках
+            var doc = await HtmlParser.ParseDocumentAsync(html, ct).ConfigureAwait(false);
+
+            if (ProfileDataExtractor.IsDeletedProfile(doc))
             {
                 const string deletedTitle = "Профиль удален";
                 const string deletedAbout = "Профиль пользователя удален со всей информацией, которую он о себе оставлял";
@@ -231,12 +240,6 @@ public sealed class UserResumeDetailScraper : IDisposable
 
                 ProxyRetryExecutor.ReportSuccessSafe(_proxyCoordinator, proxyUrl);
                 _statistics.IncrementSuccess();
-                return;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _statistics.IncrementFailed();
                 return;
             }
 
@@ -290,7 +293,7 @@ public sealed class UserResumeDetailScraper : IDisposable
                 return;
             }
 
-            await ParseAndSaveAsync(userLink, html, ct).ConfigureAwait(false);
+            await ParseAndSaveAsync(userLink, doc, ct).ConfigureAwait(false);
 
             ProxyRetryExecutor.ReportSuccessSafe(_proxyCoordinator, proxyUrl);
             _statistics.IncrementSuccess();
@@ -302,12 +305,17 @@ public sealed class UserResumeDetailScraper : IDisposable
     }
 
     /// <summary>
-    /// Парсит HTML ответа и сохраняет данные резюме в БД.
+    /// Извлекает данные из распарсенного документа и сохраняет данные резюме в БД.
     /// </summary>
-    private async Task ParseAndSaveAsync(string userLink, string html, CancellationToken ct)
+    private Task ParseAndSaveAsync(string userLink, AngleSharp.Html.Dom.IHtmlDocument doc, CancellationToken ct)
     {
-        var doc = await HtmlParser.ParseDocumentAsync(html, ct).ConfigureAwait(false);
+        ParseAndSave(userLink, doc, ct);
+        return Task.CompletedTask;
+    }
 
+    private void ParseAndSave(string userLink, AngleSharp.Html.Dom.IHtmlDocument doc, CancellationToken ct)
+    {
+        _ = ct; // параметр оставлен для совместимости с прежней сигнатурой
         // Извлекаем имя пользователя
         var userName = ProfileDataExtractor.ExtractUserName(doc);
 
@@ -318,7 +326,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         var (salary, jobSearchStatus) = ProfileDataExtractor.ExtractSalaryAndJobStatus(doc);
 
         // Извлекаем текст "О себе"
-        string? about = ExtractAboutSection(doc);
+        string? about = ProfileDataExtractor.ExtractAboutSection(doc);
 
         // Извлекаем навыки
         var skills = ExtractSkills(doc);
@@ -340,7 +348,7 @@ public sealed class UserResumeDetailScraper : IDisposable
         var communityParticipation = ProfileDataExtractor.ExtractCommunityParticipationRecords(doc);
 
         // Определяем, является ли профиль пустым
-        bool isEmpty = ComputeIsEmpty(about, experienceCount, educationCount, additionalEducationCount, communityParticipation);
+        bool isEmpty = ProfileDataExtractor.IsEmptyProfile(doc);
         if (isEmpty)
         {
             about = "Пустой профиль";
@@ -396,44 +404,6 @@ public sealed class UserResumeDetailScraper : IDisposable
             ("AdditionalEducation", $"{additionalEducationCount} записей"),
             ("CommunityParticipation", communityParticipation),
             ("IsPublic", true));
-    }
-
-    /// <summary>
-    /// Извлекает текст "О себе" из секции с заголовком "Обо мне".
-    /// </summary>
-    private static string? ExtractAboutSection(AngleSharp.Html.Dom.IHtmlDocument doc)
-    {
-        var contentSections = doc.QuerySelectorAll(AppConfig.UserResumeDetailContentSelector);
-        foreach (var section in contentSections)
-        {
-            var titleElement = section.QuerySelector(".content-section__title");
-            var titleText = titleElement?.TextContent?.Trim();
-            if (titleText != null && titleText.Contains("Обо мне", StringComparison.OrdinalIgnoreCase))
-            {
-                var ugcContent = section.QuerySelector(".style-ugc");
-                if (ugcContent != null)
-                {
-                    return NormalizeHtmlToText(ugcContent.InnerHtml);
-                }
-                break;
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
-    /// </summary>
-    private static string NormalizeHtmlToText(string html)
-    {
-        var text = html;
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
-        text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
-        return text.Trim();
     }
 
     /// <summary>
@@ -604,34 +574,4 @@ public sealed class UserResumeDetailScraper : IDisposable
         return (educations.Count, educations);
     }
 
-    /// <summary>
-    /// Определяет, является ли профиль пустым (нет ни одного блока данных).
-    /// </summary>
-
-    private static bool ComputeIsEmpty(
-        string? about,
-        int experienceCount,
-        int educationCount,
-        int additionalEducationCount,
-        System.Collections.Generic.List<CommunityParticipationData>? communityParticipation)
-    {
-        bool isServiceMessage = !string.IsNullOrWhiteSpace(about) &&
-                                (about == "Доступ ограничен настройками приватности" || about == "Ошибка 404");
-        return !isServiceMessage
-            && string.IsNullOrWhiteSpace(about)
-            && experienceCount == 0
-            && educationCount == 0
-            && additionalEducationCount == 0
-            && (communityParticipation == null || communityParticipation.Count == 0);
-    }
-
-    private static bool IsDeletedProfile(string html)
-    {
-        const string deletedMarker1 = "Профиль удален";
-        const string deletedMarker2 = "user-profile__deleted";
-        const string deletedMarker3 = "Страница удалена";
-        return html.Contains(deletedMarker1) ||
-               html.Contains(deletedMarker2) ||
-               html.Contains(deletedMarker3);
-    }
 }

@@ -10,6 +10,138 @@ namespace JobBoardScraper.Parsing;
 public static class ProfileDataExtractor
 {
     /// <summary>
+    /// Определяет, является ли профиль пустым (нет ни одного блока данных).
+    /// Профиль считается пустым, если выполняются ВСЕ условия:
+    /// - секция "О себе" пуста (или содержит только служебные сообщения);
+    /// - нет навыков;
+    /// - нет записей об опыте работы;
+    /// - нет записей о высшем образовании;
+    /// - нет записей о дополнительном образовании;
+    /// - нет данных об участии в профсообществах.
+    /// </summary>
+    /// <param name="doc">Документ для проверки</param>
+    /// <returns>true, если профиль не содержит значимых данных; иначе false</returns>
+    public static bool IsEmptyProfile(IDocument doc)
+    {
+        if (doc == null)
+            return true;
+
+        // 1) Секция "О себе" — ищем непустой текст внутри .style-ugc, исключая служебные сообщения.
+        string? about = ExtractAboutSection(doc);
+        bool isServiceMessage = !string.IsNullOrWhiteSpace(about) &&
+                                (about == "Доступ ограничен настройками приватности" || about == "Ошибка 404");
+        bool hasAbout = !isServiceMessage && !string.IsNullOrWhiteSpace(about);
+        if (hasAbout)
+        {
+            return false;
+        }
+
+        // 2) Навыки
+        bool hasSkills = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector).Length > 0;
+        if (hasSkills)
+        {
+            return false;
+        }
+
+        // 3) Опыт работы
+        bool hasExperience = doc.QuerySelectorAll(AppConfig.UserResumeDetailExperienceItemSelector).Length > 0;
+        if (hasExperience)
+        {
+            return false;
+        }
+
+        // 4) Высшее образование
+        bool hasEducation = doc.QuerySelectorAll(AppConfig.EducationItemSelector).Length > 0;
+        if (hasEducation)
+        {
+            return false;
+        }
+
+        // 5) Дополнительное образование
+        bool hasAdditionalEducation = doc.QuerySelectorAll(AppConfig.AdditionalEducationItemSelector).Length > 0;
+        if (hasAdditionalEducation)
+        {
+            return false;
+        }
+
+        // 6) Участие в профсообществах
+        bool hasCommunityParticipation = doc.QuerySelectorAll(AppConfig.CommunityParticipationItemSelector).Length > 0;
+        if (hasCommunityParticipation)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Извлекает текст "О себе" из секции с заголовком "Обо мне".
+    /// </summary>
+    public static string? ExtractAboutSection(IDocument doc)
+    {
+        var contentSections = doc.QuerySelectorAll(AppConfig.UserResumeDetailContentSelector);
+        foreach (var section in contentSections)
+        {
+            var titleElement = section.QuerySelector(".content-section__title");
+            var titleText = titleElement?.TextContent?.Trim();
+            if (titleText != null && titleText.Contains("Обо мне", StringComparison.OrdinalIgnoreCase))
+            {
+                var ugcContent = section.QuerySelector(".style-ugc");
+                if (ugcContent != null)
+                {
+                    return NormalizeHtmlToText(ugcContent.InnerHtml);
+                }
+                break;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
+    /// </summary>
+    private static string NormalizeHtmlToText(string html)
+    {
+        var text = html;
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
+        return text.Trim();
+    }
+
+
+    /// <summary>
+    /// Проверяет, содержит ли документ маркеры удалённого профиля пользователя.
+    /// Используется скраперами для определения профилей, которые были удалены
+    /// (с последующим сохранением статуса "Профиль удален" в БД).
+    /// </summary>
+    /// <param name="doc">Документ для проверки</param>
+    /// <returns>true, если в документе найден любой из маркеров удалённого профиля; иначе false.</returns>
+    public static bool IsDeletedProfile(IDocument doc)
+    {
+        if (doc == null)
+            return false;
+
+        const string deletedMarker1 = "Профиль удален";
+        const string deletedMarker2 = "user-profile__deleted";
+        const string deletedMarker3 = "Страница удалена";
+
+        // Проверяем CSS-класс через DOM-запрос
+        if (!string.IsNullOrEmpty(doc.QuerySelector($".{deletedMarker2}")?.ClassName))
+        {
+            return true;
+        }
+
+        // Проверяем текстовые маркеры в содержимом документа
+        var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
+        return documentText.Contains(deletedMarker1, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(deletedMarker3, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Проверяет, является ли строка допустимым названием уровня.
     /// Список допустимых уровней читается из конфига (Levels:ValidTitles).
     /// </summary>
