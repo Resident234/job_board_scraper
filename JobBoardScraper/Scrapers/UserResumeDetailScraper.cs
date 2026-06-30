@@ -276,19 +276,15 @@ public sealed class UserResumeDetailScraper : IDisposable
             // Проверяем на сообщение о суточном лимите
             if (HtmlParser.ContainsDailyLimitMessage(html))
             {
-                _logger.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
+                bool hasNewProxy = ProxyRetryExecutor.HandleDailyLimit(
+                    _proxyCoordinator, proxyUrl, userLink, _logger);
 
-                ProxyRetryExecutor.ReportDailyLimitSafe(_proxyCoordinator, proxyUrl);
-
-                var newProxy = _proxyCoordinator?.GetNextProxy();
-                if (newProxy != null)
+                if (hasNewProxy)
                 {
-                    ScraperLogger.LogSkip(_logger, $"Переключение на новый прокси: {newProxy}");
                     // Не сохраняем результат, пропускаем этот профиль для повторной обработки
                     return;
                 }
 
-                ScraperLogger.LogSkip(_logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
                 _statistics.IncrementSkipped();
                 return;
             }

@@ -262,13 +262,39 @@ public sealed class ProxyRetryExecutor
     }
 
     /// <summary>
-    /// Уведомляет координатор о достижении суточного лимита (если координатор задан).
+    /// Уведомляет координатор о достижении суточного лимита (если координатор задан)
+    /// и логирует сообщение через указанный логгер.
     /// </summary>
-    public static void ReportDailyLimitSafe(IProxyManager? coordinator, string? proxyUrl)
+    public static void ReportDailyLimitSafe(IProxyManager? coordinator, string? proxyUrl, ConsoleLogger? logger = null)
     {
         if (coordinator != null && !string.IsNullOrEmpty(proxyUrl))
         {
+            logger?.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
             coordinator.ReportDailyLimitReached(proxyUrl);
         }
+    }
+
+    /// <summary>
+    /// Реакция на обнаружение суточного лимита: уведомляет координатор,
+    /// запрашивает следующий прокси и пишет соответствующее сообщение в лог.
+    /// Возвращает true, если удалось получить новый прокси для повторной обработки.
+    /// </summary>
+    public static bool HandleDailyLimit(
+        IProxyManager? coordinator,
+        string? proxyUrl,
+        string userLink,
+        ConsoleLogger? logger = null)
+    {
+        ReportDailyLimitSafe(coordinator, proxyUrl, logger);
+
+        var newProxy = coordinator?.GetNextProxy();
+        if (newProxy != null)
+        {
+            ScraperLogger.LogSkip(logger, $"Переключение на новый прокси: {newProxy}");
+            return true;
+        }
+
+        ScraperLogger.LogSkip(logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
+        return false;
     }
 }
