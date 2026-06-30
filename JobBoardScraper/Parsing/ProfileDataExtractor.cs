@@ -142,6 +142,36 @@ public static class ProfileDataExtractor
     }
 
     /// <summary>
+    /// Проверяет, является ли профиль приватным (доступ ограничен настройками приватности).
+    /// Проверяются несколько признаков:
+    /// 1. Текст "Доступ ограничен настройками приватности"
+    /// 2. Текст "Информация скрыта"
+    /// 3. CSS-класс "user-page-sidebar--status-hidden"
+    /// </summary>
+    /// <param name="doc">Документ для проверки</param>
+    /// <returns>true, если найден любой из признаков приватного профиля; иначе false.</returns>
+    public static bool IsPrivateProfile(IDocument doc)
+    {
+        if (doc == null)
+            return false;
+
+        const string privateProfileText1 = "Доступ ограничен настройками приватности";
+        const string privateProfileText2 = "Информация скрыта";
+        const string privateProfileClass = "user-page-sidebar--status-hidden";
+
+        // Проверяем CSS-класс через DOM-запрос
+        if (doc.QuerySelector($".{privateProfileClass}") != null)
+        {
+            return true;
+        }
+
+        // Проверяем текстовые маркеры в содержимом документа
+        var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
+        return documentText.Contains(privateProfileText1, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(privateProfileText2, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Проверяет, является ли строка допустимым названием уровня.
     /// Список допустимых уровней читается из конфига (Levels:ValidTitles).
     /// </summary>
