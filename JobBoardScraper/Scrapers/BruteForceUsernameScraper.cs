@@ -110,7 +110,7 @@ public sealed class BruteForceUsernameScraper
                             _statistics.IncrementFailed();
                         }
 
-                        ParallelScraperLogger.LogProgress(
+                        ScraperParallelLogger.LogProgress(
                             _logger,
                             _statistics,
                             link,

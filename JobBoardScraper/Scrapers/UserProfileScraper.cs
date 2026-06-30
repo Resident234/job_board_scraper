@@ -149,7 +149,7 @@ namespace JobBoardScraper.Scrapers;
                     
                     if (_progress != null)
                     {
-                        ParallelScraperLogger.LogProgress(
+                        ScraperParallelLogger.LogProgress(
                             _logger,
                             _statistics,
                             friendsUrl,

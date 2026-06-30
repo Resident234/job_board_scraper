@@ -139,7 +139,7 @@ public sealed class UserFriendsScraper : IDisposable
                         
                         if (_progress != null)
                         {
-                            ParallelScraperLogger.LogProgress(
+                            ScraperParallelLogger.LogProgress(
                                 _logger,
                                 _statistics,
                                 friendsUrl,

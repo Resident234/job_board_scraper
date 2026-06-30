@@ -136,7 +136,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
                     if (_progress != null)
                     {
-                        ParallelScraperLogger.LogProgress(
+                        ScraperParallelLogger.LogProgress(
                             _logger,
                             _statistics,
                             url,

@@ -194,7 +194,7 @@ public sealed class UserResumeDetailScraper : IDisposable
 
             if (_progress != null)
             {
-                ParallelScraperLogger.LogProgress(
+                ScraperParallelLogger.LogProgress(
                     _logger,
                     _statistics,
                     userLink,

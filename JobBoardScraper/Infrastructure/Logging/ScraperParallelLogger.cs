@@ -6,7 +6,7 @@ namespace JobBoardScraper.Infrastructure.Logging;
 /// <summary>
 /// Вспомогательный класс для логирования прогресса параллельных скраперов
 /// </summary>
-public static class ParallelScraperLogger
+public static class ScraperParallelLogger
 {
     public static void LogProgress(
         ConsoleLogger? logger,
