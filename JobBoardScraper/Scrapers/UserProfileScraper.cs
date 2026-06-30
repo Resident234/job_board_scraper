@@ -99,7 +99,7 @@ namespace JobBoardScraper.Scrapers;
 
     private async Task ScrapeAllUserProfilesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода профилей пользователей...");
+        ScraperLogger.LogStart(_logger, "Начало обхода профилей пользователей...");
         
         // Получаем список ссылок пользователей из БД
         var userLinks = _getUserCodes();

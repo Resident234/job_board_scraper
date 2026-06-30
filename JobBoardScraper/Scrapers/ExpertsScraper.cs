@@ -87,7 +87,7 @@ public sealed class ExpertsScraper : IDisposable
 
     private async Task ScrapeAllExpertsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода экспертов...");
+        ScraperLogger.LogStart(_logger, "Начало обхода экспертов...");
         
         var page = 1;
         var hasMorePages = true;

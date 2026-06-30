@@ -112,7 +112,7 @@ public sealed class UserResumeDetailScraper : IDisposable
 
     private async Task ScrapeAllUserResumesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода резюме пользователей...");
+        ScraperLogger.LogStart(_logger, "Начало обхода резюме пользователей...");
 
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;

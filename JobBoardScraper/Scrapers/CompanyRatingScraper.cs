@@ -92,7 +92,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
     private async Task ScrapeAllRatingsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц рейтингов компаний...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц рейтингов компаний...");
         _statistics.StartTime = DateTime.Now;
 
         var urlCombinations = GenerateUrlCombinations();

@@ -86,7 +86,7 @@ public sealed class CompanyFollowersScraper : IDisposable
 
     private async Task ScrapeAllCompaniesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода подписчиков компаний...");
+        ScraperLogger.LogStart(_logger, "Начало обхода подписчиков компаний...");
         
         var companyCodes = _getCompanyCodes();
         ScraperLogger.LogCount(_logger, "Загружено", companyCodes.Count, "компаний", " для обхода");

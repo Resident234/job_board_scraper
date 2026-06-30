@@ -90,7 +90,7 @@ public sealed class UserFriendsScraper : IDisposable
 
     private async Task ScrapeAllUserFriendsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода списков друзей пользователей...");
+        ScraperLogger.LogStart(_logger, "Начало обхода списков друзей пользователей...");
         
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;

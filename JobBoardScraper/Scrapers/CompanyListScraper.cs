@@ -90,7 +90,7 @@ public sealed class CompanyListScraper : IDisposable
 
     private async Task ScrapeAllPagesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода списка компаний...");
+        ScraperLogger.LogStart(_logger, "Начало обхода списка компаний...");
         
         // Сначала получаем общее количество компаний с первой страницы
         var totalCompaniesOnSite = await GetTotalCompaniesCountAsync(ct);

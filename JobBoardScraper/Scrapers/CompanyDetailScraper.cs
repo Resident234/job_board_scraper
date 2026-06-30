@@ -98,7 +98,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
     private async Task ScrapeAllCompanyDetailsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода детальных страниц компаний...");
+        ScraperLogger.LogStart(_logger, "Начало обхода детальных страниц компаний...");
 
         // Получаем список компаний из БД
         var companies = _getCompanies();

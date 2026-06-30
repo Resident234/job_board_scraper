@@ -150,7 +150,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeWorkStatesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц по статусам поиска работы...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц по статусам поиска работы...");
         
         var workStates = AppConfig.ResumeListWorkStates;
         var orders = AppConfig.ResumeListOrderEnabled ? AppConfig.ResumeListOrders : new[] { "" };
@@ -224,7 +224,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeExperiencesAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц по опыту работы...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц по опыту работы...");
         
         var experiences = AppConfig.ResumeListExperiences;
         var orders = AppConfig.ResumeListOrderEnabled ? AppConfig.ResumeListOrders : new[] { "" };
@@ -298,7 +298,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeQidsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц по qids...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц по qids...");
         
         var startQid = AppConfig.ResumeListQidsStartId;
         var endQid = AppConfig.ResumeListQidsEndId;
@@ -373,7 +373,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeCompanyIdsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц по company_ids...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц по company_ids...");
         
         // Получаем список company_id из БД
         using var conn = _db.ConnectionInit();
@@ -476,7 +476,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeUniversityIdsAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало обхода страниц по university_ids...");
+        ScraperLogger.LogStart(_logger, "Начало обхода страниц по university_ids...");
         
         // Получаем список university_id из БД
         using var conn = _db.ConnectionInit();
