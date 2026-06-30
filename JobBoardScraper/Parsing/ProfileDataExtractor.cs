@@ -587,44 +587,46 @@ public static class ProfileDataExtractor
     }
 
     /// <summary>
-    /// Извлекает данные о высшем образовании из профиля пользователя
+    /// Извлекает данные о высшем образовании из профиля пользователя в виде записей <see cref="UserUniversityRecord"/>.
     /// </summary>
-    public static List<UniversityEducationData> ExtractEducationData(IDocument doc)
+    /// <param name="doc">Документ для парсинга</param>
+    /// <param name="userLink">Ссылка на пользователя (проставляется в UserLink каждой записи)</param>
+    public static List<UserUniversityRecord> ExtractEducationData(IDocument doc, string userLink = "")
     {
-        var result = new List<UniversityEducationData>();
-        
+        var result = new List<UserUniversityRecord>();
+
         try
         {
             var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
             IElement? educationSection = null;
-            
+
             foreach (var section in sections)
             {
                 var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
                 var titleText = titleElement?.TextContent?.Trim();
-                
+
                 if (titleText != null && titleText.Contains(AppConfig.EducationSectionTitleText, StringComparison.OrdinalIgnoreCase))
                 {
                     educationSection = section;
                     break;
                 }
             }
-            
+
             if (educationSection == null)
             {
                 return result;
             }
-            
+
             var educationItems = educationSection.QuerySelectorAll(AppConfig.EducationItemSelector);
-            
+
             foreach (var item in educationItems)
             {
                 try
                 {
-                    var educationData = ExtractSingleEducationItem(item);
+                    var educationData = ExtractSingleEducationItem(item, userLink);
                     if (educationData != null)
                     {
-                        result.Add(educationData);
+                        result.Add(educationData.Value);
                     }
                 }
                 catch
@@ -636,45 +638,45 @@ public static class ProfileDataExtractor
         catch
         {
         }
-        
+
         return result;
     }
 
-    private static UniversityEducationData? ExtractSingleEducationItem(IElement item)
+    private static UserUniversityRecord? ExtractSingleEducationItem(IElement item, string userLink)
     {
         var universityLink = item.QuerySelector(AppConfig.EducationUniversityLinkSelector);
         if (universityLink == null)
         {
             return null;
         }
-        
+
         var href = universityLink.GetAttribute("href");
         if (string.IsNullOrWhiteSpace(href))
         {
             return null;
         }
-        
+
         var idMatch = System.Text.RegularExpressions.Regex.Match(href, AppConfig.UniversityIdRegex);
         if (!idMatch.Success || !int.TryParse(idMatch.Groups[1].Value, out var universityHabrId))
         {
             return null;
         }
-        
+
         var universityName = universityLink.TextContent?.Trim();
         if (string.IsNullOrWhiteSpace(universityName))
         {
             var nameElement = item.QuerySelector(AppConfig.EducationUniversityNameSelector);
             universityName = nameElement?.TextContent?.Trim();
         }
-        
+
         if (string.IsNullOrWhiteSpace(universityName))
         {
             return null;
         }
-        
+
         string? city = null;
         int? graduateCount = null;
-        
+
         var locationElement = item.QuerySelector(AppConfig.EducationLocationSelector);
         if (locationElement != null)
         {
@@ -686,7 +688,7 @@ public static class ProfileDataExtractor
                 {
                     city = parts[0].Trim();
                 }
-                
+
                 if (parts.Length > 1)
                 {
                     var graduateMatch = System.Text.RegularExpressions.Regex.Match(parts[1], AppConfig.GraduateCountRegex);
@@ -697,27 +699,25 @@ public static class ProfileDataExtractor
                 }
             }
         }
-        
+
         var courses = ExtractCourses(item);
-        
+
         string? description = null;
         var descriptionElement = item.QuerySelector(AppConfig.EducationDescriptionSelector);
         if (descriptionElement != null)
         {
             description = descriptionElement.TextContent?.Trim();
         }
-        
-        return new UniversityEducationData
-        {
-            University = new UniversityData(
+
+        return new UserUniversityRecord(
+            UserLink: userLink,
+            University: new UniversityRecord(
                 HabrId: universityHabrId,
                 Name: universityName,
                 City: city,
-                GraduateCount: graduateCount
-            ),
-            Courses = courses,
-            Description = description
-        };
+                GraduateCount: graduateCount),
+            Courses: courses,
+            Description: description);
     }
 
     private static List<CourseData> ExtractCourses(IElement item)
@@ -1042,17 +1042,29 @@ public static class ProfileDataExtractor
     }
 
     /// <summary>
-    /// Извлекает список навыков из профиля.
+    /// Извлекает список навыков из профиля в виде записей <see cref="SkillsRecord"/>.
     /// </summary>
-    public static List<string> ExtractSkills(IDocument doc)
+    public static List<SkillsRecord> ExtractSkills(IDocument doc)
     {
-        var skills = new List<string>();
+        var skills = new List<SkillsRecord>();
         var skillElements = doc.QuerySelectorAll(AppConfig.UserResumeDetailSkillSelector);
         foreach (var skillElement in skillElements)
         {
             var skillTitle = skillElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(skillTitle))
-                skills.Add(skillTitle);
+            if (string.IsNullOrWhiteSpace(skillTitle))
+                continue;
+
+            int? skillId = null;
+            var href = skillElement.GetAttribute("href");
+            if (!string.IsNullOrWhiteSpace(href))
+            {
+                var skillMatch = System.Text.RegularExpressions.Regex.Match(
+                    href, AppConfig.UserResumeDetailSkillIdRegex);
+                if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
+                    skillId = id;
+            }
+
+            skills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillTitle));
         }
         return skills;
     }
@@ -1173,20 +1185,7 @@ public static class ProfileDataExtractor
     public static (int Count, List<UserUniversityRecord> Universities) ExtractEducation(
         IDocument doc, string userLink)
     {
-        var educationData = ExtractEducationData(doc);
-        var universities = new List<UserUniversityRecord>();
-        foreach (var education in educationData)
-        {
-            universities.Add(new UserUniversityRecord(
-                UserLink: userLink,
-                University: new UniversityRecord(
-                    HabrId: education.University.HabrId,
-                    Name: education.University.Name,
-                    City: education.University.City,
-                    GraduateCount: education.University.GraduateCount),
-                Courses: education.Courses,
-                Description: education.Description));
-        }
+        var universities = ExtractEducationData(doc, userLink);
         return (universities.Count, universities);
     }
 

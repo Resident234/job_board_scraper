@@ -371,10 +371,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             remoteWork: remoteWork,
             jobSearchStatus: jobSearchStatus,
             isEmpty: isEmpty,
-            skills: skills?
-                .Where(skill => !string.IsNullOrWhiteSpace(skill))
-                .Select(skill => new SkillsRecord(SkillId: null, SkillTitle: skill.Trim()))
-                .ToList(),
+            skills: skills,
             about: about,
             communityParticipation: communityParticipation,
             userExperience: userExperiences,
