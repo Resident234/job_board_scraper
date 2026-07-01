@@ -421,3 +421,76 @@ foreach (var (statusCode, description) in testCases)
 - **Обеспечивает подробное логирование** - для диагностики проблем
 
 Для серьезных задач рекомендуется использовать коммерческие прокси-сервисы, которые обеспечивают более стабильное соединение и меньшую вероятность блокировок.
+
+---
+
+## 🏗️ Архитектура `ProxyRetryExecutor` — почему часть методов `static`, а часть вызывается через `_retryExecutor`
+
+Класс `ProxyRetryExecutor` (`JobBoardScraper/Infrastructure/Proxy/ProxyRetryExecutor.cs`) намеренно совмещает две роли. Это не дублирование, а разделение ответственности по наличию/отсутствию внутреннего состояния.
+
+### 1. Через поле экземпляра `_retryExecutor` — `ExecuteAsync`
+
+`ExecuteAsync` (строки 65–208) обращается к полям экземпляра:
+- `_clientFactory` — фабрика HTTP-клиентов с прокси;
+- `_logger` — логгер для записей о retry/переключении прокси;
+- `_maxRetriesPerProxy`, `_maxProxySwitches` — конфигурация retry, читается из `AppConfig` в конструкторе.
+
+Все эти параметры задаются **один раз при создании скрапера** в конструкторе (например, в `UserResumeDetailScraper`):
+
+```csharp
+var clientFactory = new ProxyHttpClientFactory(logger: _logger);
+_retryExecutor = new ProxyRetryExecutor(clientFactory, logger: _logger);
+```
+
+Поэтому все HTTP-запросы в `ProcessUserAsync` идут через инстанс-поле:
+
+```csharp
+var result = await _retryExecutor.ExecuteAsync(
+    url: userLink,
+    coordinator: _proxyCoordinator,
+    fallbackSend: () => _httpClient.GetAsync(userLink, ct),
+    proxySend:   client => client.GetAsync(userLink, ct),
+    ct: ct).ConfigureAwait(false);
+```
+
+Здесь нужен доступ к настроенному состоянию executor'а.
+
+### 2. Через имя класса `ProxyRetryExecutor` — статические хелперы
+
+Следующие методы являются `static` и не используют ни `_clientFactory`, ни `_maxRetries*`:
+
+- `ProxyRetryExecutor.ReportSuccessSafe(coordinator, proxyUrl)` — уведомить координатор об успехе прокси.
+- `ProxyRetryExecutor.ReportDailyLimitSafe(coordinator, proxyUrl, logger?)` — уведомить о суточном лимите.
+- `ProxyRetryExecutor.HandleDailyLimit(coordinator, proxyUrl, userLink, logger?)` — реакция на суточный лимит: уведомление координатора, запрос нового прокси, лог.
+
+Они зависят **только от переданных аргументов** (`IProxyManager` + `ConsoleLogger`). Это чистые функции, не привязанные к жизненному циклу одного скрапера.
+
+### 3. Почему не сделать всё instance?
+
+| Вариант | Проблема |
+|---------|----------|
+| Сделать хелперы instance-методами `_retryExecutor.ReportSuccessSafe(...)` | Звучит странно: executor сам себе что-то "report'ит". Плюс пришлось бы городить пустой конструктор или передавать лишние параметры там, где состояние executor'а не нужно. |
+| Сделать `ExecuteAsync` статическим | Невозможно: метод зависит от `_clientFactory`/`_logger`/`_maxRetries*` — это конфигурация, привязанная к конкретному скраперу. |
+
+### 4. Правило для нового кода
+
+> **Если метод работает с состоянием executor'а (фабрика клиентов, логгер, лимиты retry) — он instance и вызывается через `_retryExecutor`.**
+>
+> **Если метод — это чистая утилита над `IProxyManager` + `ConsoleLogger` — он `static` и вызывается через имя класса `ProxyRetryExecutor`.**
+
+### 5. Мини-шпаргалка по сигнатурам
+
+```csharp
+// instance — есть состояние (фабрика, логгер, лимиты из AppConfig)
+public async Task<ProxyRequestResult> ExecuteAsync(
+    string url,
+    IProxyManager? coordinator,
+    Func<Task<HttpResponseMessage>> fallbackSend,
+    Func<HttpClient, Task<HttpResponseMessage>> proxySend,
+    CancellationToken ct);
+
+// static — чистые хелперы, состояния не хранят
+public static void ReportSuccessSafe(IProxyManager? coordinator, string? proxyUrl);
+public static void ReportDailyLimitSafe(IProxyManager? coordinator, string? proxyUrl, ConsoleLogger? logger = null);
+public static bool HandleDailyLimit(IProxyManager? coordinator, string? proxyUrl, string userLink, ConsoleLogger? logger = null);
+```
