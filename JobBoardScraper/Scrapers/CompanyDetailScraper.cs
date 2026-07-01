@@ -108,7 +108,7 @@ public sealed class CompanyDetailScraper : IDisposable
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalCompanies, "CompanyDetails");
         
-        _logger.WriteLine($"Загружено {totalCompanies} компаний из БД.");
+        ScraperLogger.LogCount(_logger, "Загружено", totalCompanies, "компаний", " из БД");
 
         if (totalCompanies == 0)
         {
