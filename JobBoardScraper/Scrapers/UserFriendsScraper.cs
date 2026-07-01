@@ -149,7 +149,13 @@ public sealed class UserFriendsScraper : IDisposable
                     }
                     else
                     {
-                        _logger.WriteLine($"HTTP запрос {friendsUrl} (страница {page}): {elapsedSeconds:F3} сек. Код ответа {(int)response.StatusCode}.");
+                        ScraperParallelLogger.LogPage(
+                            _logger,
+                            _statistics.ScraperName,
+                            friendsUrl,
+                            page,
+                            elapsedSeconds,
+                            (int)response.StatusCode);
                     }
                     
                     if (!response.IsSuccessStatusCode)

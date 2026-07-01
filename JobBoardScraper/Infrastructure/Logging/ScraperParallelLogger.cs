@@ -78,10 +78,31 @@ public static class ScraperParallelLogger
     {
         var messageBody = $"{url}: {elapsedSeconds:F3} сек. " +
                          $"Код: {statusCode}. Прогресс: {progress}. Параллельных: {statistics.ActiveRequests}.";
-        
+
         if (logger != null)
             logger.WriteLine(messageBody);
         else
             Console.WriteLine($"[{statistics.ScraperName}] {messageBody}");
+    }
+
+    /// <summary>
+    /// Логирует HTTP-запрос для произвольной страницы пагинации (без обновления статистики).
+    /// Используется, когда первая страница уже была залогирована через <see cref="LogProgress(ConsoleLogger, ScraperStatistics, string, double, int, ProgressTracker)"/>,
+    /// а для последующих страниц нужно лишь сообщить URL/время/код ответа.
+    /// </summary>
+    public static void LogPage(
+        ConsoleLogger? logger,
+        string scraperName,
+        string url,
+        int page,
+        double elapsedSeconds,
+        int statusCode)
+    {
+        var messageBody = $"HTTP запрос {url} (страница {page}): {elapsedSeconds:F3} сек. Код ответа {statusCode}.";
+
+        if (logger != null)
+            logger.WriteLine(messageBody);
+        else
+            Console.WriteLine($"[{scraperName}] {messageBody}");
     }
 }
