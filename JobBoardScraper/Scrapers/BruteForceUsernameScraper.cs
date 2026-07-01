@@ -39,6 +39,9 @@ public sealed class BruteForceUsernameScraper
 
     public async Task RunAsync(CancellationToken ct)
     {
+        ScraperLogger.LogStart(_logger, "Начало перебора имён пользователей (brute force)...");
+        _statistics.StartTime = DateTime.Now;
+
         using var conn = _db.ConnectionInit();
         _db.EnsureConnectionOpen(conn);
 
