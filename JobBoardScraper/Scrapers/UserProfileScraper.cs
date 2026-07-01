@@ -109,7 +109,7 @@ namespace JobBoardScraper.Scrapers;
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalLinks, "UserProfiles");
         
-        _logger.WriteLine($"Загружено {totalLinks} пользователей из БД.");
+        ScraperLogger.LogCount(_logger, "Загружено", totalLinks, "пользователей", " из БД");
 
         if (totalLinks == 0)
         {
