@@ -17,7 +17,7 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Func<List<(string code, string url)>> _getCompanies;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly Regex _companyIdRegex;
@@ -39,7 +39,7 @@ public sealed class CompanyDetailScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _getCompanies = getCompanies ?? throw new ArgumentNullException(nameof(getCompanies));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
         _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
         _alternativeLinkRegex = new Regex(AppConfig.CompanyDetailAlternativeLinkRegex, RegexOptions.Compiled);
@@ -127,7 +127,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     _statistics.IncrementProcessed();
                     _statistics.UpdateActiveRequests(_activeRequests.Count);
@@ -566,7 +566,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     _activeRequests.TryRemove(code, out _);
                 }
             },
-            controller: _controller,
+            controller: _adaptiveConcurrencyController,
             ct: ct
         );
 

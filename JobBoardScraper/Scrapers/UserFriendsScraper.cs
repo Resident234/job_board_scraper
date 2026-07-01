@@ -17,7 +17,7 @@ public sealed class UserFriendsScraper : IDisposable
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Func<List<string>> _getUserCodes;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
@@ -35,7 +35,7 @@ public sealed class UserFriendsScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _getUserCodes = getUserCodes ?? throw new ArgumentNullException(nameof(getUserCodes));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
         _statistics = new ScraperStatistics("UserFriendsScraper");
         
@@ -127,7 +127,7 @@ public sealed class UserFriendsScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(friendsUrl, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
                     
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
                     
@@ -211,7 +211,7 @@ public sealed class UserFriendsScraper : IDisposable
                 _activeRequests.TryRemove(userLink, out _);
             }
         },
-        controller: _controller,
+        controller: _adaptiveConcurrencyController,
         ct: ct
         );
         

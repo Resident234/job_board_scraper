@@ -16,7 +16,7 @@ public sealed class CompanyFollowersScraper : IDisposable
     private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string, string?, InsertMode> _enqueueUser;
     private readonly Func<List<string>> _getCompanyCodes;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
@@ -32,7 +32,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _enqueueUser = enqueueUser ?? throw new ArgumentNullException(nameof(enqueueUser));
         _getCompanyCodes = getCompanyCodes ?? throw new ArgumentNullException(nameof(getCompanyCodes));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(7);
         
         _logger = new ConsoleLogger("CompanyFollowersScraper");
@@ -110,7 +110,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                     var (usersFound, statusCode) = await ScrapeCompanyFollowersAsync(companyCode, ct);
                     
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
                     
                     lock (lockObj)
                     {
@@ -134,7 +134,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                     _activeRequests.TryRemove(companyCode, out _);
                 }
             },
-            controller: _controller,
+            controller: _adaptiveConcurrencyController,
             ct: ct
         );
         

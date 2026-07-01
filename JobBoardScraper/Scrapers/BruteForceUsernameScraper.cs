@@ -17,7 +17,7 @@ public sealed class BruteForceUsernameScraper
 {
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
     private readonly ScraperStatistics _statistics;
@@ -29,7 +29,7 @@ public sealed class BruteForceUsernameScraper
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _statistics = new ScraperStatistics("BruteForceUsernameScraper");
         
         _logger = new ConsoleLogger("BruteForceUsernameScraper");
@@ -91,7 +91,7 @@ public sealed class BruteForceUsernameScraper
                         );
 
                         sw.Stop();
-                        _controller.ReportLatency(sw.Elapsed);
+                        _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                         double elapsedSeconds = sw.Elapsed.TotalSeconds;
 
@@ -143,7 +143,7 @@ public sealed class BruteForceUsernameScraper
                         Console.Out.Flush();
                     }
                 },
-                controller: _controller,
+                controller: _adaptiveConcurrencyController,
                 ct: ct
             );
         }

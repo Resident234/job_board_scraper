@@ -19,7 +19,7 @@ public sealed class CompanyRatingScraper : IDisposable
 {
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
     private readonly ScraperStatistics _statistics;
@@ -37,7 +37,7 @@ public sealed class CompanyRatingScraper : IDisposable
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
         _statistics = new ScraperStatistics("CompanyRatingScraper");
 
@@ -167,7 +167,7 @@ public sealed class CompanyRatingScraper : IDisposable
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var response = await _httpClient.GetAsync(url, ct);
             sw.Stop();
-            _controller.ReportLatency(sw.Elapsed);
+            _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
             _statistics.IncrementProcessed();
 

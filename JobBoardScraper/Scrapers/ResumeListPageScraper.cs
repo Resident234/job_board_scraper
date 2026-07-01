@@ -22,7 +22,7 @@ public sealed class ResumeListPageScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConsoleLogger _logger;
-    private readonly AdaptiveConcurrencyController _controller;
+    private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly ScraperStatistics _statistics;
 
     public ResumeListPageScraper(
@@ -36,7 +36,7 @@ public sealed class ResumeListPageScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _enqueueToSaveQueue = enqueueToSaveQueue ?? throw new ArgumentNullException(nameof(enqueueToSaveQueue));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? AppConfig.ResumeListInterval;
         _statistics = new ScraperStatistics("ResumeListPageScraper");
         
@@ -180,7 +180,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     // Увеличиваем счётчик только для первого order каждого статуса
                     if (isFirstOrder)
@@ -254,7 +254,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     // Увеличиваем счётчик только для первого order каждого опыта
                     if (isFirstOrder)
@@ -329,7 +329,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     // Увеличиваем счётчик только для первого order каждого qid
                     if (isFirstOrder)
@@ -430,7 +430,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         var sw = System.Diagnostics.Stopwatch.StartNew();
                         var response = await _httpClient.GetAsync(url, ct);
                         sw.Stop();
-                        _controller.ReportLatency(sw.Elapsed);
+                        _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                         // Считаем прогресс только для первой комбинации каждой компании
                         if (isFirstCombination)
@@ -517,7 +517,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     // Считаем прогресс только для первой сортировки
                     if (isFirstOrder)
@@ -620,7 +620,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
-                    _controller.ReportLatency(sw.Elapsed);
+                    _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
                     // Увеличиваем счетчик только для первого order каждого навыка
                     if (isFirstOrder)
