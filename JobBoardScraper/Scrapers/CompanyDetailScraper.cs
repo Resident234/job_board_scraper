@@ -414,11 +414,6 @@ public sealed class CompanyDetailScraper : IDisposable
                         }
                     }
 
-                    if (memberCount > 0)
-                    {
-                        _logger.WriteLine($"Найдено контактных лиц: {memberCount}");
-                    }
-
                     // Извлекаем сотрудников компании из списка
                     var employeeCount = 0;
                     var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
@@ -465,11 +460,6 @@ public sealed class CompanyDetailScraper : IDisposable
                                 ScraperLogger.LogError(_logger, "Ошибка при обработке сотрудника", ex);
                             }
                         }
-                    }
-
-                    if (employeeCount > 0)
-                    {
-                        _logger.WriteLine($"Найдено сотрудников: {employeeCount}");
                     }
 
                     // Извлекаем связанные компании из списка
@@ -520,11 +510,6 @@ public sealed class CompanyDetailScraper : IDisposable
                         }
                     }
 
-                    if (relatedCompanyCount > 0)
-                    {
-                        _logger.WriteLine($"Найдено связанных компаний: {relatedCompanyCount}");
-                    }
-
                     // Извлекаем навыки компании
                     var skills = new List<SkillsRecord>();
                     var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
@@ -541,11 +526,6 @@ public sealed class CompanyDetailScraper : IDisposable
                         }
                     }
 
-                    if (skills.Count > 0)
-                    {
-                        _logger.WriteLine($"Найдено навыков: {skills.Count}");
-                    }
-
                     // Проверяем, ведет ли компания блог на Хабре
                     bool? habr = null;
                     var allDivs = doc.QuerySelectorAll("div.title");
@@ -555,7 +535,6 @@ public sealed class CompanyDetailScraper : IDisposable
                         if (divText == AppConfig.CompanyDetailHabrBlogText)
                         {
                             habr = true;
-                            _logger.WriteLine($"Компания ведет блог на Хабре");
                             break;
                         }
                     }
@@ -564,28 +543,25 @@ public sealed class CompanyDetailScraper : IDisposable
                     _db.EnqueueCompany(code, url, companyId, companyTitle, companyAbout, companyDescription,
                         companySite, companyRating, currentEmployees, pastEmployees, followers, wantWork,
                         employeesCount, habr, skills: skills.Count > 0 ? skills : null);
-                    ScraperLogger.LogEnqueue(_logger, code, url);
-
-                    // Детальный вывод всех спарсенных данных
-                    _logger.WriteLine($"=== Компания {code} ===");
-                    _logger.WriteLine($"  Company ID: {companyId}");
-                    _logger.WriteLine($"  Название: {companyTitle ?? "(не найдено)"}");
-                    _logger.WriteLine(
-                        $"  Описание (about): {(companyAbout != null ? (companyAbout.Length > 100 ? companyAbout.Substring(0, 100) + "..." : companyAbout) : "(не найдено)")}");
-                    _logger.WriteLine(
-                        $"  Детальное описание: {(companyDescription != null ? (companyDescription.Length > 100 ? companyDescription.Substring(0, 100) + "..." : companyDescription) : "(не найдено)")}");
-                    _logger.WriteLine($"  Сайт: {companySite ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Рейтинг: {companyRating?.ToString("F2") ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Текущие сотрудники: {currentEmployees?.ToString() ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Все сотрудники: {pastEmployees?.ToString() ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Подписчики: {followers?.ToString() ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Хотят работать: {wantWork?.ToString() ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Размер компании: {employeesCount ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Блог на Хабре: {(habr == true ? "Да" : "Нет")}");
-                    _logger.WriteLine($"  Навыков: {skills.Count}");
-                    _logger.WriteLine($"  Контактных лиц: {memberCount}");
-                    _logger.WriteLine($"  Сотрудников в списке: {employeeCount}");
-                    _logger.WriteLine($"  Связанных компаний: {relatedCompanyCount}");
+                    ScraperLogger.LogEnqueue(
+                        _logger,
+                        entityType: "CompanyDetail",
+                        entityId: url,
+                        ("Code", code),
+                        ("CompanyId", companyId?.ToString() ?? "(не найдено)"),
+                        ("Title", companyTitle ?? "(не найдено)"),
+                        ("Site", companySite ?? "(не найдено)"),
+                        ("Rating", companyRating?.ToString("F2") ?? "(не найдено)"),
+                        ("CurrentEmployees", currentEmployees?.ToString() ?? "(не найдено)"),
+                        ("PastEmployees", pastEmployees?.ToString() ?? "(не найдено)"),
+                        ("Followers", followers?.ToString() ?? "(не найдено)"),
+                        ("WantWork", wantWork?.ToString() ?? "(не найдено)"),
+                        ("Size", employeesCount ?? "(не найдено)"),
+                        ("HabrBlog", (habr == true ? "Да" : "Нет")),
+                        ("Skills", skills.Count.ToString()),
+                        ("Members", memberCount.ToString()),
+                        ("Employees", employeeCount.ToString()),
+                        ("RelatedCompanies", relatedCompanyCount.ToString()));
 
                     _statistics.IncrementSuccess();
                 }

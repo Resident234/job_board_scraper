@@ -251,18 +251,20 @@ namespace JobBoardScraper.Scrapers;
                         lastVisit: lastVisit,
                         isPublic: true
                     );
-                    ScraperLogger.LogEnqueue(_logger, userCode, userLink, $"| {(isExpert == true ? "Expert" : "User")}");
-                    
-                    _logger.WriteLine($"Пользователь {userLink} (code={userCode}):");
-                    _logger.WriteLine($"  Имя: {userName ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Эксперт: {(isExpert == true ? "Да" : "Нет")}");
-                    _logger.WriteLine($"  Уровень: {levelTitle ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Техническая информация: {infoTech ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Зарплата: {(salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)")}");
-                    _logger.WriteLine($"  Опыт работы: {workExperience ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Последний визит: {lastVisit ?? "(не найдено)"}");
-                    _logger.WriteLine($"  Публичный профиль: Да");
-                    
+                    ScraperLogger.LogEnqueue(
+                        _logger,
+                        entityType: "UserProfile",
+                        entityId: userLink,
+                        ("Name", userName ?? "(не найдено)"),
+                        ("Expert", (isExpert == true ? "Да" : "Нет")),
+                        ("Level", levelTitle ?? "(не найдено)"),
+                        ("InfoTech", infoTech ?? "(не найдено)"),
+                        ("Salary", salary.HasValue ? $"{salary.Value} ₽" : "(не найдено)"),
+                        ("WorkExperience", workExperience ?? "(не найдено)"),
+                        ("LastVisit", lastVisit ?? "(не найдено)"),
+                        ("IsPublic", "Да"),
+                        ("Type", (isExpert == true ? "Expert" : "User")));
+
                     _statistics.IncrementSuccess();
                 }
                 catch (Exception ex)
