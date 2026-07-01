@@ -211,10 +211,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             }
 
             var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
-            var encoding = response.Content.Headers.ContentType?.CharSet != null
-                ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                : System.Text.Encoding.UTF8;
-            var html = encoding.GetString(htmlBytes);
+            string html = response.DecodeBodyAsString(htmlBytes);
 
             if (!response.IsSuccessStatusCode)
             {
