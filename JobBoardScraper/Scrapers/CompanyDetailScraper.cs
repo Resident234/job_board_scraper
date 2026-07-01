@@ -157,17 +157,13 @@ public sealed class CompanyDetailScraper : IDisposable
                     var html = response.DecodeBodyAsString(htmlBytes);
 
                     // Сохраняем HTML в файл для отладки (только последнюю страницу)
-                    var savedPath = await HtmlDebug.SaveHtmlAsync(
+                    await HtmlDebug.SaveHtmlAsync(
                         html,
                         "CompanyDetailScraper",
+                        _logger,
                         "last_page.html",
                         encoding: encoding,
                         ct: ct);
-
-                    if (savedPath != null)
-                    {
-                        _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
-                    }
 
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 

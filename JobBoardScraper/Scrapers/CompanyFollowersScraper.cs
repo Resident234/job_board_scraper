@@ -170,21 +170,13 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var html = response.DecodeBodyAsString(htmlBytes);
                 
                 // Сохраняем HTML в файл для отладки
-                var savedPath = await HtmlDebug.SaveHtmlAsync(
-                    html, 
-                    "CompanyFollowersScraper", 
+                await HtmlDebug.SaveHtmlAsync(
+                    html,
+                    "CompanyFollowersScraper",
+                    _logger,
                     "last_page.html",
                     encoding: encoding,
                     ct: ct);
-                
-                if (savedPath != null)
-                {
-                    _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
-                }
-                else
-                {
-                    _logger.WriteLine("Не удалось сохранить HTML для отладки.");
-                }
                 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                 

@@ -173,17 +173,13 @@ namespace JobBoardScraper.Scrapers;
                     // Сохраняем HTML в файл для отладки (если включено)
                     if (AppConfig.UserProfileSaveHtml)
                     {
-                        var savedPath = await HtmlDebug.SaveHtmlAsync(
+                        await HtmlDebug.SaveHtmlAsync(
                             html,
                             "UserProfileScraper",
+                            _logger,
                             "last_page.html",
                             encoding: encoding,
                             ct: ct);
-
-                        if (savedPath != null)
-                        {
-                            _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");
-                        }
                     }
 
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
