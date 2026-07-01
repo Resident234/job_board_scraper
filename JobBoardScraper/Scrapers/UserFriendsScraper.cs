@@ -159,10 +159,7 @@ public sealed class UserFriendsScraper : IDisposable
                     }
 
                     var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    var encoding = response.Content.Headers.ContentType?.CharSet != null
-                        ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                        : System.Text.Encoding.UTF8;
-                    var html = encoding.GetString(htmlBytes);
+                    var html = response.DecodeBodyAsString(htmlBytes);
                     
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 

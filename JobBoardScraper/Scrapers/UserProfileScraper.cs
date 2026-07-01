@@ -167,21 +167,19 @@ namespace JobBoardScraper.Scrapers;
 
                     // Читаем HTML с правильной кодировкой
                     var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    var encoding = response.Content.Headers.ContentType?.CharSet != null
-                        ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                        : System.Text.Encoding.UTF8;
-                    var html = encoding.GetString(htmlBytes);
-                    
+                    var encoding = response.GetEncoding();
+                    var html = response.DecodeBodyAsString(htmlBytes);
+
                     // Сохраняем HTML в файл для отладки (если включено)
                     if (AppConfig.UserProfileSaveHtml)
                     {
                         var savedPath = await HtmlDebug.SaveHtmlAsync(
-                            html, 
-                            "UserProfileScraper", 
+                            html,
+                            "UserProfileScraper",
                             "last_page.html",
                             encoding: encoding,
                             ct: ct);
-                        
+
                         if (savedPath != null)
                         {
                             _logger.WriteLine($"HTML сохранён: {savedPath} (кодировка: {encoding.WebName})");

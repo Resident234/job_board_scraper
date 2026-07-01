@@ -166,13 +166,8 @@ public sealed class CompanyFollowersScraper : IDisposable
 
                 // Получаем HTML с правильной кодировкой
                 var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
-                
-                // Определяем кодировку из заголовков или используем UTF-8 по умолчанию
-                var encoding = response.Content.Headers.ContentType?.CharSet != null
-                    ? System.Text.Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-                    : System.Text.Encoding.UTF8;
-                
-                var html = encoding.GetString(htmlBytes);
+                var encoding = response.GetEncoding();
+                var html = response.DecodeBodyAsString(htmlBytes);
                 
                 // Сохраняем HTML в файл для отладки
                 var savedPath = await HtmlDebug.SaveHtmlAsync(

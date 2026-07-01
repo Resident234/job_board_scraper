@@ -9,6 +9,18 @@ namespace JobBoardScraper.Infrastructure.Utils;
 public static class HttpResponseExtensions
 {
     /// <summary>
+    /// Возвращает кодировку, указанную в заголовке Content-Type (charset),
+    /// или <see cref="Encoding.UTF8"/>, если charset не указан.
+    /// </summary>
+    /// <param name="response">HTTP-ответ (источник кодировки из Content-Type).</param>
+    /// <returns>Кодировка для декодирования тела ответа.</returns>
+    public static Encoding GetEncoding(this HttpResponseMessage response)
+    {
+        var charset = response.Content.Headers.ContentType?.CharSet;
+        return charset != null ? Encoding.GetEncoding(charset) : Encoding.UTF8;
+    }
+
+    /// <summary>
     /// Декодирует байты тела HTTP-ответа в строку. Кодировка определяется по
     /// заголовку Content-Type (charset). Если charset не указан, используется UTF-8.
     /// </summary>
@@ -20,9 +32,6 @@ public static class HttpResponseExtensions
         this HttpResponseMessage response,
         byte[] bytes)
     {
-        var encoding = response.Content.Headers.ContentType?.CharSet != null
-            ? Encoding.GetEncoding(response.Content.Headers.ContentType.CharSet)
-            : Encoding.UTF8;
-        return encoding.GetString(bytes);
+        return response.GetEncoding().GetString(bytes);
     }
 }
