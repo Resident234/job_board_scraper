@@ -139,6 +139,19 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Подставляет аргумент в URL-шаблон (<c>string.Format</c> с одним placeholder'ом).
+    /// Не выполняет никаких преобразований URL — возвращает результат форматирования как есть.
+    /// Чтобы получить абсолютный URL, оберните результат в <see cref="ToAbsolute"/>.
+    /// </summary>
+    /// <param name="template">Шаблон URL с placeholder'ом <c>{0}</c> (например, <c>/resumes?work_state={0}</c>).</param>
+    /// <param name="arg0">Аргумент для подстановки в placeholder.</param>
+    /// <returns>Строка после <c>string.Format(template, arg0)</c>.</returns>
+    public static string Format(string template, object? arg0)
+    {
+        return string.Format(template ?? string.Empty, arg0);
+    }
+
+    /// <summary>
     /// Формирует URL страницы друзей для пользователя.
     /// </summary>
     /// <param name="userLink">Ссылка на профиль пользователя (абсолютная или относительная).</param>
