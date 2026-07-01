@@ -191,13 +191,12 @@ namespace JobBoardScraper.Scrapers;
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                     // Извлекаем имя пользователя и определяем публичность профиля
-                    var userName = ProfileDataExtractor.ExtractUserName(doc, AppConfig.UserProfilePageTitleSelector);
-                    bool isPublic = !string.IsNullOrWhiteSpace(userName);
+                    var (userName, isPublic) = ProfileDataExtractor.IsPublicProfile(
+                        doc, AppConfig.UserProfilePageTitleSelector);
 
                     // Если профиль приватный (редирект на главную), сохраняем только флаг и продолжаем
                     if (!isPublic)
                     {
-                        _logger.WriteLine($"Пользователь {userLink}: Приватный профиль (редирект)");
                         _db.EnqueueResume(
                             link: userLink,
                             title: "",

@@ -195,6 +195,32 @@ public static class ProfileDataExtractor
     }
 
     /// <summary>
+    /// Определяет, является ли профиль пользователя публичным.
+    /// Профиль считается публичным, если в документе присутствует имя пользователя
+    /// (ищется по селектору заголовка страницы). Иначе — приватный (редирект/скрыт).
+    /// </summary>
+    /// <param name="doc">Документ для проверки</param>
+    /// <param name="pageTitleSelector">CSS-селектор заголовка страницы (например, "h1.page-title__title").</param>
+    /// <returns>
+    /// Кортеж (userName, isPublic):
+    ///   userName — извлечённое имя пользователя (или null, если не найдено);
+    ///   isPublic — true, если имя найдено; false, если пусто/null/whitespace (приватный профиль).
+    /// </returns>
+    public static (string? userName, bool isPublic) IsPublicProfile(
+        IDocument doc,
+        string pageTitleSelector = "h1.page-title__title")
+    {
+        if (doc == null)
+        {
+            return (null, false);
+        }
+
+        var userName = ExtractUserName(doc, pageTitleSelector);
+        bool isPublic = !string.IsNullOrWhiteSpace(userName);
+        return (userName, isPublic);
+    }
+
+    /// <summary>
     /// Проверяет, является ли строка допустимым названием уровня.
     /// Список допустимых уровней читается из конфига (Levels:ValidTitles).
     /// </summary>
