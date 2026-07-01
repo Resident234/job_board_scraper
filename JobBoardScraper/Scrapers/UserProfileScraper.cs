@@ -211,12 +211,7 @@ namespace JobBoardScraper.Scrapers;
                     }
 
                     // Проверяем, является ли пользователь экспертом
-                    bool? isExpert = null;
-                    var expertElement = doc.QuerySelector(AppConfig.UserProfileExpertSelector);
-                    if (expertElement != null)
-                    {
-                        isExpert = true;
-                    }
+                    bool? isExpert = ProfileDataExtractor.IsExpertProfile(doc, AppConfig.UserProfileExpertSelector);
 
                     // Извлекаем уровень и техническую информацию
                     var (infoTech, levelTitle) = ProfileDataExtractor.ExtractInfoTechAndLevel(

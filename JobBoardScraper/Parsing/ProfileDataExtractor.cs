@@ -172,6 +172,29 @@ public static class ProfileDataExtractor
     }
 
     /// <summary>
+    /// Проверяет, является ли пользователь экспертом (на странице профиля присутствует маркер эксперта).
+    /// Метод возвращает true, если в документе найден элемент по указанному селектору;
+    /// null, если документ не задан или селектор пустой (значение не определено);
+    /// false, если селектор корректный, но элемент не найден (т.е. это обычный пользователь, не эксперт).
+    /// </summary>
+    /// <param name="doc">Документ для проверки</param>
+    /// <param name="expertSelector">CSS-селектор маркера эксперта (например, ".user-page-sidebar__expert").</param>
+    /// <returns>
+    /// true — элемент найден, пользователь эксперт;
+    /// false — селектор валиден, но элемент не найден (обычный пользователь);
+    /// null — не удалось выполнить проверку (doc == null или пустой селектор).
+    /// </returns>
+    public static bool? IsExpertProfile(IDocument doc, string expertSelector)
+    {
+        if (doc == null || string.IsNullOrWhiteSpace(expertSelector))
+        {
+            return null;
+        }
+
+        return doc.QuerySelector(expertSelector) != null;
+    }
+
+    /// <summary>
     /// Проверяет, является ли строка допустимым названием уровня.
     /// Список допустимых уровней читается из конфига (Levels:ValidTitles).
     /// </summary>
