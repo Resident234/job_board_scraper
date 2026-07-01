@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Parsing;
@@ -59,7 +60,7 @@ public sealed class BruteForceUsernameScraper
             int startIndex = 0;
             if (!string.IsNullOrEmpty(lastLink))
             {
-                int foundIndex = usernames.IndexOf(lastLink.Replace(AppConfig.BaseUrl, ""));
+                int foundIndex = usernames.IndexOf(UrlManager.StripBase(lastLink));
                 if (foundIndex >= 0 && foundIndex < usernames.Count - 1)
                 {
                     startIndex = foundIndex + 1;
@@ -77,7 +78,7 @@ public sealed class BruteForceUsernameScraper
                 source: usernames,
                 body: async username =>
                 {
-                    string link = AppConfig.BaseUrl + username;
+                    string link = UrlManager.Combine(AppConfig.BaseUrl, username);
 
                     _activeRequests.TryAdd(link, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
                     try

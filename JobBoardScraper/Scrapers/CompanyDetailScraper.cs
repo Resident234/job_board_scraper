@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Text.RegularExpressions;
@@ -382,7 +383,7 @@ public sealed class CompanyDetailScraper : IDisposable
                             var memberCode = hrefMatch.Groups[1].Value;
 
                             // Формируем полную ссылку
-                            var memberLink = AppConfig.CompanyDetailPublicMemberBaseUrl + memberCode;
+                            var memberLink = UrlManager.Combine(AppConfig.CompanyDetailPublicMemberBaseUrl, memberCode);
 
                             // Сохраняем в БД (title = имя, code = код, link = полная ссылка)
                             // Используем UpdateIfExists чтобы обновить title если запись уже существует
@@ -429,7 +430,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                 var userCode = hrefMatch.Groups[1].Value;
 
                                 // Формируем полную ссылку
-                                var userFullLink = AppConfig.CompanyDetailUserBaseUrl + userCode;
+                                var userFullLink = UrlManager.Combine(AppConfig.CompanyDetailUserBaseUrl, userCode);
 
                                 // Сохраняем в БД (code = код, link = полная ссылка, без title)
                                 // Используем SkipIfExists чтобы не дублировать записи
@@ -486,7 +487,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                 var companyCode = hrefMatch.Groups[1].Value;
 
                                 // Формируем полную ссылку
-                                var companyUrl = AppConfig.CompanyDetailCompanyBaseUrl + companyCode;
+                                var companyUrl = UrlManager.Combine(AppConfig.CompanyDetailCompanyBaseUrl, companyCode);
 
                                 // Сохраняем в БД (code = код, url = полная ссылка, title = название)
                                 _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);

@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Collections.Generic;
@@ -123,7 +124,7 @@ namespace JobBoardScraper.Scrapers;
                 try
                 {
                     // Извлекаем userCode из ссылки (например, из "https://career.habr.com/username" получаем "username")
-                    var userCode = userLink.TrimEnd('/').Split('/').LastOrDefault();
+                    var userCode = UrlManager.GetLastPathSegment(userLink);
                     if (string.IsNullOrWhiteSpace(userCode))
                     {
                         _logger.WriteLine($"Не удалось извлечь код пользователя из ссылки: {userLink}. Пропуск.");
@@ -133,7 +134,7 @@ namespace JobBoardScraper.Scrapers;
                     }
 
                     // Формируем URL для /friends, добавляя /friends к исходной ссылке
-                    var friendsUrl = userLink.TrimEnd('/') + "/friends";
+                    var friendsUrl = UrlManager.BuildFriendsUrl(userLink);
 
                     _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
                     

@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Linq;
@@ -250,8 +251,7 @@ public sealed class CompanyRatingScraper : IDisposable
         if (string.IsNullOrWhiteSpace(href)) return null;
 
         // Извлекаем код из href (например, "/companies/tensor" или "https://career.habr.com/companies/tensor" -> "tensor")
-        var uri = new Uri(href, UriKind.RelativeOrAbsolute);
-        var path = uri.IsAbsoluteUri ? uri.AbsolutePath : href;
+        var path = UrlManager.GetAbsolutePath(href);
         var code = path.TrimStart('/').Replace(AppConfig.CompanyRatingCompanyPathPrefix, "").Trim('/');
         if (string.IsNullOrWhiteSpace(code)) return null;
 

@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Parsing;
@@ -15,7 +16,6 @@ public readonly record struct ResumeItem(string link, string title);
 /// </summary>
 public sealed class ResumeListPageScraper : IDisposable
 {
-    private static readonly Uri BaseUri = new(AppConfig.BaseUrl);
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Action<ResumeItem> _enqueueToSaveQueue;
@@ -50,16 +50,6 @@ public sealed class ResumeListPageScraper : IDisposable
         _logger?.Dispose();
     }
 
-    /// <summary>
-    /// Преобразует относительный URL в абсолютный, используя BaseUri
-    /// </summary>
-    private string GetAbsoluteUrl(string relativeUrl)
-    {
-        if (Uri.TryCreate(relativeUrl, UriKind.Absolute, out _))
-            return relativeUrl; // Уже абсолютный URL
-        
-        return new Uri(BaseUri, relativeUrl).ToString();
-    }
 
     public Task StartAsync(CancellationToken ct)
     {
@@ -174,7 +164,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     var baseUrl = string.Format(AppConfig.ResumeListWorkStatesUrlTemplate, workState);
                     var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var url = GetAbsoluteUrl(relativeUrl);
+                    var url = UrlManager.ToAbsolute(relativeUrl);
                     var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
                     
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -248,7 +238,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     var baseUrl = string.Format(AppConfig.ResumeListExperiencesUrlTemplate, experience);
                     var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var url = GetAbsoluteUrl(relativeUrl);
+                    var url = UrlManager.ToAbsolute(relativeUrl);
                     var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
 
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -323,7 +313,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     var baseUrl = string.Format(AppConfig.ResumeListQidsUrlTemplate, qid);
                     var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var url = GetAbsoluteUrl(relativeUrl);
+                    var url = UrlManager.ToAbsolute(relativeUrl);
                     var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
                     
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -422,7 +412,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         
                         // Добавляем сортировку если указана
                         var relativeUrl = string.IsNullOrWhiteSpace(order) ? urlWithCompany : $"{urlWithCompany}&order={order}";
-                        var url = GetAbsoluteUrl(relativeUrl);
+                        var url = UrlManager.ToAbsolute(relativeUrl);
                         
                         var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam) ? "" : " (current_company=1)";
                         var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
@@ -511,7 +501,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     var baseUrl = string.Format(AppConfig.ResumeListUniversityIdsUrlTemplate, universityId);
                     var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var url = GetAbsoluteUrl(relativeUrl);
+                    var url = UrlManager.ToAbsolute(relativeUrl);
                     var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
                     
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -561,7 +551,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
     {
-        var url = GetAbsoluteUrl(AppConfig.ResumeListPageUrl);
+        var url = UrlManager.ToAbsolute(AppConfig.ResumeListPageUrl);
         _logger.WriteLine($"Начало обхода страницы {url}...");
         
         var response = await _httpClient.GetAsync(url, ct);
@@ -614,7 +604,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 {
                     var baseUrl = string.Format(AppConfig.ResumeListSkillUrlTemplate, skillId);
                     var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
-                    var url = GetAbsoluteUrl(relativeUrl);
+                    var url = UrlManager.ToAbsolute(relativeUrl);
                     var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
                     
                     var sw = System.Diagnostics.Stopwatch.StartNew();

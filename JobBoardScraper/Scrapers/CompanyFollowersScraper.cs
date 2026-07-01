@@ -1,6 +1,7 @@
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Parsing;
@@ -216,9 +217,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                             continue;
 
                         // Формируем полный URL
-                        var fullUrl = href.StartsWith("http") 
-                            ? href 
-                            : $"{AppConfig.BaseUrl.TrimEnd('/')}{href}";
+                        var fullUrl = UrlManager.ToAbsolute(href);
 
                         // Извлекаем слоган (может отсутствовать)
                         var sloganElement = userItem.QuerySelector(AppConfig.CompanyFollowersSloganSelector);

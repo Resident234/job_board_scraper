@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Data;
 using System.Text.RegularExpressions;
 using JobBoardScraper.Parsing;
@@ -167,9 +168,7 @@ public sealed class ExpertsScraper : IDisposable
                             var code = match.Success ? match.Groups[1].Value : null;
 
                             // Формируем полный URL
-                            var fullUrl = href.StartsWith("http") 
-                                ? href 
-                                : $"{AppConfig.BaseUrl.TrimEnd('/')}{href}";
+                            var fullUrl = UrlManager.ToAbsolute(href);
 
                             // Извлекаем стаж работы
                             string? workExperience = null;
@@ -214,9 +213,7 @@ public sealed class ExpertsScraper : IDisposable
                                     if (companyCodeMatch.Success)
                                     {
                                         var companyCode = companyCodeMatch.Groups[1].Value;
-                                        var companyUrl = companyHref.StartsWith("http") 
-                                            ? companyHref 
-                                            : $"https://career.habr.com{companyHref}";
+                        var companyUrl = UrlManager.ToAbsolute(companyHref);
 
                                         _db.EnqueueCompany(companyCode, companyUrl);
                                         ScraperLogger.LogEnqueue(_logger, companyCode, companyUrl);

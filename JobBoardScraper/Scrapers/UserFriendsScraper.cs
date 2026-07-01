@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Collections.Concurrent;
@@ -120,9 +121,7 @@ public sealed class UserFriendsScraper : IDisposable
                 // Перебираем страницы, пока находим друзей
                 while (hasMorePages && !ct.IsCancellationRequested)
                 {
-                    var friendsUrl = page == 1 
-                        ? userLink.TrimEnd('/') + "/friends"
-                        : userLink.TrimEnd('/') + $"/friends?page={page}";
+                    var friendsUrl = UrlManager.BuildFriendsUrl(userLink, page);
 
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(friendsUrl, ct);
@@ -174,8 +173,8 @@ public sealed class UserFriendsScraper : IDisposable
                             continue;
 
                         // Формируем полную ссылку
-                        var fullLink = AppConfig.UserFriendsBaseUrl + href;
-                        
+                        var fullLink = UrlManager.Combine(AppConfig.UserFriendsBaseUrl, href);
+
                         // Извлекаем код пользователя из href
                         var userCode = href.TrimStart('/');
                         
