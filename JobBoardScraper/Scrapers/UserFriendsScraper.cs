@@ -191,16 +191,16 @@ public sealed class UserFriendsScraper : IDisposable
                     if (friendsOnPage == 0)
                     {
                         hasMorePages = false;
-                        _logger.WriteLine($"Страница {page} пуста, завершаем обход для {userLink}");
+                        ScraperLogger.LogEnd(_logger, $"Страница {page} пуста, завершаем обход для {userLink}");
                     }
                     else
                     {
-                        _logger.WriteLine($"Найдено {friendsOnPage} друзей на странице {page} для {userLink}");
+                        ScraperLogger.LogPage(_logger, page, $"{friendsUrl} | найдено {friendsOnPage} друзей для {userLink}");
                         page++;
                     }
                 }
 
-                _logger.WriteLine($"Всего найдено {totalFriendsForUser} друзей для {userLink} ({page - 1} страниц)");
+                ScraperLogger.LogCount(_logger, "Найдено", totalFriendsForUser, $"друзей для {userLink}", $" ({page - 1} страниц)");
                 _statistics.AddItemsCollected(totalFriendsForUser);
             }
             catch (Exception ex)
