@@ -169,21 +169,17 @@ public sealed class UserFriendsScraper : IDisposable
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                     // Ищем друзей по селектору
-                    var friendLinks = doc.QuerySelectorAll(AppConfig.UserFriendsFriendLinkSelector);
+                    var friends = UserDataExtractor.ExtractFriends(doc, AppConfig.UserFriendsFriendLinkSelector);
                     var friendsOnPage = 0;
                     
-                    foreach (var friendLink in friendLinks)
+                    foreach (var (href, userCode) in friends)
                     {
-                        var href = friendLink.GetAttribute("href");
-                        if (string.IsNullOrWhiteSpace(href))
+                        if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(userCode))
                             continue;
 
                         // Формируем полную ссылку
                         var fullLink = UrlManager.Combine(AppConfig.UserFriendsBaseUrl, href);
 
-                        // Извлекаем код пользователя из href
-                        var userCode = href.TrimStart('/');
-                        
                         // Сохраняем в БД: если запись существует по link, обновляем code
                         _db.EnqueueResume(fullLink, title: "", mode: InsertMode.UpdateIfExists, code: userCode);
                         ScraperLogger.LogEnqueue(_logger, userCode, fullLink);

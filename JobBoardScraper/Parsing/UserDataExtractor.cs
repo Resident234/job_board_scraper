@@ -1294,4 +1294,38 @@ public static class UserDataExtractor
         }
         return (educations.Count, educations);
     }
+
+    /// <summary>
+    /// Извлекает значения атрибута href со ссылок на друзей пользователя со страницы /friends.
+    /// Скрапер сразу получает готовые href-строки, без необходимости работать с DOM-элементами.
+    /// </summary>
+    /// <param name="doc">Документ страницы друзей.</param>
+    /// <param name="friendLinkSelector">CSS-селектор ссылок на друзей.</param>
+    /// <returns>Массив значений href (может содержать null/empty для ссылок без атрибута).</returns>
+    /// <summary>
+    /// Извлекает из страницы /friends список пар (href, userCode) для каждого друга.
+    /// Href — относительный путь из атрибута href; userCode — код пользователя (href без ведущего '/').
+    /// Если href пустой, оба значения будут null.
+    /// </summary>
+    /// <param name="doc">Документ страницы друзей.</param>
+    /// <param name="friendLinkSelector">CSS-селектор ссылок на друзей.</param>
+    /// <returns>Список кортежей (Href, UserCode) в порядке появления ссылок на странице.</returns>
+    public static IReadOnlyList<(string? Href, string? UserCode)> ExtractFriends(
+        IDocument doc,
+        string friendLinkSelector)
+    {
+        if (doc == null || string.IsNullOrWhiteSpace(friendLinkSelector))
+        {
+            return Array.Empty<(string?, string?)>();
+        }
+
+        return doc.QuerySelectorAll(friendLinkSelector)
+            .Select(e =>
+            {
+                var href = e.GetAttribute("href");
+                string? userCode = string.IsNullOrWhiteSpace(href) ? null : href.TrimStart('/');
+                return (Href: href, UserCode: userCode);
+            })
+            .ToArray();
+    }
 }
