@@ -122,6 +122,23 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Дописывает query-параметр <c>order=<value></c> к <paramref name="url"/>, если <paramref name="order"/> непустой.
+    /// Корректно обрабатывает уже существующий query: при его наличии используется разделитель <c>&</c>, иначе <c>?</c>.
+    /// </summary>
+    /// <param name="url">Исходный URL (абсолютный или относительный).</param>
+    /// <param name="order">Значение сортировки. Если <c>null</c> или пустое — URL возвращается без изменений.</param>
+    /// <returns>URL с параметром <c>order</c> или без изменений, если значение не задано.</returns>
+    public static string WithOrder(string? url, string? order)
+    {
+        if (string.IsNullOrWhiteSpace(order))
+            return url ?? string.Empty;
+
+        var basePart = url ?? string.Empty;
+        var separator = basePart.Contains('?') ? "&" : "?";
+        return $"{basePart}{separator}order={order}";
+    }
+
+    /// <summary>
     /// Формирует URL страницы друзей для пользователя.
     /// </summary>
     /// <param name="userLink">Ссылка на профиль пользователя (абсолютная или относительная).</param>
