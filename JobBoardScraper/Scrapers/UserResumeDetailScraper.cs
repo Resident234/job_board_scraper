@@ -205,8 +205,7 @@ public sealed class UserResumeDetailScraper : IDisposable
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                _logger.WriteLine($"Пользователь {userLink}:");
-                _logger.WriteLine($"  Статус: страница не найдена (404) — пропуск без записи в БД");
+                ScraperLogger.LogSkip(_logger, $"Пользователь {userLink}: страница не найдена (404) — пропуск без записи в БД");
                 _statistics.IncrementSkipped();
                 return;
             }
