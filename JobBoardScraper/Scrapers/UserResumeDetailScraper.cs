@@ -222,7 +222,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             // Парсим документ заранее, чтобы использовать его в проверках
             var doc = await HtmlParser.ParseDocumentAsync(html, ct).ConfigureAwait(false);
 
-            if (ProfileDataExtractor.IsDeletedProfile(doc))
+            if (UserDataExtractor.IsDeletedProfile(doc))
             {
                 const string deletedTitle = "Профиль удален";
                 const string deletedAbout = "Профиль пользователя удален со всей информацией, которую он о себе оставлял";
@@ -240,7 +240,7 @@ public sealed class UserResumeDetailScraper : IDisposable
             }
 
             // Проверяем на приватный профиль (доступ ограничен настройками приватности)
-            if (ProfileDataExtractor.IsPrivateProfile(doc))
+            if (UserDataExtractor.IsPrivateProfile(doc))
             {
                 // Профиль приватный - сохраняем статус и переходим к следующему
                 const string privateMessage = "Доступ ограничен настройками приватности";
@@ -296,37 +296,37 @@ public sealed class UserResumeDetailScraper : IDisposable
     {
         _ = ct; // параметр оставлен для совместимости с прежней сигнатурой
         // Извлекаем имя пользователя
-        var userName = ProfileDataExtractor.ExtractUserName(doc);
+        var userName = UserDataExtractor.ExtractUserName(doc);
 
         // Извлекаем техническую информацию и уровень
-        var (infoTech, levelTitle) = ProfileDataExtractor.ExtractInfoTechAndLevel(doc);
+        var (infoTech, levelTitle) = UserDataExtractor.ExtractInfoTechAndLevel(doc);
 
         // Извлекаем зарплату и статус поиска работы
-        var (salary, jobSearchStatus) = ProfileDataExtractor.ExtractSalaryAndJobStatus(doc);
+        var (salary, jobSearchStatus) = UserDataExtractor.ExtractSalaryAndJobStatus(doc);
 
         // Извлекаем текст "О себе"
-        string? about = ProfileDataExtractor.ExtractAboutSection(doc);
+        string? about = UserDataExtractor.ExtractAboutSection(doc);
 
         // Извлекаем навыки
-        var skills = ProfileDataExtractor.ExtractSkills(doc);
+        var skills = UserDataExtractor.ExtractSkills(doc);
 
         // Извлекаем опыт работы
-        var (experienceCount, userExperiences) = ProfileDataExtractor.ExtractExperience(doc, userLink);
+        var (experienceCount, userExperiences) = UserDataExtractor.ExtractExperience(doc, userLink);
 
         // Извлекаем дополнительные данные профиля
-        var additionalProfile = ProfileDataExtractor.ExtractAdditionalProfileData(doc);
+        var additionalProfile = UserDataExtractor.ExtractAdditionalProfileData(doc);
 
         // Извлекаем данные о высшем образовании
-        var (educationCount, userUniversities) = ProfileDataExtractor.ExtractEducation(doc, userLink);
+        var (educationCount, userUniversities) = UserDataExtractor.ExtractEducation(doc, userLink);
 
         // Извлекаем данные о дополнительном образовании
-        var (additionalEducationCount, additionalEducations) = ProfileDataExtractor.ExtractAdditionalEducation(doc, userLink);
+        var (additionalEducationCount, additionalEducations) = UserDataExtractor.ExtractAdditionalEducation(doc, userLink);
 
         // Извлекаем данные об участии в профсообществах
-        var communityParticipation = ProfileDataExtractor.ExtractCommunityParticipationRecords(doc);
+        var communityParticipation = UserDataExtractor.ExtractCommunityParticipationRecords(doc);
 
         // Определяем, является ли профиль пустым
-        bool isEmpty = ProfileDataExtractor.IsEmptyProfile(doc);
+        bool isEmpty = UserDataExtractor.IsEmptyProfile(doc);
         if (isEmpty)
         {
             about = "Пустой профиль";

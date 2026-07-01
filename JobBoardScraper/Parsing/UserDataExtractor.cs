@@ -7,7 +7,7 @@ namespace JobBoardScraper.Parsing;
 /// <summary>
 /// Вспомогательные методы для извлечения данных профиля из DOM
 /// </summary>
-public static class ProfileDataExtractor
+public static class UserDataExtractor
 {
     /// <summary>
     /// Определяет, является ли профиль пустым (нет ни одного блока данных).

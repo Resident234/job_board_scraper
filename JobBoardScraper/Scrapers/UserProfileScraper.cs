@@ -1,4 +1,4 @@
-using JobBoardScraper.Infrastructure.Logging;
+﻿using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
@@ -186,7 +186,7 @@ namespace JobBoardScraper.Scrapers;
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                     // Извлекаем имя пользователя и определяем публичность профиля
-                    var (userName, isPublic) = ProfileDataExtractor.IsPublicProfile(
+                    var (userName, isPublic) = UserDataExtractor.IsPublicProfile(
                         doc, AppConfig.UserProfilePageTitleSelector);
 
                     // Если профиль приватный (редирект на главную), сохраняем только флаг и продолжаем
@@ -205,22 +205,22 @@ namespace JobBoardScraper.Scrapers;
                     }
 
                     // Проверяем, является ли пользователь экспертом
-                    bool? isExpert = ProfileDataExtractor.IsExpertProfile(doc, AppConfig.UserProfileExpertSelector);
+                    bool? isExpert = UserDataExtractor.IsExpertProfile(doc, AppConfig.UserProfileExpertSelector);
 
                     // Извлекаем уровень и техническую информацию
-                    var (infoTech, levelTitle) = ProfileDataExtractor.ExtractInfoTechAndLevel(
+                    var (infoTech, levelTitle) = UserDataExtractor.ExtractInfoTechAndLevel(
                         doc,
                         AppConfig.UserProfileMetaSelector,
                         AppConfig.UserProfileInlineListSelector);
 
                     // Извлекаем зарплату и статус поиска работы
-                    var (salary, jobSearchStatus) = ProfileDataExtractor.ExtractSalaryAndJobStatus(
+                    var (salary, jobSearchStatus) = UserDataExtractor.ExtractSalaryAndJobStatus(
                         doc,
                         AppConfig.UserProfileCareerSelector,
                         AppConfig.UserProfileSalaryRegex);
 
                     // Извлекаем опыт работы и последний визит из всех секций .basic-section
-                    var (workExperience, lastVisit) = ProfileDataExtractor.ExtractWorkExperienceAndLastVisit(
+                    var (workExperience, lastVisit) = UserDataExtractor.ExtractWorkExperienceAndLastVisit(
                         doc, 
                         AppConfig.UserProfileBasicSectionSelector);
 

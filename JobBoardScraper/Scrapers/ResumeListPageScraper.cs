@@ -1,4 +1,4 @@
-using JobBoardScraper.Infrastructure.Logging;
+﻿using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
@@ -730,14 +730,14 @@ public sealed class ResumeListPageScraper : IDisposable
                 var expertIcon = section.QuerySelector(AppConfig.ResumeListExpertIconSelector);
                 var isExpert = expertIcon != null;
 
-                // 3) Извлекаем имя, должности и уровень используя ProfileDataExtractor
-                var (name, infoTech, levelTitle) = ProfileDataExtractor.ExtractNameInfoTechAndLevel(
+                // 3) Извлекаем имя, должности и уровень используя UserDataExtractor
+                var (name, infoTech, levelTitle) = UserDataExtractor.ExtractNameInfoTechAndLevel(
                     section,
                     AppConfig.ResumeListProfileLinkSelector,
                     AppConfig.ResumeListSeparatorSelector);
 
-                // 4) Извлекаем зарплату используя ProfileDataExtractor
-                var salary = ProfileDataExtractor.ExtractSalaryFromSection(
+                // 4) Извлекаем зарплату используя UserDataExtractor
+                var salary = UserDataExtractor.ExtractSalaryFromSection(
                     section,
                     AppConfig.ResumeListSalaryRegex);
 
