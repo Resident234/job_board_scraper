@@ -149,7 +149,8 @@ public sealed class ResumeListPageScraper : IDisposable
         var progressLogger = new ScraperProgressLogger(workStates.Length, "ResumeListPageScraper", _logger, "WorkStates");
         var totalProfiles = 0;
         
-        _logger.WriteLine($"Статусы для обхода: {string.Join(", ", workStates)} ({workStates.Length} шт.), сортировок: {orders.Length}");
+        ScraperLogger.LogCount(_logger, "Статусов для обхода", workStates.Length, "статусов");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
 
         foreach (var workState in workStates)
         {
@@ -222,7 +223,8 @@ public sealed class ResumeListPageScraper : IDisposable
         var progressLogger = new ScraperProgressLogger(experiences.Length, "ResumeListPageScraper", _logger, "Experiences");
         var totalProfiles = 0;
         
-        _logger.WriteLine($"Опыт для обхода: {string.Join(", ", experiences)} ({experiences.Length} шт.), сортировок: {orders.Length}");
+        ScraperLogger.LogCount(_logger, "Опыт для обхода", experiences.Length, "шт.");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
 
         foreach (var experience in experiences)
         {
@@ -296,7 +298,8 @@ public sealed class ResumeListPageScraper : IDisposable
         // Используем ScraperProgressLogger для отслеживания и вывода прогресса
         var progressLogger = new ScraperProgressLogger(totalQids, "ResumeListPageScraper", _logger, "Qids");
         
-        _logger.WriteLine($"Диапазон qids: {startQid} - {endQid} ({totalQids} шт.), сортировок: {orders.Length}");
+        ScraperLogger.LogCount(_logger, "Диапазон qids", totalQids, "шт.");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
 
         for (var qid = startQid; qid <= endQid; qid++)
         {
@@ -377,7 +380,9 @@ public sealed class ResumeListPageScraper : IDisposable
         var progressLogger = new ScraperProgressLogger(totalCompanyIds, "ResumeListPageScraper", _logger, "CompanyIds");
         var totalProfiles = 0;
         
-        _logger.WriteLine($"Загружено company_ids: {totalCompanyIds} шт., сортировок: {orders.Length}, вариантов current_company: {currentCompanyVariants.Length}");
+        ScraperLogger.LogCount(_logger, "Загружено company_ids", totalCompanyIds, "шт.");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
+        ScraperLogger.LogCount(_logger, "Вариантов current_company", currentCompanyVariants.Length, "вариантов");
 
         if (totalCompanyIds == 0)
         {
@@ -476,7 +481,8 @@ public sealed class ResumeListPageScraper : IDisposable
         var progressLogger = new ScraperProgressLogger(totalUniversityIds, "ResumeListPageScraper", _logger, "UniversityIds");
         var totalProfiles = 0;
         
-        _logger.WriteLine($"Загружено university_ids: {totalUniversityIds} шт., сортировок: {orders.Length}");
+        ScraperLogger.LogCount(_logger, "Загружено university_ids", totalUniversityIds, "шт.");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
 
         if (totalUniversityIds == 0)
         {
@@ -547,7 +553,7 @@ public sealed class ResumeListPageScraper : IDisposable
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
     {
         var url = UrlManager.ToAbsolute(AppConfig.ResumeListPageUrl);
-        _logger.WriteLine($"Начало обхода страницы {url}...");
+        ScraperLogger.LogPage(_logger, url);
         
         var response = await _httpClient.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
@@ -569,7 +575,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
     private async Task ScrapeSkillsEnumerationAsync(CancellationToken ct)
     {
-        _logger.WriteLine("Начало перебора навыков...");
+        ScraperLogger.LogStart(_logger, "Начало перебора навыков...");
         
         var startSkillId = AppConfig.ResumeListSkillsStartId;
         var endSkillId = AppConfig.ResumeListSkillsEndId;
@@ -582,7 +588,8 @@ public sealed class ResumeListPageScraper : IDisposable
         var skillsFound = 0;
         var skillsNotFound = 0;
         
-        _logger.WriteLine($"Диапазон навыков: {startSkillId} - {endSkillId} ({totalSkills} навыков), сортировок: {orders.Length}");
+        ScraperLogger.LogCount(_logger, "Диапазон навыков", totalSkills, "навыков");
+        ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
 
         for (var skillId = startSkillId; skillId <= endSkillId; skillId++)
         {
