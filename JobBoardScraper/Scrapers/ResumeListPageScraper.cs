@@ -125,6 +125,11 @@ public sealed class ResumeListPageScraper : IDisposable
 
             // Ждем завершения всех задач
             await Task.WhenAll(tasks);
+
+            // После завершения всех параллельных задач — единая точка фиксации
+            // времени окончания и выгрузки статистики в лог-файл.
+            _statistics.EndTime = DateTime.Now;
+            _statistics.WriteToLogFile();
         }
         catch (OperationCanceledException)
         {
@@ -208,7 +213,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -282,7 +286,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -357,7 +360,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(_statistics.TotalItemsCollected, $"{_statistics}");
     }
 
@@ -461,7 +463,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -546,7 +547,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -681,7 +681,6 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
 
-        _statistics.EndTime = DateTime.Now;
         progressLogger.LogCompletion(totalProfiles, $"Найдено навыков: {skillsFound}, Не найдено: {skillsNotFound}. {_statistics}");
     }
 
