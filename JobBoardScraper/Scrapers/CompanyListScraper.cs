@@ -293,7 +293,7 @@ public sealed class CompanyListScraper : IDisposable
         if (totalOnSite > 0)
         {
             var percent = (double)_statistics.TotalItemsCollected / totalOnSite * 100;
-            _progressLogger?.LogFilterProgress($"{filterName}: собрано {_statistics.TotalItemsCollected:N0}/{totalOnSite:N0} ({percent:F1}%)");
+            _progressLogger?.LogFilter($"{filterName}: собрано {_statistics.TotalItemsCollected:N0}/{totalOnSite:N0} ({percent:F1}%)");
         }
         else
         {

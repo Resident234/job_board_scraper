@@ -162,11 +162,10 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 try
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListWorkStatesUrlTemplate, workState);
-                    var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var baseUrl = UrlManager.Format(AppConfig.ResumeListWorkStatesUrlTemplate, workState);
+                    var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                    
+
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
@@ -181,7 +180,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        progressLogger.LogFilterProgress($"Статус {workState}{orderDesc}: HTTP {(int)response.StatusCode}");
+                        progressLogger.LogFilter($"Статус {workState}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
 
@@ -199,7 +198,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
-                    progressLogger.LogFilterProgress($"Статус {workState}{orderDesc}", profilesFound);
+                    progressLogger.LogFilter($"Статус {workState}", profilesFound, order);
                 }
                 catch (Exception ex)
                 {
@@ -236,10 +235,9 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 try
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListExperiencesUrlTemplate, experience);
-                    var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var baseUrl = UrlManager.Format(AppConfig.ResumeListExperiencesUrlTemplate, experience);
+                    var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
 
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
@@ -255,7 +253,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        progressLogger.LogFilterProgress($"Опыт {experience}{orderDesc}: HTTP {(int)response.StatusCode}");
+                        progressLogger.LogFilter($"Опыт {experience}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
 
@@ -273,7 +271,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
-                    progressLogger.LogFilterProgress($"Опыт {experience}{orderDesc}", profilesFound);
+                    progressLogger.LogFilter($"Опыт {experience}", profilesFound, order);
                 }
                 catch (Exception ex)
                 {
@@ -311,11 +309,10 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 try
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListQidsUrlTemplate, qid);
-                    var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var baseUrl = UrlManager.Format(AppConfig.ResumeListQidsUrlTemplate, qid);
+                    var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                    
+
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
@@ -331,7 +328,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        progressLogger.LogFilterProgress($"Qid {qid}{orderDesc}: HTTP {(int)response.StatusCode}");
+                        progressLogger.LogFilter($"Qid {qid}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
 
@@ -348,7 +345,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = profiles.Count;
                     _statistics.AddItemsCollected(profilesFound);
 
-                    progressLogger.LogFilterProgress($"Qid {qid}{orderDesc}", profilesFound);
+                    progressLogger.LogFilter($"Qid {qid}", profilesFound, order);
                 }
                 catch (Exception ex)
                 {
@@ -405,18 +402,17 @@ public sealed class ResumeListPageScraper : IDisposable
                     {
                         // Формируем базовый URL без current_company из шаблона
                         var baseUrlTemplate = AppConfig.ResumeListCompanyIdsUrlTemplate.Replace("&current_company=1", "");
-                        var baseUrl = string.Format(baseUrlTemplate, companyId);
-                        
+                        var baseUrl = UrlManager.Format(baseUrlTemplate, companyId);
+
                         // Добавляем current_company если нужно
                         var urlWithCompany = baseUrl + currentCompanyParam;
-                        
+
                         // Добавляем сортировку если указана
-                        var relativeUrl = string.IsNullOrWhiteSpace(order) ? urlWithCompany : $"{urlWithCompany}&order={order}";
+                        var relativeUrl = UrlManager.WithOrder(urlWithCompany, order);
                         var url = UrlManager.ToAbsolute(relativeUrl);
                         
                         var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam) ? "" : " (current_company=1)";
-                        var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                        
+
                         var sw = System.Diagnostics.Stopwatch.StartNew();
                         var response = await _httpClient.GetAsync(url, ct);
                         sw.Stop();
@@ -432,7 +428,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                         if (!response.IsSuccessStatusCode)
                         {
-                            progressLogger.LogFilterProgress($"Company ID {companyId}{currentCompanyDesc}{orderDesc}: HTTP {(int)response.StatusCode}");
+                            progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}: HTTP {(int)response.StatusCode}", order: order);
                             continue;
                         }
 
@@ -450,7 +446,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         totalProfiles += profilesFound;
                         _statistics.AddItemsCollected(profilesFound);
 
-                        progressLogger.LogFilterProgress($"Company ID {companyId}{currentCompanyDesc}{orderDesc}", profilesFound);
+                        progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}", profilesFound, order);
                     }
                     catch (Exception ex)
                     {
@@ -499,11 +495,10 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 try
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListUniversityIdsUrlTemplate, universityId);
-                    var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var baseUrl = UrlManager.Format(AppConfig.ResumeListUniversityIdsUrlTemplate, universityId);
+                    var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                    
+
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
@@ -518,7 +513,7 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        progressLogger.LogFilterProgress($"University ID {universityId}{orderDesc}: HTTP {(int)response.StatusCode}");
+                        progressLogger.LogFilter($"University ID {universityId}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
 
@@ -536,7 +531,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
 
-                    progressLogger.LogFilterProgress($"University ID {universityId}{orderDesc}", profilesFound);
+                    progressLogger.LogFilter($"University ID {universityId}", profilesFound, order);
                 }
                 catch (Exception ex)
                 {
@@ -602,11 +597,10 @@ public sealed class ResumeListPageScraper : IDisposable
 
                 try
                 {
-                    var baseUrl = string.Format(AppConfig.ResumeListSkillUrlTemplate, skillId);
-                    var relativeUrl = string.IsNullOrWhiteSpace(order) ? baseUrl : $"{baseUrl}&order={order}";
+                    var baseUrl = UrlManager.Format(AppConfig.ResumeListSkillUrlTemplate, skillId);
+                    var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-                    var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
-                    
+
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
@@ -620,16 +614,16 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        progressLogger.LogFilterProgress($"Навык {skillId}{orderDesc}: HTTP {(int)response.StatusCode}");
+                        progressLogger.LogFilter($"Навык {skillId}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
 
                     var html = await response.Content.ReadAsStringAsync(ct);
-                    
+
                     // Проверяем наличие сообщения "Специалисты не найдены"
                     if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
                     {
-                        progressLogger.LogFilterProgress($"Навык {skillId}{orderDesc}: не найдено специалистов");
+                        progressLogger.LogFilter($"Навык {skillId}: не найдено специалистов", order: order);
                         // Оптимизация: если на первой сортировке навык не найден, пропускаем остальные сортировки
                         if (isFirstOrder)
                         {
@@ -657,7 +651,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
 
-                    progressLogger.LogFilterProgress($"Навык {skillId}{orderDesc}", profilesFound);
+                    progressLogger.LogFilter($"Навык {skillId}", profilesFound, order);
                 
                     isFirstOrder = false;
                 }
@@ -724,7 +718,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 if (string.IsNullOrWhiteSpace(code))
                     continue;
 
-                var link = string.Format(AppConfig.ResumeListProfileUrlTemplate, code);
+                var link = UrlManager.Format(AppConfig.ResumeListProfileUrlTemplate, code);
 
                 // 2) Проверяем признак эксперта
                 var expertIcon = section.QuerySelector(AppConfig.ResumeListExpertIconSelector);

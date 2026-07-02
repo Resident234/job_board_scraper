@@ -60,10 +60,11 @@ public sealed class ScraperProgressLogger
         WriteMessage($"[{_scraperName}] Страница {pageNumber}: найдено {itemsFound}. Прогресс: {_progress}.");
     }
 
-    public void LogFilterProgress(string filterDescription, int? itemsFound = null)
+    public void LogFilter(string filterDescription, int? itemsFound = null, string? order = null)
     {
+        var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
         var foundPart = itemsFound.HasValue ? $" найдено {itemsFound.Value} профилей." : "";
-        WriteMessage($"[{_scraperName}] {filterDescription}:{foundPart} Прогресс: {_progress}.");
+        WriteMessage($"[{_scraperName}] {filterDescription}{orderDesc}:{foundPart} Прогресс: {_progress}.");
     }
 
     public void LogCompletion(int totalItemsCollected, string? additionalInfo = null)
