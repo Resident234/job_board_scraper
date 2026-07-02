@@ -1,6 +1,8 @@
-using AngleSharp.Dom;
+﻿using AngleSharp.Dom;
 using JobBoardScraper.Data;
 using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Logging;
+using JobBoardScraper.Infrastructure.Url;
 
 namespace JobBoardScraper.Parsing;
 
@@ -1327,5 +1329,110 @@ public static class UserDataExtractor
                 return (Href: href, UserCode: userCode);
             })
             .ToArray();
+    }
+
+    /// <summary>
+    /// Чистый парсинг: извлекает из HTML-документа данные профилей, найденных на странице списка резюме.
+    /// Не выполняет никаких операций с БД — только разбирает DOM.
+    /// Возвращает готовые ResumeRecord (с Mode = UpdateIfExists), которые вызывающий код кладёт в очередь через EnqueueResume.
+    /// </summary>
+    /// <param name="doc">Распарсенный HTML-документ страницы списка резюме.</param>
+    /// <param name="ct">Токен отмены.</param>
+    /// <param name="logger">Опциональный логгер для записи ошибок парсинга отдельных профилей.</param>
+    /// <returns>Список распарсенных ResumeRecord (без постановки в очередь БД).</returns>
+    public static List<ResumeRecord> ParseProfilesFromPage(
+        IDocument doc,
+        CancellationToken ct,
+        ConsoleLogger? logger = null)
+    {
+        var profiles = new List<ResumeRecord>();
+        var sections = doc.QuerySelectorAll(AppConfig.ResumeListProfileSectionSelector);
+
+        foreach (var section in sections)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            try
+            {
+                // 1) Извлекаем ссылку и имя
+                var profileLink = section.QuerySelector(AppConfig.ResumeListProfileLinkSelector);
+                if (profileLink == null) continue;
+
+                var href = profileLink.GetAttribute("href");
+
+                if (string.IsNullOrWhiteSpace(href))
+                    continue;
+
+                // Проверяем и извлекаем код пользователя с помощью regex
+                // Валидные: /username, https://career.habr.com/username
+                // Невалидные: https://habr.com/users/username, /some/path
+                var cleanHref = href.TrimStart('/');
+                var match = System.Text.RegularExpressions.Regex.Match(cleanHref, AppConfig.ResumeListProfileLinkRegex);
+                if (!match.Success)
+                    continue;
+
+                var code = match.Groups[1].Value;
+                if (string.IsNullOrWhiteSpace(code))
+                    continue;
+
+                var link = UrlManager.Format(AppConfig.ResumeListProfileUrlTemplate, code);
+
+                // 2) Проверяем признак эксперта
+                var expertIcon = section.QuerySelector(AppConfig.ResumeListExpertIconSelector);
+                var isExpert = expertIcon != null;
+
+                // 3) Извлекаем имя, должности и уровень используя UserDataExtractor
+                var (name, infoTech, levelTitle) = ExtractNameInfoTechAndLevel(
+                    section,
+                    AppConfig.ResumeListProfileLinkSelector,
+                    AppConfig.ResumeListSeparatorSelector);
+
+                // 4) Извлекаем зарплату используя UserDataExtractor
+                var salary = ExtractSalaryFromSection(
+                    section,
+                    AppConfig.ResumeListSalaryRegex);
+
+                // 5) Извлекаем навыки
+                var skills = new List<SkillsRecord>();
+                var skillsSection = section.QuerySelector(AppConfig.ResumeListSkillsSectionSelector);
+                if (skillsSection != null)
+                {
+                    var skillButtons = skillsSection.QuerySelectorAll(AppConfig.ResumeListSkillButtonSelector);
+                    foreach (var skillSpan in skillButtons)
+                    {
+                        var skillName = skillSpan.TextContent?.Trim();
+                        if (!string.IsNullOrWhiteSpace(skillName))
+                        {
+                            skills.Add(new SkillsRecord(SkillId: null, SkillTitle: skillName));
+                        }
+                    }
+                }
+
+                // Проверяем, что имя не null
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
+
+                profiles.Add(new ResumeRecord(
+                    Link: link,
+                    Title: name,
+                    Code: code,
+                    Expert: isExpert,
+                    UserCode: code,
+                    UserName: name,
+                    IsExpert: isExpert,
+                    LevelTitle: levelTitle,
+                    InfoTech: infoTech,
+                    Salary: salary,
+                    Skills: skills.Count > 0 ? skills : null,
+                    Mode: InsertMode.UpdateIfExists
+                ));
+            }
+            catch (Exception ex)
+            {
+                ScraperLogger.LogError(logger, "Ошибка при парсинге профиля", ex);
+            }
+        }
+
+        return profiles;
     }
 }
