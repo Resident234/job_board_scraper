@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using JobBoardScraper.Data;
 
 namespace JobBoardScraper.Infrastructure.Logging;
 
@@ -160,6 +161,29 @@ public static class ScraperLogger
         var body = FormatFields(fields);
         var msg = string.IsNullOrEmpty(body) ? header : $"{header} {body}";
         WriteLine(logger, msg);
+    }
+
+    /// <summary>
+    /// Перегрузка LogEnqueue, принимающая ResumeRecord целиком.
+    /// Внутри вызывает обобщённую перегрузку с типом сущности "Resume" и набором значимых полей.
+    /// Пример: "⇪ В очередь: Resume[username] { Name = 'Иван', Level = 'Senior', Skills = '12 шт.' }"
+    /// </summary>
+    public static void LogEnqueue(ConsoleLogger? logger, ResumeRecord profile)
+    {
+        if (profile == null)
+            return;
+
+        LogEnqueue(
+            logger,
+            "Resume",
+            profile.Link,
+            ("Name", profile.Title),
+            ("Code", profile.Code),
+            ("Expert", profile.IsExpert),
+            ("Level", profile.LevelTitle),
+            ("InfoTech", profile.InfoTech),
+            ("Salary", profile.Salary),
+            ("Skills", profile.Skills));
     }
 
     /// <summary>

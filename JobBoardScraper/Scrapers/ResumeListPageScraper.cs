@@ -192,7 +192,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
-                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                        ScraperLogger.LogEnqueue(_logger, profile);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -265,7 +265,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
-                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                        ScraperLogger.LogEnqueue(_logger, profile);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -340,7 +340,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
-                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                        ScraperLogger.LogEnqueue(_logger, profile);
                     }
                     var profilesFound = profiles.Count;
                     _statistics.AddItemsCollected(profilesFound);
@@ -440,7 +440,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         foreach (var profile in profiles)
                         {
                             _db.EnqueueResume(profile);
-                            ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                            ScraperLogger.LogEnqueue(_logger, profile);
                         }
                         var profilesFound = profiles.Count;
                         totalProfiles += profilesFound;
@@ -525,7 +525,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
-                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                        ScraperLogger.LogEnqueue(_logger, profile);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
@@ -560,7 +560,7 @@ public sealed class ResumeListPageScraper : IDisposable
         foreach (var profile in profiles)
         {
             _db.EnqueueResume(profile);
-            ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+            ScraperLogger.LogEnqueue(_logger, profile);
         }
         var profilesFound = profiles.Count;
 
@@ -646,7 +646,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     foreach (var profile in profiles)
                     {
                         _db.EnqueueResume(profile);
-                        ScraperLogger.LogEnqueue(_logger, profile.Link, profile.Link);
+                        ScraperLogger.LogEnqueue(_logger, profile);
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
