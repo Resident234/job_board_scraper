@@ -624,9 +624,9 @@ public sealed class ResumeListPageScraper : IDisposable
                     }
                     
                     var html = await response.Content.ReadAsStringAsync(ct);
+                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     
-                    // Проверяем наличие сообщения "Специалисты не найдены"
-                    if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
+                    if (UserDataExtractor.IsNotFoundProfiles(doc))
                     {
                         progressLogger.LogFilter($"Навык {skillId}: не найдено специалистов", order: order);
                         // Оптимизация: если на первой сортировке навык не найден, пропускаем остальные сортировки
@@ -645,7 +645,6 @@ public sealed class ResumeListPageScraper : IDisposable
                         skillExists = true;
                     }
                     
-                    var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
                     {

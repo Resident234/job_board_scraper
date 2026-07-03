@@ -1332,6 +1332,22 @@ public static class UserDataExtractor
     }
 
     /// <summary>
+    /// Проверяет, содержит ли документ списка резюме сообщение об отсутствии специалистов.
+    /// </summary>
+    public static bool IsNotFoundProfiles(IDocument doc)
+    {
+        if (doc == null)
+            return false;
+
+        const string notFoundProfilesText1 = "Специалисты не найдены";
+        const string notFoundProfilesText2 = "Specialists not found";
+
+        var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
+        return documentText.Contains(notFoundProfilesText1, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(notFoundProfilesText2, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Чистый парсинг: извлекает из HTML-документа данные профилей, найденных на странице списка резюме.
     /// Не выполняет никаких операций с БД — только разбирает DOM.
     /// Возвращает готовые ResumeRecord (с Mode = UpdateIfExists), которые вызывающий код кладёт в очередь через EnqueueResume.
