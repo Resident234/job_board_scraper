@@ -317,8 +317,20 @@ public static class AppConfig
     public static bool ResumeListCompanyIdsEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["ResumeList:CompanyIdsEnabled"], out var value) && value;
 
+    /// <summary>
+    /// Шаблон URL с параметром current_company=1.
+    /// </summary>
+    public static string ResumeListCompanyIdsUrlTemplateWithCurrentCompany =>
+        ConfigurationManager.AppSettings["ResumeList:CompanyIdsUrlTemplateWithCurrentCompany"] ?? "/resumes?company_ids[]={0}&current_company=1";
+
+    /// <summary>
+    /// Базовый шаблон URL для обхода company_ids без параметра current_company=1.
+    /// Используется в ScrapeCompanyIdsAsync: к нему при необходимости добавляется
+    /// параметр из <see cref="ResumeListCompanyIdsCurrentCompanyParam"/>.
+    /// </summary>
     public static string ResumeListCompanyIdsUrlTemplate =>
-        ConfigurationManager.AppSettings["ResumeList:CompanyIdsUrlTemplate"] ?? "/resumes?company_ids[]={0}&current_company=1";
+        ConfigurationManager.AppSettings["ResumeList:CompanyIdsUrlTemplate"] ?? "/resumes?company_ids[]={0}";
+    public static string ResumeListCompanyIdsCurrentCompanyParam => "&current_company=1";
 
     public static string[] ResumeListCompanyIdsOrders =>
         (ConfigurationManager.AppSettings["ResumeList:CompanyIdsOrders"] ?? "salary_desc,last_visited,relevance,salary_asc")

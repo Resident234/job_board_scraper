@@ -376,7 +376,7 @@ public sealed class ResumeListPageScraper : IDisposable
         var orders = AppConfig.ResumeListCompanyIdsOrders;
         
         // Два варианта: с current_company и без
-        var currentCompanyVariants = new[] { "", "&current_company=1" };
+        var currentCompanyVariants = new[] { "", AppConfig.ResumeListCompanyIdsCurrentCompanyParam };
         
         // Используем ScraperProgressLogger для отслеживания и вывода прогресса
         var progressLogger = new ScraperProgressLogger(totalCompanyIds, "ResumeListPageScraper", _logger, "CompanyIds");
@@ -407,11 +407,11 @@ public sealed class ResumeListPageScraper : IDisposable
 
                     try
                     {
-                        // Формируем базовый URL без current_company из шаблона
-                        var baseUrlTemplate = AppConfig.ResumeListCompanyIdsUrlTemplate.Replace("&current_company=1", "");
+                        // Формируем базовый URL. Если current_company не требуется, используем шаблон без него
+                        var baseUrlTemplate = string.IsNullOrWhiteSpace(currentCompanyParam)
+                            ? AppConfig.ResumeListCompanyIdsUrlTemplate
+                            : AppConfig.ResumeListCompanyIdsUrlTemplateWithCurrentCompany;
                         var baseUrl = UrlManager.Format(baseUrlTemplate, companyId);
-
-                        // Добавляем current_company если нужно
                         var urlWithCompany = baseUrl + currentCompanyParam;
 
                         // Добавляем сортировку если указана
