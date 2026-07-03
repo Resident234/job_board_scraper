@@ -94,6 +94,8 @@ class Program
                 {
                     db.EnqueueResume(item.link, item.title);
                 },
+                getCompanyIds: () => db.CompaniesGetAllIds(conn),
+                getUniversityIds: () => db.UniversitiesGetAllIds(conn),
                 controller: controller,
                 interval: TimeSpan.FromMinutes(10),
                 outputMode: AppConfig.ResumeListOutputMode);
@@ -509,7 +511,11 @@ class Program
                 maxDelay: TimeSpan.FromSeconds(30));
             bruteForceScraperTask = Task.Run(async () =>
             {
-                var bruteForceScraper = new BruteForceUsernameScraper(bruteForceHttpClient, db, controller);
+                var bruteForceScraper = new BruteForceUsernameScraper(
+                    bruteForceHttpClient,
+                    db,
+                    getLastResumeLink: linkLength => db.ResumesGetLastLink(conn, linkLength),
+                    controller: controller);
                 await bruteForceScraper.RunAsync(cts.Token);
             }, cts.Token);
         }

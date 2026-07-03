@@ -19,6 +19,8 @@ public sealed class ResumeListPageScraper : IDisposable
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Action<ResumeItem> _enqueueToSaveQueue;
+    private readonly Func<IReadOnlyList<long>> _getCompanyIds;
+    private readonly Func<IReadOnlyList<int>> _getUniversityIds;
     private readonly TimeSpan _interval;
     private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConsoleLogger _logger;
@@ -29,6 +31,8 @@ public sealed class ResumeListPageScraper : IDisposable
         SmartHttpClient httpClient,
         DatabaseClient db,
         Action<ResumeItem> enqueueToSaveQueue,
+        Func<IReadOnlyList<long>> getCompanyIds,
+        Func<IReadOnlyList<int>> getUniversityIds,
         AdaptiveConcurrencyController controller,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
@@ -36,6 +40,8 @@ public sealed class ResumeListPageScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _enqueueToSaveQueue = enqueueToSaveQueue ?? throw new ArgumentNullException(nameof(enqueueToSaveQueue));
+        _getCompanyIds = getCompanyIds ?? throw new ArgumentNullException(nameof(getCompanyIds));
+        _getUniversityIds = getUniversityIds ?? throw new ArgumentNullException(nameof(getUniversityIds));
         _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? AppConfig.ResumeListInterval;
         _statistics = new ScraperStatistics("ResumeListPageScraper");
@@ -366,10 +372,7 @@ public sealed class ResumeListPageScraper : IDisposable
     {
         ScraperLogger.LogStart(_logger, "Начало обхода страниц по company_ids...");
         
-        // Получаем список company_id из БД
-        using var conn = _db.ConnectionInit();
-        var companyIds = _db.CompaniesGetAllIds(conn);
-        _db.ConnectionClose(conn);
+        var companyIds = _getCompanyIds() ?? Array.Empty<long>();
         
         var totalCompanyIds = companyIds.Count;
         var orders = AppConfig.ResumeListCompanyIdsOrders;
@@ -469,10 +472,7 @@ public sealed class ResumeListPageScraper : IDisposable
     {
         ScraperLogger.LogStart(_logger, "Начало обхода страниц по university_ids...");
         
-        // Получаем список university_id из БД
-        using var conn = _db.ConnectionInit();
-        var universityIds = _db.UniversitiesGetAllIds(conn);
-        _db.ConnectionClose(conn);
+        var universityIds = _getUniversityIds() ?? Array.Empty<int>();
         
         var totalUniversityIds = universityIds.Count;
         var orders = AppConfig.ResumeListUniversityIdsOrders;

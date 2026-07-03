@@ -18,6 +18,7 @@ public sealed class BruteForceUsernameScraper
 {
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
+    private readonly Func<int, string?> _getLastResumeLink;
     private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly ConsoleLogger _logger;
     private readonly ConcurrentDictionary<string, Task> _activeRequests = new();
@@ -26,10 +27,12 @@ public sealed class BruteForceUsernameScraper
     public BruteForceUsernameScraper(
         SmartHttpClient httpClient,
         DatabaseClient db,
+        Func<int, string?> getLastResumeLink,
         AdaptiveConcurrencyController controller)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _getLastResumeLink = getLastResumeLink ?? throw new ArgumentNullException(nameof(getLastResumeLink));
         _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _statistics = new ScraperStatistics("BruteForceUsernameScraper");
         
@@ -43,9 +46,6 @@ public sealed class BruteForceUsernameScraper
         ScraperLogger.LogStart(_logger, "Начало перебора имён пользователей (brute force)...");
         _statistics.StartTime = DateTime.Now;
 
-        using var conn = _db.ConnectionInit();
-        _db.EnsureConnectionOpen(conn);
-
         for (int len = AppConfig.MinLength; len <= AppConfig.MaxLength; len++)
         {
             var usernames = new List<string>(GenerateUsernames(len));
@@ -54,7 +54,7 @@ public sealed class BruteForceUsernameScraper
             _logger.WriteLine($"Сгенерировано адресов: {totalLinks}");
 
             int totalLength = (AppConfig.BaseUrl?.Length ?? 0) + AppConfig.MaxLength;
-            string lastLink = _db.ResumesGetLastLink(conn, totalLength);
+            var lastLink = _getLastResumeLink(totalLength);
             _logger.WriteLine($"Последний обработанный link из БД: {lastLink}");
 
             int startIndex = 0;
@@ -152,7 +152,6 @@ public sealed class BruteForceUsernameScraper
         _statistics.EndTime = DateTime.Now;
         ScraperLogger.LogEnd(_logger, _statistics);
 
-        _db.ConnectionClose(conn);
     }
 
     private static IEnumerable<string> GenerateUsernames(int length)
