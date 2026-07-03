@@ -142,7 +142,6 @@ public sealed class ResumeListPageScraper : IDisposable
     }
 
 
-
     private async Task ScrapeWorkStatesAsync(CancellationToken ct)
     {
         ScraperLogger.LogStart(_logger, "Начало обхода страниц по статусам поиска работы...");
@@ -156,43 +155,43 @@ public sealed class ResumeListPageScraper : IDisposable
         
         ScraperLogger.LogCount(_logger, "Статусов для обхода", workStates.Length, "статусов");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
-
+        
         foreach (var workState in workStates)
         {
             if (ct.IsCancellationRequested) break;
-
+            
             var isFirstOrder = true;
             foreach (var order in orders)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 try
                 {
                     var baseUrl = UrlManager.Format(AppConfig.ResumeListWorkStatesUrlTemplate, workState);
                     var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-
+                    
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
+                    
                     // Увеличиваем счётчик только для первого order каждого статуса
                     if (isFirstOrder)
                     {
                         progressLogger.Increment();
                         isFirstOrder = false;
                     }
-
+                    
                     if (!response.IsSuccessStatusCode)
                     {
                         progressLogger.LogFilter($"Статус {workState}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
-
+                    
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
+                    
                     // Парсим профили на странице и сохраняем их в БД
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
@@ -203,7 +202,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
-
+                    
                     progressLogger.LogFilter($"Статус {workState}", profilesFound, order);
                 }
                 catch (Exception ex)
@@ -212,7 +211,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
             }
         }
-
+        
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -229,43 +228,43 @@ public sealed class ResumeListPageScraper : IDisposable
         
         ScraperLogger.LogCount(_logger, "Опыт для обхода", experiences.Length, "шт.");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
-
+        
         foreach (var experience in experiences)
         {
             if (ct.IsCancellationRequested) break;
-
+            
             var isFirstOrder = true;
             foreach (var order in orders)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 try
                 {
                     var baseUrl = UrlManager.Format(AppConfig.ResumeListExperiencesUrlTemplate, experience);
                     var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-
+                    
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
+                    
                     // Увеличиваем счётчик только для первого order каждого опыта
                     if (isFirstOrder)
                     {
                         progressLogger.Increment();
                         isFirstOrder = false;
                     }
-
+                    
                     if (!response.IsSuccessStatusCode)
                     {
                         progressLogger.LogFilter($"Опыт {experience}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
-
+                    
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
+                    
                     // Парсим профили на странице и сохраняем их в БД
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
@@ -276,7 +275,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
-
+                    
                     progressLogger.LogFilter($"Опыт {experience}", profilesFound, order);
                 }
                 catch (Exception ex)
@@ -285,7 +284,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
             }
         }
-
+        
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -303,27 +302,27 @@ public sealed class ResumeListPageScraper : IDisposable
         
         ScraperLogger.LogCount(_logger, "Диапазон qids", totalQids, "шт.");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
-
+        
         for (var qid = startQid; qid <= endQid; qid++)
         {
             if (ct.IsCancellationRequested) break;
-
+            
             var isFirstOrder = true;
             foreach (var order in orders)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 try
                 {
                     var baseUrl = UrlManager.Format(AppConfig.ResumeListQidsUrlTemplate, qid);
                     var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-
+                    
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
+                    
                     // Увеличиваем счётчик только для первого order каждого qid
                     if (isFirstOrder)
                     {
@@ -331,16 +330,16 @@ public sealed class ResumeListPageScraper : IDisposable
                         _statistics.IncrementProcessed();
                         isFirstOrder = false;
                     }
-
+                    
                     if (!response.IsSuccessStatusCode)
                     {
                         progressLogger.LogFilter($"Qid {qid}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
-
+                    
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
+                    
                     // Парсим профили на странице и сохраняем их в БД
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
@@ -350,7 +349,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     }
                     var profilesFound = profiles.Count;
                     _statistics.AddItemsCollected(profilesFound);
-
+                    
                     progressLogger.LogFilter($"Qid {qid}", profilesFound, order);
                 }
                 catch (Exception ex)
@@ -359,7 +358,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
             }
         }
-
+        
         progressLogger.LogCompletion(_statistics.TotalItemsCollected, $"{_statistics}");
     }
 
@@ -385,64 +384,60 @@ public sealed class ResumeListPageScraper : IDisposable
         ScraperLogger.LogCount(_logger, "Загружено company_ids", totalCompanyIds, "шт.");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
         ScraperLogger.LogCount(_logger, "Вариантов current_company", currentCompanyVariants.Length, "вариантов");
-
+        
         if (totalCompanyIds == 0)
         {
             ScraperLogger.LogSkip(_logger, "Нет company_ids для обработки.");
             return;
         }
-
+        
         foreach (var companyId in companyIds)
         {
             if (ct.IsCancellationRequested) break;
-
-            var isFirstCombination = true;
+            
+            bool isFirstCombination = true;
             foreach (var currentCompanyParam in currentCompanyVariants)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 foreach (var order in orders)
                 {
                     if (ct.IsCancellationRequested) break;
-
+                    
                     try
                     {
-                        // Формируем базовый URL. Если current_company не требуется, используем шаблон без него
-                        var baseUrlTemplate = string.IsNullOrWhiteSpace(currentCompanyParam)
-                            ? AppConfig.ResumeListCompanyIdsUrlTemplate
-                            : AppConfig.ResumeListCompanyIdsUrlTemplateWithCurrentCompany;
-                        var baseUrl = UrlManager.Format(baseUrlTemplate, companyId);
-                        var urlWithCompany = baseUrl + currentCompanyParam;
-
+                        // Формируем URL с учётом параметра current_company
+                        var urlWithCompany = UrlManager.FormatCompanyIdsUrl(companyId, currentCompanyParam);
+                        
                         // Добавляем сортировку если указана
                         var relativeUrl = UrlManager.WithOrder(urlWithCompany, order);
                         var url = UrlManager.ToAbsolute(relativeUrl);
                         
-                        var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam) ? "" : " (current_company=1)";
-
+                        var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam)
+                            ? ""
+                            : " (current_company=1)";
+                        
                         var sw = System.Diagnostics.Stopwatch.StartNew();
                         var response = await _httpClient.GetAsync(url, ct);
                         sw.Stop();
                         _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
-                        // Считаем прогресс только для первой комбинации каждой компании
+                        
                         if (isFirstCombination)
                         {
                             progressLogger.Increment();
                             _statistics.IncrementProcessed();
                             isFirstCombination = false;
                         }
-
+                        
                         if (!response.IsSuccessStatusCode)
                         {
                             progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}: HTTP {(int)response.StatusCode}", order: order);
                             continue;
                         }
-
+                        
                         var html = await response.Content.ReadAsStringAsync(ct);
                         var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                        // Парсим профили на странице и сохраняем их в БД
+                        
                         var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                         foreach (var profile in profiles)
                         {
@@ -452,7 +447,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         var profilesFound = profiles.Count;
                         totalProfiles += profilesFound;
                         _statistics.AddItemsCollected(profilesFound);
-
+                        
                         progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}", profilesFound, order);
                     }
                     catch (Exception ex)
@@ -462,7 +457,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
             }
         }
-
+        
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -484,50 +479,49 @@ public sealed class ResumeListPageScraper : IDisposable
         
         ScraperLogger.LogCount(_logger, "Загружено university_ids", totalUniversityIds, "шт.");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
-
+        
         if (totalUniversityIds == 0)
         {
             ScraperLogger.LogSkip(_logger, "Нет university_ids для обработки.");
             return;
         }
-
+        
         foreach (var universityId in universityIds)
         {
             if (ct.IsCancellationRequested) break;
-
+            
             var isFirstOrder = true;
             foreach (var order in orders)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 try
                 {
                     var baseUrl = UrlManager.Format(AppConfig.ResumeListUniversityIdsUrlTemplate, universityId);
                     var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-
+                    
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
+                    
                     // Считаем прогресс только для первой сортировки
                     if (isFirstOrder)
                     {
                         progressLogger.Increment();
                         isFirstOrder = false;
                     }
-
+                    
                     if (!response.IsSuccessStatusCode)
                     {
                         progressLogger.LogFilter($"University ID {universityId}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
-
+                    
                     var html = await response.Content.ReadAsStringAsync(ct);
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                    // Парсим профили на странице и сохраняем их в БД
+                    
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
                     {
@@ -537,7 +531,7 @@ public sealed class ResumeListPageScraper : IDisposable
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
                     _statistics.AddItemsCollected(profilesFound);
-
+                    
                     progressLogger.LogFilter($"University ID {universityId}", profilesFound, order);
                 }
                 catch (Exception ex)
@@ -546,7 +540,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 }
             }
         }
-
+        
         progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
     }
 
@@ -557,10 +551,10 @@ public sealed class ResumeListPageScraper : IDisposable
         
         var response = await _httpClient.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
-
+        
         var html = await response.Content.ReadAsStringAsync(ct);
         var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
+        
         // Используем метод парсинга профилей и сохраняем их в БД
         var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
         foreach (var profile in profiles)
@@ -569,7 +563,7 @@ public sealed class ResumeListPageScraper : IDisposable
             ScraperLogger.LogEnqueue(_logger, profile);
         }
         var profilesFound = profiles.Count;
-
+        
         ScraperLogger.LogEnd(_logger, $"Найдено профилей: {profilesFound}");
     }
 
@@ -590,43 +584,43 @@ public sealed class ResumeListPageScraper : IDisposable
         
         ScraperLogger.LogCount(_logger, "Диапазон навыков", totalSkills, "навыков");
         ScraperLogger.LogCount(_logger, "Сортировок", orders.Length, "сортировок");
-
+        
         for (var skillId = startSkillId; skillId <= endSkillId; skillId++)
         {
             if (ct.IsCancellationRequested) break;
-
+            
             var skillExists = false;
             var isFirstOrder = true;
-
+            
             foreach (var order in orders)
             {
                 if (ct.IsCancellationRequested) break;
-
+                
                 try
                 {
                     var baseUrl = UrlManager.Format(AppConfig.ResumeListSkillUrlTemplate, skillId);
                     var relativeUrl = UrlManager.WithOrder(baseUrl, order);
                     var url = UrlManager.ToAbsolute(relativeUrl);
-
+                    
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(url, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-
+                    
                     // Увеличиваем счетчик только для первого order каждого навыка
                     if (isFirstOrder)
                     {
                         progressLogger.Increment();
                     }
-
+                    
                     if (!response.IsSuccessStatusCode)
                     {
                         progressLogger.LogFilter($"Навык {skillId}: HTTP {(int)response.StatusCode}", order: order);
                         continue;
                     }
-
+                    
                     var html = await response.Content.ReadAsStringAsync(ct);
-
+                    
                     // Проверяем наличие сообщения "Специалисты не найдены"
                     if (html.Contains("Специалисты не найдены") || html.Contains("Specialists not found"))
                     {
@@ -638,7 +632,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         }
                         continue;
                     }
-
+                    
                     // Навык существует - добавляем в БД (только один раз)
                     if (!skillExists)
                     {
@@ -646,8 +640,7 @@ public sealed class ResumeListPageScraper : IDisposable
                         ScraperLogger.LogEnqueue(_logger, skillId.ToString(), "", "| skill");
                         skillExists = true;
                     }
-
-                    // Парсим профили на странице и сохраняем их в БД
+                    
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     var profiles = UserDataExtractor.ParseProfilesFromPage(doc, ct, _logger);
                     foreach (var profile in profiles)
@@ -657,9 +650,9 @@ public sealed class ResumeListPageScraper : IDisposable
                     }
                     var profilesFound = profiles.Count;
                     totalProfiles += profilesFound;
-
+                    
                     progressLogger.LogFilter($"Навык {skillId}", profilesFound, order);
-                
+                    
                     isFirstOrder = false;
                 }
                 catch (Exception ex)
@@ -680,7 +673,7 @@ public sealed class ResumeListPageScraper : IDisposable
                 skillsNotFound++;
             }
         }
-
+        
         progressLogger.LogCompletion(totalProfiles, $"Найдено навыков: {skillsFound}, Не найдено: {skillsNotFound}. {_statistics}");
     }
 

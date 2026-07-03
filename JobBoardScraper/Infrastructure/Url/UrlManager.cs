@@ -1,4 +1,4 @@
-using JobBoardScraper.Core;
+﻿using JobBoardScraper.Core;
 
 namespace JobBoardScraper.Infrastructure.Url;
 
@@ -149,6 +149,22 @@ public static class UrlManager
     public static string Format(string template, object? arg0)
     {
         return string.Format(template ?? string.Empty, arg0);
+    }
+
+    /// <summary>
+    /// Формирует URL для обхода company_ids, учитывая параметр <c>current_company</c>.
+    /// Если <paramref name="currentCompanyParam"/> пустой, используется шаблон без параметра.
+    /// </summary>
+    /// <param name="companyId">Идентификатор компании.</param>
+    /// <param name="currentCompanyParam">Параметр <c>current_company=1</c> или пустая строка.</param>
+    /// <returns>Формированный URL.</returns>
+    public static string FormatCompanyIdsUrl(string companyId, string? currentCompanyParam = null)
+    {
+        var template = string.IsNullOrWhiteSpace(currentCompanyParam)
+            ? AppConfig.ResumeListCompanyIdsUrlTemplate
+            : AppConfig.ResumeListCompanyIdsUrlTemplateWithCurrentCompany;
+        var baseUrl = UrlManager.Format(template, companyId);
+        return string.IsNullOrWhiteSpace(currentCompanyParam) ? baseUrl : baseUrl + currentCompanyParam;
     }
 
     /// <summary>
