@@ -413,10 +413,6 @@ public sealed class ResumeListPageScraper : IDisposable
                         var relativeUrl = UrlManager.WithOrder(urlWithCompany, order);
                         var url = UrlManager.ToAbsolute(relativeUrl);
                         
-                        var currentCompanyDesc = string.IsNullOrWhiteSpace(currentCompanyParam)
-                            ? ""
-                            : " (current_company=1)";
-                        
                         var sw = System.Diagnostics.Stopwatch.StartNew();
                         var response = await _httpClient.GetAsync(url, ct);
                         sw.Stop();
@@ -431,7 +427,11 @@ public sealed class ResumeListPageScraper : IDisposable
                         
                         if (!response.IsSuccessStatusCode)
                         {
-                            progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}: HTTP {(int)response.StatusCode}", order: order);
+                            progressLogger.LogFilter(
+                                $"Company ID {companyId}",
+                                order: order,
+                                filterParameter: currentCompanyParam,
+                                resultDescription: $"HTTP {(int)response.StatusCode}");
                             continue;
                         }
                         
@@ -448,7 +448,11 @@ public sealed class ResumeListPageScraper : IDisposable
                         totalProfiles += profilesFound;
                         _statistics.AddItemsCollected(profilesFound);
                         
-                        progressLogger.LogFilter($"Company ID {companyId}{currentCompanyDesc}", profilesFound, order);
+                        progressLogger.LogFilter(
+                            $"Company ID {companyId}",
+                            profilesFound,
+                            order,
+                            filterParameter: currentCompanyParam);
                     }
                     catch (Exception ex)
                     {

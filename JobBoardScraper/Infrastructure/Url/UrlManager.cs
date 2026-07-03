@@ -158,6 +158,16 @@ public static class UrlManager
     /// <param name="companyId">Идентификатор компании.</param>
     /// <param name="currentCompanyParam">Параметр <c>current_company=1</c> или пустая строка.</param>
     /// <returns>Формированный URL.</returns>
+    public static string FormatCompanyIdsUrl(long companyId, string? currentCompanyParam = null) =>
+        FormatCompanyIdsUrl(companyId.ToString(System.Globalization.CultureInfo.InvariantCulture), currentCompanyParam);
+
+    /// <summary>
+    /// Формирует URL для обхода company_ids, учитывая параметр <c>current_company</c>.
+    /// Если <paramref name="currentCompanyParam"/> пустой, используется шаблон без параметра.
+    /// </summary>
+    /// <param name="companyId">Идентификатор компании.</param>
+    /// <param name="currentCompanyParam">Параметр <c>current_company=1</c> или пустая строка.</param>
+    /// <returns>Формированный URL.</returns>
     public static string FormatCompanyIdsUrl(string companyId, string? currentCompanyParam = null)
     {
         var template = string.IsNullOrWhiteSpace(currentCompanyParam)
