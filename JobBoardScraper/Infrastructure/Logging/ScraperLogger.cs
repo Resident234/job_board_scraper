@@ -117,6 +117,11 @@ public static class ScraperLogger
         WriteLine(logger, $"{WarnIcon} {description}");
     }
 
+    public static void LogOperationCanceled(ConsoleLogger? logger, string context)
+    {
+        WriteLine(logger, $"{WarnIcon} Операция отменена: {context}");
+    }
+
     /// <summary>
     /// Логирует попытку повтора (ретрай).
     /// Пример: "↻ Повторная попытка 2/3 для страницы 5: {url}"

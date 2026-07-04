@@ -211,6 +211,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     
                     progressLogger.LogFilter($"Статус {workState}", profilesFound, order);
                 }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"статус {workState}");
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     ScraperLogger.LogError(_logger, $"Ошибка при обработке статуса {workState}", ex);
@@ -283,6 +288,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     _statistics.AddItemsCollected(profilesFound);
                     
                     progressLogger.LogFilter($"Опыт {experience}", profilesFound, order);
+                }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"опыт {experience}");
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -357,6 +367,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     _statistics.AddItemsCollected(profilesFound);
                     
                     progressLogger.LogFilter($"Qid {qid}", profilesFound, order);
+                }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"qid {qid}");
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -457,6 +472,11 @@ public sealed class ResumeListPageScraper : IDisposable
                             order,
                             filterParameter: currentCompanyParam);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        ScraperLogger.LogOperationCanceled(_logger, $"company_id {companyId}");
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         ScraperLogger.LogError(_logger, $"Ошибка при обработке company_id {companyId}", ex);
@@ -537,6 +557,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     _statistics.AddItemsCollected(profilesFound);
                     
                     progressLogger.LogFilter($"University ID {universityId}", profilesFound, order);
+                }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"university_id {universityId}");
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -657,6 +682,11 @@ public sealed class ResumeListPageScraper : IDisposable
                     progressLogger.LogFilter($"Навык {skillId}", profilesFound, order);
                     
                     isFirstOrder = false;
+                }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"навык {skillId}");
+                    throw;
                 }
                 catch (Exception ex)
                 {

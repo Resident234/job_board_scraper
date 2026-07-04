@@ -125,6 +125,11 @@ public sealed class CompanyFollowersScraper : IDisposable
                             $"Параллельных процессов: {_activeRequests.Count}");
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    sw.Stop();
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     sw.Stop();
@@ -250,6 +255,11 @@ public sealed class CompanyFollowersScraper : IDisposable
                 
                 // Небольшая задержка между запросами
                 await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                ScraperLogger.LogOperationCanceled(_logger, $"страница {page} компании {companyCode}");
+                throw;
             }
             catch (Exception ex)
             {

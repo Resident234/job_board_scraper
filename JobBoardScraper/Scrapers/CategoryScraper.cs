@@ -125,6 +125,11 @@ public sealed class CategoryScraper : IDisposable
             _statistics.EndTime = DateTime.Now;
             ScraperLogger.LogEnd(_logger, _statistics);
         }
+        catch (OperationCanceledException)
+        {
+            ScraperLogger.LogOperationCanceled(_logger, "сбор category_root_id");
+            throw;
+        }
         catch (Exception ex)
         {
             ScraperLogger.LogError(_logger, "Ошибка при сборе category_root_id", ex);

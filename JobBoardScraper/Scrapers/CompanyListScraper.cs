@@ -277,6 +277,11 @@ public sealed class CompanyListScraper : IDisposable
             if (int.TryParse(numberStr, out var total))
                 return total;
         }
+        catch (OperationCanceledException)
+        {
+            ScraperLogger.LogOperationCanceled(_logger, "получение общего количества компаний");
+            throw;
+        }
         catch (Exception ex)
         {
             ScraperLogger.LogError(_logger, "Ошибка при получении общего количества компаний", ex);
@@ -396,6 +401,11 @@ public sealed class CompanyListScraper : IDisposable
                 
                 // Небольшая задержка между запросами
                 await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                ScraperLogger.LogOperationCanceled(_logger, $"страница {page}");
+                throw;
             }
             catch (Exception ex)
             {

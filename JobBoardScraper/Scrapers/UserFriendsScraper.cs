@@ -203,6 +203,11 @@ public sealed class UserFriendsScraper : IDisposable
                 ScraperLogger.LogCount(_logger, "Найдено", totalFriendsForUser, $"друзей для {userLink}", $" ({page - 1} страниц)");
                 _statistics.AddItemsCollected(totalFriendsForUser);
             }
+            catch (OperationCanceledException)
+            {
+                ScraperLogger.LogOperationCanceled(_logger, $"друзья пользователя {userLink}");
+                throw;
+            }
             catch (Exception ex)
             {
                 ScraperLogger.LogError(_logger, $"Ошибка при обработке {userLink}", ex);

@@ -558,6 +558,11 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     _statistics.IncrementSuccess();
                 }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"детали компании {code}");
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     ScraperLogger.LogError(_logger, $"Ошибка при обработке компании {code}", ex);

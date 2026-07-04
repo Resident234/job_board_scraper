@@ -212,7 +212,7 @@ public sealed class ExpertsScraper : IDisposable
                 catch (OperationCanceledException)
                 {
                     // Отмена операции - прерываем обработку
-                    _logger.WriteLine($"Операция отменена на странице {page}.");
+                    ScraperLogger.LogOperationCanceled(_logger, $"страница {page}");
                     throw;
                 }
                 catch (Exception ex)

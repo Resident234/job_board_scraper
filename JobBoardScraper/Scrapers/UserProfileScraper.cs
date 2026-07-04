@@ -256,6 +256,11 @@ namespace JobBoardScraper.Scrapers;
 
                     _statistics.IncrementSuccess();
                 }
+                catch (OperationCanceledException)
+                {
+                    ScraperLogger.LogOperationCanceled(_logger, $"профиль пользователя {userLink}");
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     ScraperLogger.LogError(_logger, $"Ошибка при обработке пользователя {userLink}", ex);

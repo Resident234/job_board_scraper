@@ -113,6 +113,11 @@ public sealed class CompanyRatingScraper : IDisposable
                 _progressLogger.Increment();
                 _progressLogger.LogItemProgress($"URL {url}");
             }
+            catch (OperationCanceledException)
+            {
+                ScraperLogger.LogOperationCanceled(_logger, $"URL {url}");
+                throw;
+            }
             catch (Exception ex)
             {
                 _progressLogger.Increment();

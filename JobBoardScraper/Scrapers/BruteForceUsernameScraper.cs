@@ -88,7 +88,8 @@ public sealed class BruteForceUsernameScraper
                         var result = await _httpClient.FetchAsync(
                             link,
                             infoLog: msg => _logger.WriteLine(msg),
-                            responseStats: r => _statistics.RecordAllStatusCodes((int)r.StatusCode)
+                            responseStats: r => _statistics.RecordAllStatusCodes((int)r.StatusCode),
+                            cancellationToken: ct
                         );
 
                         sw.Stop();
@@ -132,6 +133,11 @@ public sealed class BruteForceUsernameScraper
 
                         _db.EnqueueResume(link, title);
                         ScraperLogger.LogEnqueue(_logger, link, link);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        ScraperLogger.LogOperationCanceled(_logger, $"перебор {link}");
+                        throw;
                     }
                     catch (Exception ex)
                     {
