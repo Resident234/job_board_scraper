@@ -94,7 +94,7 @@ public sealed class ExpertsScraper : IDisposable
         var hasMorePages = true;
         var totalExperts = 0;
         var totalCompanies = 0;
-        const int maxPageRetries = 3; // Максимум попыток для одной страницы
+        var maxPageRetries = AppConfig.ExpertsMaxPageRetries;
 
         while (hasMorePages && !ct.IsCancellationRequested)
         {

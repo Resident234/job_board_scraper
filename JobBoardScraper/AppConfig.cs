@@ -175,6 +175,9 @@ public static class AppConfig
     public static bool ExpertsEnableTrafficMeasuring =>
         bool.TryParse(ConfigurationManager.AppSettings["Experts:EnableTrafficMeasuring"], out var value) ? value : true;
 
+    public static int ExpertsMaxPageRetries =>
+        int.TryParse(ConfigurationManager.AppSettings["Experts:MaxPageRetries"], out var value) ? value : 3;
+
     public static OutputMode ExpertsOutputMode
     {
         get
