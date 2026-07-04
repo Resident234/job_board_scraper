@@ -5,7 +5,6 @@ using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Infrastructure.Throttling;
 using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Data;
-using System.Text.RegularExpressions;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
@@ -20,8 +19,6 @@ public sealed class ExpertsScraper : IDisposable
     private readonly DatabaseClient _db;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
-    private readonly Regex _userCodeRegex;
-    private readonly Regex _companyCodeRegex;
     private readonly ScraperStatistics _statistics;
     private ScraperProgressLogger? _progressLogger;
 
@@ -34,8 +31,6 @@ public sealed class ExpertsScraper : IDisposable
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _interval = interval ?? TimeSpan.FromDays(7);
-        _userCodeRegex = new Regex(AppConfig.ExpertsUserCodeRegex, RegexOptions.Compiled);
-        _companyCodeRegex = new Regex(AppConfig.ExpertsCompanyCodeRegex, RegexOptions.Compiled);
         _statistics = new ScraperStatistics("ExpertsScraper");
         
         _logger = new ConsoleLogger("ExpertsScraper");
@@ -94,7 +89,6 @@ public sealed class ExpertsScraper : IDisposable
         var page = 1;
         var hasMorePages = true;
         var totalExperts = 0;
-        var totalCompanies = 0;
         var maxPageRetries = AppConfig.ExpertsMaxPageRetries;
 
         while (hasMorePages && !ct.IsCancellationRequested)
@@ -141,86 +135,36 @@ public sealed class ExpertsScraper : IDisposable
                     }
                     
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-
-                    // Ищем карточки экспертов
-                    var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
+                    var extraction = UserDataExtractor.ParseExpertsFromPage(doc);
                     
-                    _logger.WriteLine($"На странице {page} найдено карточек: {expertCards.Length}");
+                    _logger.WriteLine($"На странице {page} найдено карточек: {extraction.CardCount}");
 
                     var expertsOnPage = 0;
 
-                    foreach (var card in expertCards)
+                    foreach (var expert in extraction.Experts)
                     {
                         try
                         {
-                            // Извлекаем данные эксперта
-                            var titleLink = card.QuerySelector(AppConfig.ExpertsTitleLinkSelector);
-                            if (titleLink == null) continue;
+                            _db.EnqueueResume(expert.Resume);
+                            ScraperLogger.LogEnqueue(
+                                _logger,
+                                expert.Resume.Title ?? expert.Resume.Link,
+                                expert.Resume.Link,
+                                expert.Resume.WorkExperience != null ? $"| Exp: {expert.Resume.WorkExperience}" : null);
 
-                            var name = titleLink.TextContent?.Trim();
-                            var href = titleLink.GetAttribute("href");
-                            
-                            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(href))
-                                continue;
-
-                            // Извлекаем код из href
-                            var match = _userCodeRegex.Match(href);
-                            var code = match.Success ? match.Groups[1].Value : null;
-
-                            // Формируем полный URL
-                            var fullUrl = UrlManager.ToAbsolute(href);
-
-                            // Извлекаем стаж работы
-                            string? workExperience = null;
-                            var spans = card.QuerySelectorAll(AppConfig.ExpertsSpanSelector);
-                            foreach (var span in spans)
-                            {
-                                var text = span.TextContent?.Trim();
-                                if (!string.IsNullOrWhiteSpace(text) && text.StartsWith("Стаж "))
-                                {
-                                    workExperience = text.Replace("Стаж ", "").Trim();
-                                    break;
-                                }
-                            }
-
-                            // Сохраняем эксперта
-                            _db.EnqueueResume(
-                                link: fullUrl,
-                                title: name,
-                                slogan: null,
-                                mode: InsertMode.UpdateIfExists,
-                                code: code,
-                                expert: true,
-                                workExperience: workExperience);
-                            ScraperLogger.LogEnqueue(_logger, name, fullUrl, workExperience != null ? $"| Exp: {workExperience}" : null);
-
-                            _logger.WriteLine($"Эксперт: {name} ({code}) -> {fullUrl}" + 
-                                (workExperience != null ? $" | Стаж: {workExperience}" : ""));
+                            _logger.WriteLine($"Эксперт: {expert.Resume.Title} ({expert.Resume.Code}) -> {expert.Resume.Link}" +
+                                (expert.Resume.WorkExperience != null ? $" | Стаж: {expert.Resume.WorkExperience}" : ""));
                             expertsOnPage++;
                             _statistics.IncrementSuccess();
 
-                            // Извлекаем компанию
-                            var companyLink = card.QuerySelector(AppConfig.ExpertsCompanyLinkSelector);
-                            if (companyLink != null)
+                            if (expert.Company.HasValue)
                             {
-                                var companyName = companyLink.TextContent?.Trim();
-                                var companyHref = companyLink.GetAttribute("href");
-                                
-                                if (!string.IsNullOrWhiteSpace(companyName) && !string.IsNullOrWhiteSpace(companyHref))
-                                {
-                                    // Извлекаем код компании из href
-                                    var companyCodeMatch = _companyCodeRegex.Match(companyHref);
-                                    if (companyCodeMatch.Success)
-                                    {
-                                        var companyCode = companyCodeMatch.Groups[1].Value;
-                        var companyUrl = UrlManager.ToAbsolute(companyHref);
+                                var company = expert.Company.Value;
 
-                                        _db.EnqueueCompany(companyCode, companyUrl);
-                                        ScraperLogger.LogEnqueue(_logger, companyCode, companyUrl);
-                                        _logger.WriteLine($"Компания: {companyName} ({companyCode}) -> {companyUrl}");
-                                        _statistics.IncrementItemsCollected();
-                                    }
-                                }
+                                _db.EnqueueCompany(company.CompanyCode, company.CompanyUrl, companyTitle: company.CompanyTitle);
+                                ScraperLogger.LogEnqueue(_logger, company.CompanyCode, company.CompanyUrl);
+                                _logger.WriteLine($"Компания: {company.CompanyTitle} ({company.CompanyCode}) -> {company.CompanyUrl}");
+                                _statistics.IncrementItemsCollected();
                             }
                         }
                         catch (Exception ex)
@@ -228,6 +172,11 @@ public sealed class ExpertsScraper : IDisposable
                             ScraperLogger.LogError(_logger, "Ошибка при обработке карточки эксперта", ex);
                             _statistics.IncrementFailed();
                         }
+                    }
+
+                    for (var i = 0; i < extraction.FailedCards; i++)
+                    {
+                        _statistics.IncrementFailed();
                     }
 
                     _statistics.IncrementProcessed();

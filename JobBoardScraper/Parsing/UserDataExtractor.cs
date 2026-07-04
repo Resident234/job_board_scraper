@@ -1348,6 +1348,119 @@ public static class UserDataExtractor
     }
 
     /// <summary>
+    /// Извлекает данные экспертов и связанных компаний со страницы списка экспертов.
+    /// Скрапер получает уже готовые данные и не работает с DOM-элементами напрямую.
+    /// </summary>
+    public static (int CardCount, IReadOnlyList<(ResumeRecord Resume, CompanyRecord? Company)> Experts, int FailedCards) ParseExpertsFromPage(
+        IDocument doc)
+    {
+        if (doc == null)
+        {
+            return (0, Array.Empty<(ResumeRecord Resume, CompanyRecord? Company)>(), 0);
+        }
+
+        var experts = new List<(ResumeRecord Resume, CompanyRecord? Company)>();
+        var failedCards = 0;
+        var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
+
+        foreach (var card in expertCards)
+        {
+            try
+            {
+                var expert = ExtractExpertCard(card);
+                if (expert.HasValue)
+                {
+                    experts.Add(expert.Value);
+                }
+            }
+            catch
+            {
+                failedCards++;
+            }
+        }
+
+        return (expertCards.Length, experts, failedCards);
+    }
+
+    private static (ResumeRecord Resume, CompanyRecord? Company)? ExtractExpertCard(IElement card)
+    {
+        var titleLink = card.QuerySelector(AppConfig.ExpertsTitleLinkSelector);
+        if (titleLink == null)
+        {
+            return null;
+        }
+
+        var name = titleLink.TextContent?.Trim();
+        var href = titleLink.GetAttribute("href");
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(href))
+        {
+            return null;
+        }
+
+        var match = System.Text.RegularExpressions.Regex.Match(href, AppConfig.ExpertsUserCodeRegex);
+        var code = match.Success ? match.Groups[1].Value : null;
+        var fullUrl = UrlManager.ToAbsolute(href);
+        var workExperience = ExtractExpertWorkExperience(card);
+        var company = ExtractExpertCompany(card);
+
+        var resume = new ResumeRecord(
+            Link: fullUrl,
+            Title: name,
+            Code: code,
+            Expert: true,
+            WorkExperience: workExperience,
+            Mode: InsertMode.UpdateIfExists);
+
+        return (resume, company);
+    }
+
+    private static string? ExtractExpertWorkExperience(IElement card)
+    {
+        const string workExperiencePrefix = "Стаж ";
+
+        var spans = card.QuerySelectorAll(AppConfig.ExpertsSpanSelector);
+        foreach (var span in spans)
+        {
+            var text = span.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(text) && text.StartsWith(workExperiencePrefix))
+            {
+                return text.Replace(workExperiencePrefix, "").Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static CompanyRecord? ExtractExpertCompany(IElement card)
+    {
+        var companyLink = card.QuerySelector(AppConfig.ExpertsCompanyLinkSelector);
+        if (companyLink == null)
+        {
+            return null;
+        }
+
+        var companyName = companyLink.TextContent?.Trim();
+        var companyHref = companyLink.GetAttribute("href");
+
+        if (string.IsNullOrWhiteSpace(companyName) || string.IsNullOrWhiteSpace(companyHref))
+        {
+            return null;
+        }
+
+        var companyCodeMatch = System.Text.RegularExpressions.Regex.Match(companyHref, AppConfig.ExpertsCompanyCodeRegex);
+        if (!companyCodeMatch.Success)
+        {
+            return null;
+        }
+
+        var companyCode = companyCodeMatch.Groups[1].Value;
+        var companyUrl = UrlManager.ToAbsolute(companyHref);
+
+        return new CompanyRecord(companyCode, companyUrl, CompanyTitle: companyName);
+    }
+
+    /// <summary>
     /// Чистый парсинг: извлекает из HTML-документа данные профилей, найденных на странице списка резюме.
     /// Не выполняет никаких операций с БД — только разбирает DOM.
     /// Возвращает готовые ResumeRecord (с Mode = UpdateIfExists), которые вызывающий код кладёт в очередь через EnqueueResume.
