@@ -1,6 +1,8 @@
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using JobBoardScraper.Core;
+using JobBoardScraper.Infrastructure.Utils;
+using System.Text;
 
 namespace JobBoardScraper.Parsing;
 
@@ -28,6 +30,17 @@ public static class HtmlParser
     public static Task<IHtmlDocument> ParseDocumentAsync(string html, CancellationToken ct = default)
     {
         return _parser.ParseDocumentAsync(html, ct);
+    }
+
+    public static async Task<(string Html, Encoding Encoding)> ReadHtmlAsync(
+        HttpResponseMessage response,
+        CancellationToken ct = default)
+    {
+        var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+        var encoding = response.GetEncoding();
+        var html = response.DecodeBodyAsString(htmlBytes);
+
+        return (html, encoding);
     }
 
     /// <summary>
