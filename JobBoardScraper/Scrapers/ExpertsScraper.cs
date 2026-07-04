@@ -123,7 +123,10 @@ public sealed class ExpertsScraper : IDisposable
                         break;
                     }
 
-                    var (html, encoding) = await HtmlParser.ReadHtmlAsync(response, ct);
+                    // Читаем HTML с правильной кодировкой
+                    var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                    var encoding = response.GetEncoding();
+                    var html = response.DecodeBodyAsString(htmlBytes);
                     
                     // Сохраняем HTML в файл для отладки, если включено в конфиге
                     if (AppConfig.ExpertsSaveHtml)
