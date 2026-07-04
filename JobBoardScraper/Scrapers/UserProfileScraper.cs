@@ -127,7 +127,7 @@ namespace JobBoardScraper.Scrapers;
                     var userCode = UrlManager.GetLastPathSegment(userLink);
                     if (string.IsNullOrWhiteSpace(userCode))
                     {
-                        _logger.WriteLine($"Не удалось извлечь код пользователя из ссылки: {userLink}. Пропуск.");
+                        ScraperLogger.LogSkip(_logger, $"Не удалось извлечь код пользователя из ссылки: {userLink}. Пропуск.");
                         _statistics.IncrementSkipped();
                         _statistics.IncrementProcessed();
                         return;

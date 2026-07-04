@@ -343,7 +343,8 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     if (!companyIdFound)
                     {
-                        _logger.WriteLine(
+                        ScraperLogger.LogSkip(
+                            _logger,
                             $"Компания {code}: не удалось извлечь company_id ни одним из способов. Пропуск.");
                         _statistics.IncrementSkipped();
                         return;

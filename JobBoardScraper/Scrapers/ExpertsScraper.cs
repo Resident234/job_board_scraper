@@ -222,7 +222,7 @@ public sealed class ExpertsScraper : IDisposable
                     if (pageThrottle.IsExhausted)
                     {
                         ScraperLogger.LogError(_logger, $"Ошибка на странице {page} после {pageThrottle.MaxAttempts} попыток", ex);
-                        _logger.WriteLine($"Пропускаем страницу {page} и переходим к следующей.");
+                        ScraperLogger.LogSkip(_logger, $"Пропускаем страницу {page} и переходим к следующей.");
                         
                         // Пропускаем проблемную страницу и переходим к следующей
                         pageProcessed = true;
