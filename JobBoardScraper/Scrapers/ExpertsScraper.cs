@@ -2,6 +2,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Throttling;
 using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Data;
 using System.Text.RegularExpressions;
@@ -98,18 +99,18 @@ public sealed class ExpertsScraper : IDisposable
 
         while (hasMorePages && !ct.IsCancellationRequested)
         {
-            var pageRetryCount = 0;
+            var pageThrottle = new LinearThrottle(maxPageRetries);
             var pageProcessed = false;
 
-            while (!pageProcessed && pageRetryCount < maxPageRetries && !ct.IsCancellationRequested)
+            while (!pageProcessed && pageThrottle.CanAttempt && !ct.IsCancellationRequested)
             {
                 try
                 {
                     var url = UrlManager.BuildExpertsUrl(page);
                     
-                    if (pageRetryCount > 0)
+                    if (pageThrottle.FailedAttempts > 0)
                     {
-                        _logger.WriteLine($"Повторная попытка {pageRetryCount + 1}/{maxPageRetries} для страницы {page}: {url}");
+                        _logger.WriteLine($"Повторная попытка {pageThrottle.CurrentAttempt}/{pageThrottle.MaxAttempts} для страницы {page}: {url}");
                     }
                     else
                     {
@@ -268,11 +269,11 @@ public sealed class ExpertsScraper : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    pageRetryCount++;
+                    var failedAttempts = pageThrottle.RegisterFailure();
                     
-                    if (pageRetryCount >= maxPageRetries)
+                    if (pageThrottle.IsExhausted)
                     {
-                        ScraperLogger.LogError(_logger, $"Ошибка на странице {page} после {maxPageRetries} попыток", ex);
+                        ScraperLogger.LogError(_logger, $"Ошибка на странице {page} после {pageThrottle.MaxAttempts} попыток", ex);
                         _logger.WriteLine($"Пропускаем страницу {page} и переходим к следующей.");
                         
                         // Пропускаем проблемную страницу и переходим к следующей
@@ -281,11 +282,12 @@ public sealed class ExpertsScraper : IDisposable
                     }
                     else
                     {
-                        _logger.WriteLine($"Ошибка на странице {page} (попытка {pageRetryCount}/{maxPageRetries}): {ex.Message}");
-                        _logger.WriteLine($"Повтор через 2 секунды...");
+                        var delayMs = pageThrottle.CurrentDelayMs;
+                        _logger.WriteLine($"Ошибка на странице {page} (попытка {failedAttempts}/{pageThrottle.MaxAttempts}): {ex.Message}");
+                        _logger.WriteLine($"Повтор через {LinearThrottle.GetDelayDescription(delayMs)}...");
                         
                         // Задержка перед повтором
-                        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                        await pageThrottle.DelayAsync(ct);
                     }
                 }
             }
