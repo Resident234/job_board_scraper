@@ -139,6 +139,23 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Дописывает query-параметр <c>page=N</c> к <paramref name="url"/> для страниц старше первой.
+    /// Для первой страницы URL возвращается без изменений.
+    /// </summary>
+    /// <param name="url">Исходный URL (абсолютный или относительный).</param>
+    /// <param name="page">Номер страницы.</param>
+    /// <returns>URL с параметром <c>page</c> или без изменений для первой страницы.</returns>
+    public static string WithPage(string? url, int page)
+    {
+        var basePart = url ?? string.Empty;
+        if (page < 2)
+            return basePart;
+
+        var separator = basePart.Contains('?') ? "&" : "?";
+        return $"{basePart}{separator}page={page}";
+    }
+
+    /// <summary>
     /// Подставляет аргумент в URL-шаблон (<c>string.Format</c> с одним placeholder'ом).
     /// Не выполняет никаких преобразований URL — возвращает результат форматирования как есть.
     /// Чтобы получить абсолютный URL, оберните результат в <see cref="ToAbsolute"/>.
@@ -189,5 +206,15 @@ public static class UrlManager
         return page is null or < 2
             ? root + "/friends"
             : $"{root}/friends?page={page}";
+    }
+
+    /// <summary>
+    /// Формирует URL страницы списка экспертов.
+    /// </summary>
+    /// <param name="page">Номер страницы (<c>1</c> — без параметра пагинации).</param>
+    /// <returns>URL страницы экспертов.</returns>
+    public static string BuildExpertsUrl(int page)
+    {
+        return WithPage(AppConfig.ExpertsListUrl, page);
     }
 }

@@ -105,7 +105,7 @@ public sealed class ExpertsScraper : IDisposable
             {
                 try
                 {
-                    var url = BuildUrl(page);
+                    var url = UrlManager.BuildExpertsUrl(page);
                     
                     if (pageRetryCount > 0)
                     {
@@ -294,17 +294,5 @@ public sealed class ExpertsScraper : IDisposable
         _statistics.EndTime = DateTime.Now;
         ScraperLogger.LogEnd(_logger, _statistics);
         _progressLogger?.LogCompletion(totalExperts, $"Страниц: {page - 1}. {_statistics}");
-    }
-
-    private string BuildUrl(int page)
-    {
-        var baseUrl = AppConfig.ExpertsListUrl;
-        
-        if (page == 1)
-        {
-            return baseUrl;
-        }
-
-        return $"{baseUrl}&page={page}";
     }
 }
