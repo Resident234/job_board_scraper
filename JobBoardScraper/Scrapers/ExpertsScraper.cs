@@ -110,14 +110,14 @@ public sealed class ExpertsScraper : IDisposable
                 {
                     if (pageThrottle.FailedAttempts == 0)
                     {
-                        _logger.WriteLine($"Обработка страницы {page}: {url}");
+                        ScraperLogger.LogPage(_logger, page, url);
                     }
 
                     var response = await _httpClient.GetAsync(url, ct);
                     
                     if (!response.IsSuccessStatusCode)
                     {
-                        _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
+                        ScraperLogger.LogEnd(_logger, $"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
                         hasMorePages = false;
                         pageProcessed = true;
                         break;
