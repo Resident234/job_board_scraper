@@ -127,6 +127,42 @@ public static class ScraperLogger
     }
 
     /// <summary>
+    /// Логирует повторную попытку, запланированную throttling/backoff-стратегией.
+    /// Пример: "↻ Ошибка на попытке 1/3: timeout. Повторная попытка 2/3 через 2.0с: для страницы 5: {url}"
+    /// </summary>
+    public static void LogThrottleRetry(
+        ConsoleLogger? logger,
+        int failedAttempt,
+        int nextAttempt,
+        int maxAttempts,
+        string context,
+        int delayMs,
+        string? reason = null)
+    {
+        WriteLine(logger, FormatThrottleRetry(failedAttempt, nextAttempt, maxAttempts, context, delayMs, reason));
+    }
+
+    /// <summary>
+    /// Формирует сообщение о повторной попытке, запланированной throttling/backoff-стратегией.
+    /// Используется там, где лог пишется через callback, а не через <see cref="ConsoleLogger"/>.
+    /// </summary>
+    public static string FormatThrottleRetry(
+        int failedAttempt,
+        int nextAttempt,
+        int maxAttempts,
+        string context,
+        int delayMs,
+        string? reason = null)
+    {
+        var message = $"{RetryIcon} Ошибка на попытке {failedAttempt}/{maxAttempts}";
+        if (!string.IsNullOrWhiteSpace(reason))
+            message += $": {reason}";
+
+        message += $". Повторная попытка {nextAttempt}/{maxAttempts} через {FormatDelay(delayMs)}: {context}";
+        return message;
+    }
+
+    /// <summary>
     /// Простая перегрузка LogEnqueue для обратной совместимости.
     /// Логирует постановку записи в очередь (enqueue) с произвольной строкой extra.
     /// Пример: "⇪ В очередь: {key} -> {url}"
@@ -266,6 +302,13 @@ public static class ScraperLogger
         }
 
         return value.ToString() ?? "null";
+    }
+
+    private static string FormatDelay(int delayMs)
+    {
+        return delayMs < 1000
+            ? $"{delayMs}мс"
+            : $"{delayMs / 1000.0:F1}с";
     }
 
     private static void WriteLine(ConsoleLogger? logger, string message)

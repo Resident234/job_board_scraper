@@ -1,5 +1,6 @@
 using System.Net;
 using JobBoardScraper.Domain.Models;
+using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Proxy;
 using JobBoardScraper.Infrastructure.Statistics;
 
@@ -165,8 +166,15 @@ public sealed class SmartHttpClient
                 var retryAfter = GetRetryAfterDelay(response);
                 var delay = retryAfter.HasValue ? Max(backoff, retryAfter.Value) : backoff;
 
-                infoLog?.Invoke($"[Retry] Код={(int)response.StatusCode} ({response.StatusCode}); попытка {attempt}/{_maxRetries}; пауза {FormatTimeSpan(delay)}" +
-                                (retryAfter.HasValue ? " (учтен Retry-After)" : ""));
+                var retryReason = $"Код={(int)response.StatusCode} ({response.StatusCode})" +
+                                  (retryAfter.HasValue ? " (учтен Retry-After)" : "");
+                infoLog?.Invoke(HttpClientLogger.FormatThrottleRetry(
+                    attempt,
+                    attempt + 1,
+                    _maxRetries,
+                    $"запрос: {url}",
+                    ToDelayMs(delay),
+                    retryReason));
 
                 await Task.Delay(delay, cancellationToken);
             }
@@ -180,7 +188,13 @@ public sealed class SmartHttpClient
                     throw;
 
                 var delay = ComputeBackoff(attempt);
-                infoLog?.Invoke($"[Retry] Исключение {ex.GetType().Name}: {ex.Message}; попытка {attempt}/{_maxRetries}; пауза {FormatTimeSpan(delay)}");
+                infoLog?.Invoke(HttpClientLogger.FormatThrottleRetry(
+                    attempt,
+                    attempt + 1,
+                    _maxRetries,
+                    $"запрос: {url}",
+                    ToDelayMs(delay),
+                    $"{ex.GetType().Name}: {ex.Message}"));
                 await Task.Delay(delay, cancellationToken);
             }
             finally
@@ -267,7 +281,16 @@ public sealed class SmartHttpClient
                 var retryAfter = GetRetryAfterDelay(response);
                 var delay = retryAfter.HasValue ? Max(backoff, retryAfter.Value) : backoff;
 
-                System.Console.WriteLine($"[{_scraperName}] Retry: код {(int)response.StatusCode}, попытка {attempt}/{_maxRetries}, пауза {FormatTimeSpan(delay)}");
+                var reason = $"код {(int)response.StatusCode}" +
+                             (retryAfter.HasValue ? " (учтен Retry-After)" : "");
+                HttpClientLogger.LogThrottleRetry(
+                    null,
+                    attempt,
+                    attempt + 1,
+                    _maxRetries,
+                    $"[{_scraperName}] {requestUri}",
+                    ToDelayMs(delay),
+                    reason);
 
                 response.Dispose();
                 await Task.Delay(delay, cancellationToken);
@@ -282,7 +305,14 @@ public sealed class SmartHttpClient
                     throw;
 
                 var delay = ComputeBackoff(attempt);
-                System.Console.WriteLine($"[{_scraperName}] Retry: {ex.GetType().Name}, попытка {attempt}/{_maxRetries}, пауза {FormatTimeSpan(delay)}");
+                HttpClientLogger.LogThrottleRetry(
+                    null,
+                    attempt,
+                    attempt + 1,
+                    _maxRetries,
+                    $"[{_scraperName}] {requestUri}",
+                    ToDelayMs(delay),
+                    $"{ex.GetType().Name}: {ex.Message}");
                 await Task.Delay(delay, cancellationToken);
             }
         }
@@ -326,8 +356,13 @@ public sealed class SmartHttpClient
 
     private TimeSpan Max(TimeSpan a, TimeSpan b) => a >= b ? a : b;
 
-    private string FormatTimeSpan(TimeSpan ts) =>
-        ts.TotalSeconds >= 1
-            ? $"{ts.TotalSeconds:0.###}s"
-            : $"{ts.TotalMilliseconds:0}ms";
+    private static int ToDelayMs(TimeSpan delay)
+    {
+        if (delay.TotalMilliseconds <= 0)
+            return 0;
+
+        return delay.TotalMilliseconds >= int.MaxValue
+            ? int.MaxValue
+            : (int)Math.Round(delay.TotalMilliseconds);
+    }
 }

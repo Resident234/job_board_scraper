@@ -135,9 +135,14 @@ public sealed class ProxyRetryExecutor
                     var decision = EvaluateRetry(statusCode, attempt, _maxRetriesPerProxy, response);
                     if (decision.ShouldRetry)
                     {
-                        _logger?.WriteLine(
-                            $"{decision.ErrorType} {statusCode} (попытка {attempt}/{_maxRetriesPerProxy}, прокси #{proxySwitch + 1}). " +
-                            $"Backoff: {ExponentialBackoff.GetDelayDescription(decision.DelayMs)}");
+                        HttpClientLogger.LogThrottleRetry(
+                            _logger,
+                            attempt,
+                            attempt + 1,
+                            _maxRetriesPerProxy,
+                            $"прокси #{proxySwitch + 1}: {url}",
+                            decision.DelayMs,
+                            $"{decision.ErrorType} {statusCode}");
                         response.Dispose();
                         response = null;
                         await Task.Delay(decision.DelayMs, ct).ConfigureAwait(false);
@@ -156,9 +161,14 @@ public sealed class ProxyRetryExecutor
 
                     // Другие неуспешные коды — повторяем
                     var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    _logger?.WriteLine(
-                        $"HTTP error {statusCode} (попытка {attempt}/{_maxRetriesPerProxy}). " +
-                        $"Backoff: {ExponentialBackoff.GetDelayDescription(delayMs)}");
+                    HttpClientLogger.LogThrottleRetry(
+                        _logger,
+                        attempt,
+                        attempt + 1,
+                        _maxRetriesPerProxy,
+                        $"прокси #{proxySwitch + 1}: {url}",
+                        delayMs,
+                        $"HTTP error {statusCode}");
                     response.Dispose();
                     response = null;
                     await Task.Delay(delayMs, ct).ConfigureAwait(false);
@@ -166,14 +176,19 @@ public sealed class ProxyRetryExecutor
                 catch (Exception ex) when (attempt < _maxRetriesPerProxy)
                 {
                     var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    ScraperLogger.LogError(_logger,
-                        $"Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). " +
-                        $"Backoff: {ExponentialBackoff.GetDelayDescription(delay)}", ex);
+                    HttpClientLogger.LogThrottleRetry(
+                        _logger,
+                        attempt,
+                        attempt + 1,
+                        _maxRetriesPerProxy,
+                        $"прокси #{proxySwitch + 1}: {url}",
+                        delay,
+                        $"{ex.GetType().Name}: {ex.Message}");
                     await Task.Delay(delay, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    ScraperLogger.LogError(_logger,
+                    HttpClientLogger.LogError(_logger,
                         $"Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). " +
                         $"Исчерпаны попытки с текущим прокси", ex);
                     break;
@@ -290,11 +305,11 @@ public sealed class ProxyRetryExecutor
         var newProxy = coordinator?.GetNextProxy();
         if (newProxy != null)
         {
-            ScraperLogger.LogSkip(logger, $"Переключение на новый прокси: {newProxy}");
+            HttpClientLogger.LogSkip(logger, $"Переключение на новый прокси: {newProxy}");
             return true;
         }
 
-        ScraperLogger.LogSkip(logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
+        HttpClientLogger.LogSkip(logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
         return false;
     }
 }

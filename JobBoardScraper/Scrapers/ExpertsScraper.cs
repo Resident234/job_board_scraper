@@ -104,15 +104,11 @@ public sealed class ExpertsScraper : IDisposable
 
             while (!pageProcessed && pageThrottle.CanAttempt && !ct.IsCancellationRequested)
             {
+                var url = UrlManager.BuildExpertsUrl(page);
+
                 try
                 {
-                    var url = UrlManager.BuildExpertsUrl(page);
-                    
-                    if (pageThrottle.FailedAttempts > 0)
-                    {
-                        _logger.WriteLine($"Повторная попытка {pageThrottle.CurrentAttempt}/{pageThrottle.MaxAttempts} для страницы {page}: {url}");
-                    }
-                    else
+                    if (pageThrottle.FailedAttempts == 0)
                     {
                         _logger.WriteLine($"Обработка страницы {page}: {url}");
                     }
@@ -283,8 +279,14 @@ public sealed class ExpertsScraper : IDisposable
                     else
                     {
                         var delayMs = pageThrottle.CurrentDelayMs;
-                        _logger.WriteLine($"Ошибка на странице {page} (попытка {failedAttempts}/{pageThrottle.MaxAttempts}): {ex.Message}");
-                        _logger.WriteLine($"Повтор через {LinearThrottle.GetDelayDescription(delayMs)}...");
+                        ScraperLogger.LogThrottleRetry(
+                            _logger,
+                            failedAttempts,
+                            pageThrottle.CurrentAttempt,
+                            pageThrottle.MaxAttempts,
+                            $"для страницы {page}: {url}",
+                            delayMs,
+                            ex.Message);
                         
                         // Задержка перед повтором
                         await pageThrottle.DelayAsync(ct);

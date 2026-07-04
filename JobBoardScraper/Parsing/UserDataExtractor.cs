@@ -1445,10 +1445,19 @@ public static class UserDataExtractor
             }
             catch (Exception ex)
             {
-                ScraperLogger.LogError(logger, "Ошибка при парсинге профиля", ex);
+                LogProfileParsingError(logger, ex);
             }
         }
 
         return profiles;
+    }
+
+    private static void LogProfileParsingError(ConsoleLogger? logger, Exception ex)
+    {
+        var message = $"Ошибка при парсинге профиля: {ex.Message}";
+        if (logger != null)
+            logger.WriteLine(message);
+        else
+            Console.WriteLine(message);
     }
 }
