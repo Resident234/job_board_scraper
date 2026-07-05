@@ -137,7 +137,14 @@ public sealed class ExpertsScraper : IDisposable
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     var extraction = UserDataExtractor.ParseExpertsFromPage(doc);
                     
-                    _logger.WriteLine($"На странице {page} найдено карточек: {extraction.CardCount}");
+                    // Логируем количество найденных карточек на странице через LogCount
+                    ScraperLogger.LogCount(
+                        _logger,
+                        "Найдено", // действие
+                        extraction.CardCount, // количество
+                        "карточек", // сущность
+                        $"на странице {page}" // суффикс
+                    );
 
                     var expertsOnPage = 0;
 
