@@ -148,12 +148,12 @@ public sealed class ExpertsScraper : IDisposable
                             _db.EnqueueResume(expert.Resume);
                             ScraperLogger.LogEnqueue(
                                 _logger,
-                                expert.Resume.Title ?? expert.Resume.Link,
-                                expert.Resume.Link,
-                                expert.Resume.WorkExperience != null ? $"| Exp: {expert.Resume.WorkExperience}" : null);
-
-                            _logger.WriteLine($"Эксперт: {expert.Resume.Title} ({expert.Resume.Code}) -> {expert.Resume.Link}" +
-                                (expert.Resume.WorkExperience != null ? $" | Стаж: {expert.Resume.WorkExperience}" : ""));
+                                "Resume",
+                                expert.Resume.Code ?? expert.Resume.Link,
+                                ("Link", expert.Resume.Link),
+                                ("Title", expert.Resume.Title),
+                                ("Code", expert.Resume.Code ?? "(не найдено)"),
+                                ("WorkExperience", expert.Resume.WorkExperience?.ToString() ?? "N/A"));
                             expertsOnPage++;
                             _statistics.IncrementSuccess();
 
@@ -162,8 +162,12 @@ public sealed class ExpertsScraper : IDisposable
                                 var company = expert.Company.Value;
 
                                 _db.EnqueueCompany(company.CompanyCode, company.CompanyUrl, companyTitle: company.CompanyTitle);
-                                ScraperLogger.LogEnqueue(_logger, company.CompanyCode, company.CompanyUrl);
-                                _logger.WriteLine($"Компания: {company.CompanyTitle} ({company.CompanyCode}) -> {company.CompanyUrl}");
+                                ScraperLogger.LogEnqueue(
+                                    _logger,
+                                    "Company",
+                                    company.CompanyCode,
+                                    ("Url", company.CompanyUrl),
+                                    ("Title", company.CompanyTitle));
                                 _statistics.IncrementItemsCollected();
                             }
                         }
@@ -194,12 +198,12 @@ public sealed class ExpertsScraper : IDisposable
                     // Если на странице нет экспертов, значит достигнут конец
                     if (expertsOnPage == 0)
                     {
-                        _logger.WriteLine($"На странице {page} не найдено экспертов. Достигнута последняя страница.");
+                        ScraperLogger.LogPage(_logger, page, "не найдено экспертов. Достигнута последняя страница.");
                         hasMorePages = false;
                     }
                     else
                     {
-                        _logger.WriteLine($"Переход на страницу {page + 1}...");
+                        ScraperLogger.LogPage(_logger, page + 1, UrlManager.BuildExpertsUrl(page + 1));
                     }
 
                     // Страница успешно обработана

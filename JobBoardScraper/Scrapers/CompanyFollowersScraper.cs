@@ -229,8 +229,12 @@ public sealed class CompanyFollowersScraper : IDisposable
                         var slogan = sloganElement?.TextContent?.Trim();
 
                         _enqueueUser(fullUrl, username, slogan, InsertMode.UpdateIfExists);
-                        _logger.WriteLine($"В очередь (UPDATE): {username} -> {fullUrl}" + 
-                            (string.IsNullOrWhiteSpace(slogan) ? "" : $" ({slogan})"));
+                        ScraperLogger.LogEnqueue(
+                            _logger,
+                            "Resume",
+                            username,
+                            ("Link", fullUrl),
+                            ("Slogan", slogan ?? "(нет)"));
                         usersOnPage++;
                         totalUsersFound++;
                     }

@@ -232,7 +232,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                     mode: InsertMode.UpdateIfExists,
                     isDeleted: true,
                     about: deletedAbout);
-                ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| deleted");
+                ScraperLogger.LogEnqueue(
+                    _logger,
+                    "Resume",
+                    userLink,
+                    ("Link", userLink),
+                    ("Status", "Deleted"));
 
                 ProxyRetryExecutor.ReportSuccessSafe(_proxyCoordinator, proxyUrl);
                 _statistics.IncrementSuccess();
@@ -250,7 +255,12 @@ public sealed class UserResumeDetailScraper : IDisposable
                     mode: InsertMode.UpdateIfExists,
                     about: privateMessage,
                     isPublic: false);
-                ScraperLogger.LogEnqueue(_logger, userLink, userLink, "| private");
+                ScraperLogger.LogEnqueue(
+                    _logger,
+                    "Resume",
+                    userLink,
+                    ("Link", userLink),
+                    ("Status", "Private"));
 
                 ProxyRetryExecutor.ReportSuccessSafe(_proxyCoordinator, proxyUrl);
                 _statistics.IncrementSuccess();

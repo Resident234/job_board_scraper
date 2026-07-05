@@ -118,7 +118,12 @@ public sealed class CategoryScraper : IDisposable
                     continue;
 
                 _enqueueCategory(value, text);
-                ScraperLogger.LogEnqueue(_logger, $"category_root_id={value}", $"({text})");
+                ScraperLogger.LogEnqueue(
+                    _logger,
+                    "Category",
+                    value,
+                    ("Value", value),
+                    ("Title", text));
                 _statistics.IncrementItemsCollected();
             }
 

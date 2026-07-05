@@ -189,22 +189,29 @@ public sealed class CompanyRatingScraper : IDisposable
             // Парсим компании на странице
             var companies = await ParseCompaniesFromPage(doc, ct);
             
-            // Добавляем в очередь БД
-            foreach (var company in companies)
-            {
-                _db.EnqueueCompany(
-                    companyCode: company.CompanyCode,
-                    companyUrl: company.CompanyUrl,
-                    companyTitle: company.CompanyTitle,
-                    companyRating: company.Rating,
-                    companyAbout: company.About,
-                    city: company.City,
-                    awards: company.Awards,
-                    scores: company.Scores,
-                    reviewRecords: company.ReviewRecords);
-                    
-                ScraperLogger.LogEnqueue(_logger, company.CompanyCode, company.CompanyUrl);
-            }
+                // Добавляем в очередь БД
+                foreach (var company in companies)
+                {
+                    _db.EnqueueCompany(
+                        companyCode: company.CompanyCode,
+                        companyUrl: company.CompanyUrl,
+                        companyTitle: company.CompanyTitle,
+                        companyRating: company.Rating,
+                        companyAbout: company.About,
+                        city: company.City,
+                        awards: company.Awards,
+                        scores: company.Scores,
+                        reviewRecords: company.ReviewRecords);
+                        
+                    ScraperLogger.LogEnqueue(
+                        _logger,
+                        "Company",
+                        company.CompanyCode,
+                        ("Url", company.CompanyUrl),
+                        ("Title", company.CompanyTitle),
+                        ("Rating", company.Rating?.ToString("F2") ?? "N/A"),
+                        ("City", company.City ?? "N/A"));
+                }
 
             var companiesCount = companies.Count;
             _statistics.AddItemsCollected(companiesCount);

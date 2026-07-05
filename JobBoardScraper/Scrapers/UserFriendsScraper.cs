@@ -182,7 +182,12 @@ public sealed class UserFriendsScraper : IDisposable
 
                         // Сохраняем в БД: если запись существует по link, обновляем code
                         _db.EnqueueResume(fullLink, title: "", mode: InsertMode.UpdateIfExists, code: userCode);
-                        ScraperLogger.LogEnqueue(_logger, userCode, fullLink);
+                        ScraperLogger.LogEnqueue(
+                            _logger,
+                            "Resume",
+                            userCode,
+                            ("Link", fullLink),
+                            ("Code", userCode));
                         friendsOnPage++;
                     }
 

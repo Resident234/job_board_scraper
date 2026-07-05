@@ -199,7 +199,13 @@ namespace JobBoardScraper.Scrapers;
                             code: userCode,
                             userCode: userCode,
                             isPublic: false);
-                        ScraperLogger.LogEnqueue(_logger, userCode, userLink, "(private)");
+                        ScraperLogger.LogEnqueue(
+                            _logger,
+                            "Resume",
+                            userCode,
+                            ("Link", userLink),
+                            ("Code", userCode),
+                            ("Type", "Private"));
                         _statistics.IncrementSuccess();
                         return;
                     }

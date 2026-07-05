@@ -132,7 +132,12 @@ public sealed class BruteForceUsernameScraper
                         _logger.WriteLine($"Страница {link}: {title}");
 
                         _db.EnqueueResume(link, title);
-                        ScraperLogger.LogEnqueue(_logger, link, link);
+                        ScraperLogger.LogEnqueue(
+                            _logger,
+                            "Resume",
+                            link,
+                            ("Link", link),
+                            ("Title", title));
                     }
                     catch (OperationCanceledException)
                     {

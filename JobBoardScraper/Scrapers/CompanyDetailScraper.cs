@@ -397,7 +397,12 @@ public sealed class CompanyDetailScraper : IDisposable
                                 expert: null,
                                 workExperience: null
                             );
-                            ScraperLogger.LogEnqueue(_logger, memberCode, memberLink);
+                            ScraperLogger.LogEnqueue(
+                                _logger,
+                                "Resume",
+                                memberCode,
+                                ("Link", memberLink),
+                                ("Title", memberName));
 
                             memberCount++;
                         }
@@ -444,7 +449,12 @@ public sealed class CompanyDetailScraper : IDisposable
                                     expert: null,
                                     workExperience: null
                                 );
-                                ScraperLogger.LogEnqueue(_logger, userCode, userFullLink);
+                                ScraperLogger.LogEnqueue(
+                                    _logger,
+                                    "Resume",
+                                    userCode,
+                                    ("Link", userFullLink),
+                                    ("Code", userCode));
 
                                 employeeCount++;
                             }
@@ -492,7 +502,12 @@ public sealed class CompanyDetailScraper : IDisposable
 
                                 // Сохраняем в БД (code = код, url = полная ссылка, title = название)
                                 _db.EnqueueCompany(companyCode, companyUrl, companyTitle: companyName);
-                                ScraperLogger.LogEnqueue(_logger, companyCode, companyUrl);
+                                ScraperLogger.LogEnqueue(
+                                    _logger,
+                                    "Company",
+                                    companyCode,
+                                    ("Url", companyUrl),
+                                    ("Title", companyName));
 
                                 relatedCompanyCount++;
                             }
