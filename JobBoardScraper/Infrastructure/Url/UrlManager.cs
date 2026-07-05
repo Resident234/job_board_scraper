@@ -139,6 +139,23 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Добавляет query-параметр к URL.
+    /// </summary>
+    /// <param name="url">Исходный URL (абсолютный или относительный).</param>
+    /// <param name="paramName">Имя параметра.</param>
+    /// <param name="paramValue">Значение параметра.</param>
+    /// <returns>URL с добавленным параметром.</returns>
+    public static string AddQueryParameter(string? url, string paramName, string paramValue)
+    {
+        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(paramName))
+            return url ?? string.Empty;
+
+        var basePart = url ?? string.Empty;
+        var separator = basePart.Contains('?') ? "&" : "?";
+        return $"{basePart}{separator}{paramName}={paramValue}";
+    }
+
+    /// <summary>
     /// Дописывает query-параметр <c>page=N</c> к <paramref name="url"/> для страниц старше первой.
     /// Для первой страницы URL возвращается без изменений.
     /// </summary>

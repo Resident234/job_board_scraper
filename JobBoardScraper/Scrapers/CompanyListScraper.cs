@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
@@ -377,7 +378,7 @@ public sealed class CompanyListScraper : IDisposable
                     if (!seenOnPage.Add(companyCode))
                         continue;
 
-                    var companyUrl = $"{AppConfig.CompaniesBaseUrl}{companyCode}";
+                    var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
 
                     _enqueueCompany(companyCode, companyUrl, companyId);
                     ScraperLogger.LogInfo(_logger, $"В очередь: {companyCode} -> {companyUrl}" + (companyId.HasValue ? $" (ID: {companyId})" : ""));
@@ -418,31 +419,28 @@ public sealed class CompanyListScraper : IDisposable
 
     private static string BuildUrl(int page, int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter)
     {
-        var baseUrl = AppConfig.CompaniesListUrl;
-        var queryParams = new List<string>();
+        var url = AppConfig.CompaniesListUrl;
 
         if (page > 1)
         {
-            queryParams.Add($"page={page}");
+            url = UrlManager.WithPage(url, page);
         }
 
         if (sizeFilter.HasValue)
         {
-            queryParams.Add($"sz={sizeFilter.Value}");
+            url = UrlManager.WithQueryParam(url, "sz", sizeFilter.Value.ToString());
         }
 
         if (!string.IsNullOrWhiteSpace(categoryId))
         {
-            queryParams.Add($"category_root_id={categoryId}");
+            url = UrlManager.WithQueryParam(url, "category_root_id", categoryId);
         }
 
         if (additionalFilter.HasValue)
         {
-            queryParams.Add($"{additionalFilter.Key}={additionalFilter.Value}");
+            url = UrlManager.WithQueryParam(url, additionalFilter.Key, additionalFilter.Value);
         }
 
-        return queryParams.Count > 0
-            ? $"{baseUrl}?{string.Join("&", queryParams)}"
-            : baseUrl;
+        return url;
     }
 }

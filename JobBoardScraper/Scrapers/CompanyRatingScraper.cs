@@ -96,10 +96,10 @@ public sealed class CompanyRatingScraper : IDisposable
         _statistics.StartTime = DateTime.Now;
 
         var urlCombinations = GenerateUrlCombinations();
-        
+
         // Используем ScraperProgressLogger для отслеживания и вывода прогресса
         _progressLogger = new ScraperProgressLogger(urlCombinations.Count, "CompanyRatingScraper", _logger, "RatingUrls");
-        
+
         ScraperLogger.LogCount(_logger, "Сгенерировано", urlCombinations.Count, "комбинаций URL", " для обхода");
 
         foreach (var url in urlCombinations)
@@ -139,13 +139,13 @@ public sealed class CompanyRatingScraper : IDisposable
         // 2. Только sz параметры
         foreach (var sz in CompanySizes)
         {
-            combinations.Add($"{baseUrl}?sz={sz}");
+            combinations.Add(UrlManager.AddQueryParameter(baseUrl, "sz", sz.ToString()));
         }
 
         // 3. Только y параметры
         foreach (var year in Years)
         {
-            combinations.Add($"{baseUrl}?y={year}");
+            combinations.Add(UrlManager.AddQueryParameter(baseUrl, "y", year.ToString()));
         }
 
         // 4. Комбинации sz + y
@@ -153,7 +153,8 @@ public sealed class CompanyRatingScraper : IDisposable
         {
             foreach (var year in Years)
             {
-                combinations.Add($"{baseUrl}?sz={sz}&y={year}");
+                var urlWithSz = UrlManager.AddQueryParameter(baseUrl, "sz", sz.ToString());
+                combinations.Add(UrlManager.AddQueryParameter(urlWithSz, "y", year.ToString()));
             }
         }
 
@@ -167,7 +168,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
         while (hasMorePages && !ct.IsCancellationRequested)
         {
-            var url = page == 1 ? baseUrl : $"{baseUrl}{(baseUrl.Contains('?') ? "&" : "?")}page={page}";
+            var url = UrlManager.WithPage(baseUrl, page);
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var response = await _httpClient.GetAsync(url, ct);
@@ -187,7 +188,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
             // Парсим компании на странице
             var companies = CompanyDataExtractor.ParseCompaniesFromPage(doc, ct);
-            
+
             // Добавляем в очередь БД
             foreach (var company in companies)
             {
@@ -201,7 +202,7 @@ public sealed class CompanyRatingScraper : IDisposable
                     awards: company.Awards,
                     scores: company.Scores,
                     reviewRecords: company.ReviewRecords);
-                    
+
                 ScraperLogger.LogEnqueue(
                     _logger,
                     "Company",
@@ -228,6 +229,4 @@ public sealed class CompanyRatingScraper : IDisposable
             }
         }
     }
-
-
 }

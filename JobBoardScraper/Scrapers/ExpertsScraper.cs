@@ -32,7 +32,7 @@ public sealed class ExpertsScraper : IDisposable
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _interval = interval ?? TimeSpan.FromDays(7);
         _statistics = new ScraperStatistics("ExpertsScraper");
-        
+
         _logger = new ConsoleLogger("ExpertsScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация ExpertsScraper с режимом вывода: {outputMode}");
@@ -85,7 +85,7 @@ public sealed class ExpertsScraper : IDisposable
     private async Task ScrapeAllExpertsAsync(CancellationToken ct)
     {
         ScraperLogger.LogStart(_logger, "Начало обхода экспертов...");
-        
+
         var page = 1;
         var hasMorePages = true;
         var totalExperts = 0;
@@ -108,7 +108,7 @@ public sealed class ExpertsScraper : IDisposable
                     }
 
                     var response = await _httpClient.GetAsync(url, ct);
-                    
+
                     if (!response.IsSuccessStatusCode)
                     {
                         ScraperLogger.LogEnd(_logger, $"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
@@ -121,7 +121,7 @@ public sealed class ExpertsScraper : IDisposable
                     var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
                     var encoding = response.GetEncoding();
                     var html = response.DecodeBodyAsString(htmlBytes);
-                    
+
                     // Сохраняем HTML в файл для отладки, если включено в конфиге
                     if (AppConfig.ExpertsSaveHtml)
                     {
@@ -133,10 +133,10 @@ public sealed class ExpertsScraper : IDisposable
                             encoding: encoding,
                             ct: ct);
                     }
-                    
+
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
                     var extraction = UserDataExtractor.ParseExpertsFromPage(doc);
-                    
+
                     // Логируем количество найденных карточек на странице через LogCount
                     ScraperLogger.LogCount(
                         _logger,
@@ -192,7 +192,7 @@ public sealed class ExpertsScraper : IDisposable
 
                     _statistics.IncrementProcessed();
                     totalExperts += expertsOnPage;
-                    
+
                     // Инициализируем progressLogger при первой странице (не знаем заранее сколько страниц)
                     if (_progressLogger == null)
                     {
@@ -216,7 +216,7 @@ public sealed class ExpertsScraper : IDisposable
                     // Страница успешно обработана
                     pageProcessed = true;
                     page++;
-                    
+
                     // Небольшая задержка между запросами
                     await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
                 }
@@ -229,12 +229,12 @@ public sealed class ExpertsScraper : IDisposable
                 catch (Exception ex)
                 {
                     var failedAttempts = pageThrottle.RegisterFailure();
-                    
+
                     if (pageThrottle.IsExhausted)
                     {
                         ScraperLogger.LogError(_logger, $"Ошибка на странице {page} после {pageThrottle.MaxAttempts} попыток", ex);
                         ScraperLogger.LogSkip(_logger, $"Пропускаем страницу {page} и переходим к следующей.");
-                        
+
                         // Пропускаем проблемную страницу и переходим к следующей
                         pageProcessed = true;
                         page++;
@@ -250,14 +250,14 @@ public sealed class ExpertsScraper : IDisposable
                             $"для страницы {page}: {url}",
                             delayMs,
                             ex.Message);
-                        
+
                         // Задержка перед повтором
                         await pageThrottle.DelayAsync(ct);
                     }
                 }
             }
         }
-        
+
         _statistics.EndTime = DateTime.Now;
         ScraperLogger.LogEnd(_logger, _statistics);
         _progressLogger?.LogCompletion(totalExperts, $"Страниц: {page - 1}. {_statistics}");

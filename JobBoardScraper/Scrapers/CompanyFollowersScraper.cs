@@ -284,6 +284,6 @@ public sealed class CompanyFollowersScraper : IDisposable
             return baseUrl;
         }
 
-        return $"{baseUrl}?page={page}";
+        return UrlManager.AddQueryParameter(baseUrl, "page", page.ToString());
     }
 }
