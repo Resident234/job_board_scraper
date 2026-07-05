@@ -52,11 +52,11 @@ public sealed class UserResumeDetailScraper : IDisposable
 
         _logger = new ConsoleLogger("UserResumeDetailScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInfo(_logger, $"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
 
         if (_proxyCoordinator != null)
         {
-            _logger.WriteLine($"Proxy coordinator enabled: {_proxyCoordinator.GetStatus()}");
+        ScraperLogger.LogInfo(_logger, $"Proxy coordinator enabled: {_proxyCoordinator.GetStatus()}");
         }
 
         // Инициализируем инфраструктуру прокси/retry в одном месте.
@@ -215,6 +215,7 @@ public sealed class UserResumeDetailScraper : IDisposable
 
             if (!response.IsSuccessStatusCode)
             {
+                ScraperLogger.LogError(_logger, $"URL {userLink}: HTTP {(int)response.StatusCode}");
                 _statistics.IncrementFailed();
                 return;
             }

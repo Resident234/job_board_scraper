@@ -38,10 +38,10 @@ public sealed class CompanyListScraper : IDisposable
         _interval = interval ?? TimeSpan.FromDays(7);
         _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
         _statistics = new ScraperStatistics("CompanyListScraper");
-        
+
         _logger = new ConsoleLogger("CompanyListScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация CompanyListScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyListScraper с режимом вывода: {outputMode}");
     }
 
     public void Dispose()
@@ -91,12 +91,12 @@ public sealed class CompanyListScraper : IDisposable
     private async Task ScrapeAllPagesAsync(CancellationToken ct)
     {
         ScraperLogger.LogStart(_logger, "Начало обхода списка компаний...");
-        
+
         // Сначала получаем общее количество компаний с первой страницы
         var totalCompaniesOnSite = await GetTotalCompaniesCountAsync(ct);
         if (totalCompaniesOnSite > 0)
         {
-            _logger.WriteLine($"На сайте найдено {totalCompaniesOnSite:N0} компаний");
+            ScraperLogger.LogInfo(_logger, $"На сайте найдено {totalCompaniesOnSite:N0} компаний");
         }
 
         var sizeFilters = new int?[] { null, 1, 2, 3, 4, 5 };
@@ -107,7 +107,7 @@ public sealed class CompanyListScraper : IDisposable
             { "with_habr_url", "1" },
             { "has_accreditation", "1" }
         };
-        
+
         // Получаем категории из БД
         var categoryIds = _getCategoryIds();
         ScraperLogger.LogCount(_logger, "Загружено", categoryIds.Count, "категорий", " для обхода");
@@ -120,10 +120,10 @@ public sealed class CompanyListScraper : IDisposable
         {
             await ScrapeWithSimpleFiltersAsync(sizeFilters, categoryIds, additionalFilters, totalCompaniesOnSite, ct);
         }
-        
+
         _statistics.EndTime = DateTime.Now;
         ScraperLogger.LogEnd(_logger, _statistics);
-        var completionMessage = totalCompaniesOnSite > 0 
+        var completionMessage = totalCompaniesOnSite > 0
             ? $"Собрано {_statistics.TotalItemsCollected:N0} из {totalCompaniesOnSite:N0} компаний ({(double)_statistics.TotalItemsCollected / totalCompaniesOnSite:P1}). {_statistics}"
             : _statistics.ToString();
         _progressLogger?.LogCompletion(_statistics.TotalItemsCollected, completionMessage);
@@ -133,45 +133,45 @@ public sealed class CompanyListScraper : IDisposable
     /// Простой обход фильтров по отдельности (по умолчанию)
     /// </summary>
     private async Task ScrapeWithSimpleFiltersAsync(
-        int?[] sizeFilters, 
-        List<string> categoryIds, 
+        int?[] sizeFilters,
+        List<string> categoryIds,
         Dictionary<string, string> additionalFilters,
         int totalCompaniesOnSite,
         CancellationToken ct)
     {
         var totalFilters = sizeFilters.Length + categoryIds.Count + additionalFilters.Count;
         _progressLogger = new ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
-        _logger.WriteLine($"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
-        
+        ScraperLogger.LogInfo(_logger, $"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
+
         // Обходим с параметрами sz (включая null = без фильтра)
         foreach (var sz in sizeFilters)
         {
             if (ct.IsCancellationRequested) break;
-            
+
             var filterName = sz.HasValue ? $"sz={sz}" : "без фильтра";
-            _logger.WriteLine($"Обход компаний с фильтром {filterName}...");
+            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром {filterName}...");
             await ScrapeWithFiltersAsync(sz, null, null, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Фильтр {filterName}");
         }
-        
+
         // Обходим по категориям
         foreach (var categoryId in categoryIds)
         {
             if (ct.IsCancellationRequested) break;
-            
-            _logger.WriteLine($"Обход компаний с фильтром category_root_id={categoryId}...");
+
+            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром category_root_id={categoryId}...");
             await ScrapeWithFiltersAsync(null, categoryId, null, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Категория {categoryId}");
         }
-        
+
         // Обходим с дополнительными фильтрами
         foreach (var filter in additionalFilters)
         {
             if (ct.IsCancellationRequested) break;
-            
-            _logger.WriteLine($"Обход компаний с фильтром {filter.Key}={filter.Value}...");
+
+            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром {filter.Key}={filter.Value}...");
             await ScrapeWithFiltersAsync(null, null, filter, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Фильтр {filter.Key}={filter.Value}");
@@ -183,8 +183,8 @@ public sealed class CompanyListScraper : IDisposable
     /// Генерирует: sz * category * additional комбинаций
     /// </summary>
     private async Task ScrapeWithAllCombinationsAsync(
-        int?[] sizeFilters, 
-        List<string> categoryIds, 
+        int?[] sizeFilters,
+        List<string> categoryIds,
         Dictionary<string, string> additionalFilters,
         int totalCompaniesOnSite,
         CancellationToken ct)
@@ -192,36 +192,36 @@ public sealed class CompanyListScraper : IDisposable
         // Добавляем null для категорий и дополнительных фильтров (означает "без этого фильтра")
         var categoryOptions = new List<string?> { null };
         categoryOptions.AddRange(categoryIds);
-        
+
         var additionalOptions = new List<KeyValuePair<string, string>?> { null };
         additionalOptions.AddRange(additionalFilters.Select(f => (KeyValuePair<string, string>?)f));
-        
+
         // Общее количество комбинаций
         var totalCombinations = sizeFilters.Length * categoryOptions.Count * additionalOptions.Count;
         _progressLogger = new ScraperProgressLogger(totalCombinations, "CompanyListScraper", _logger, "Combinations");
-        _logger.WriteLine($"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
-        _logger.WriteLine($"  - Размеры (sz): {sizeFilters.Length} вариантов");
-        _logger.WriteLine($"  - Категории: {categoryOptions.Count} вариантов");
-        _logger.WriteLine($"  - Доп. фильтры: {additionalOptions.Count} вариантов");
-        
+        ScraperLogger.LogInfo(_logger, $"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
+        ScraperLogger.LogInfo(_logger, $"  - Размеры (sz): {sizeFilters.Length} вариантов");
+        ScraperLogger.LogInfo(_logger, $"  - Категории: {categoryOptions.Count} вариантов");
+        ScraperLogger.LogInfo(_logger, $"  - Доп. фильтры: {additionalOptions.Count} вариантов");
+
         var combinationIndex = 0;
-        
+
         foreach (var sz in sizeFilters)
         {
             if (ct.IsCancellationRequested) break;
-            
+
             foreach (var categoryId in categoryOptions)
             {
                 if (ct.IsCancellationRequested) break;
-                
+
                 foreach (var additionalFilter in additionalOptions)
                 {
                     if (ct.IsCancellationRequested) break;
-                    
+
                     combinationIndex++;
                     var filterDesc = BuildFilterDescription(sz, categoryId, additionalFilter);
-                    _logger.WriteLine($"Комбинация {combinationIndex}/{totalCombinations}: {filterDesc}");
-                    
+                    ScraperLogger.LogInfo(_logger, $"Комбинация {combinationIndex}/{totalCombinations}: {filterDesc}");
+
                     await ScrapeWithFiltersAsync(sz, categoryId, additionalFilter, ct);
                     _progressLogger.Increment();
                     LogCompanyProgress(totalCompaniesOnSite, filterDesc);
@@ -236,16 +236,16 @@ public sealed class CompanyListScraper : IDisposable
     private static string BuildFilterDescription(int? sz, string? categoryId, KeyValuePair<string, string>? additionalFilter)
     {
         var parts = new List<string>();
-        
+
         if (sz.HasValue)
             parts.Add($"sz={sz}");
-        
+
         if (!string.IsNullOrWhiteSpace(categoryId))
             parts.Add($"cat={categoryId}");
-        
+
         if (additionalFilter.HasValue)
-            parts.Add($"{additionalFilter.Value.Key}");
-        
+            parts.Add($"{additionalFilter.Key}");
+
         return parts.Count > 0 ? string.Join("+", parts) : "без фильтров";
     }
 
@@ -316,15 +316,15 @@ public sealed class CompanyListScraper : IDisposable
             try
             {
                 var url = BuildUrl(page, sizeFilter, categoryId, additionalFilter);
-                _logger.WriteLine($"Обработка страницы {page}: {url}");
+                ScraperLogger.LogInfo(_logger, $"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
-                
+
                 _statistics.IncrementProcessed();
-                
+
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода.");
+                    ScraperLogger.LogError(_logger, $"Страница {page}: HTTP {(int)response.StatusCode}");
                     _statistics.IncrementFailed();
                     break;
                 }
@@ -334,10 +334,10 @@ public sealed class CompanyListScraper : IDisposable
 
                 // Ищем элементы компаний, которые содержат data-company-id
                 var companyItems = doc.QuerySelectorAll(AppConfig.CompaniesItemSelector);
-                
+
                 if (companyItems.Length == 0)
                 {
-                    _logger.WriteLine($"На странице {page} не найдено элементов компаний ({AppConfig.CompaniesItemSelector}). Завершение обхода.");
+                    ScraperLogger.LogWarning(_logger, $"На странице {page} не найдено элементов компаний ({AppConfig.CompaniesItemSelector}).");
                     hasMorePages = false;
                     break;
                 }
@@ -354,12 +354,12 @@ public sealed class CompanyListScraper : IDisposable
                     {
                         companyId = id;
                     }
-                    
+
                     // Ищем ссылку внутри элемента
                     var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
                     if (link == null)
                         continue;
-                    
+
                     var href = link.GetAttribute("href");
                     if (string.IsNullOrWhiteSpace(href))
                         continue;
@@ -369,7 +369,7 @@ public sealed class CompanyListScraper : IDisposable
                         continue;
 
                     var companyCode = match.Groups[1].Value;
-                    
+
                     if (string.IsNullOrWhiteSpace(companyCode))
                         continue;
 
@@ -378,27 +378,27 @@ public sealed class CompanyListScraper : IDisposable
                         continue;
 
                     var companyUrl = $"{AppConfig.CompaniesBaseUrl}{companyCode}";
-                    
+
                     _enqueueCompany(companyCode, companyUrl, companyId);
-                    _logger.WriteLine($"В очередь: {companyCode} -> {companyUrl}" + (companyId.HasValue ? $" (ID: {companyId})" : ""));
+                    ScraperLogger.LogInfo(_logger, $"В очередь: {companyCode} -> {companyUrl}" + (companyId.HasValue ? $" (ID: {companyId})" : ""));
                     companiesOnPage++;
                 }
 
                 _statistics.AddItemsCollected(companiesOnPage);
                 _statistics.IncrementSuccess();
-                _logger.WriteLine($"Страница {page}: найдено {companiesOnPage} уникальных компаний. Всего собрано: {_statistics.TotalItemsCollected}");
+                ScraperLogger.LogInfo(_logger, $"Страница {page}: найдено {companiesOnPage} уникальных компаний. Всего собрано: {_statistics.TotalItemsCollected}");
 
                 // Проверяем наличие следующей страницы
                 var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, page + 1);
                 var nextPageLink = doc.QuerySelector(nextPageSelector);
                 if (nextPageLink == null)
                 {
-                    _logger.WriteLine($"Достигнута последняя страница ({page}). Завершение обхода.");
+                    ScraperLogger.LogInfo(_logger, $"Достигнута последняя страница ({page}). Завершение обхода.");
                     hasMorePages = false;
                 }
 
                 page++;
-                
+
                 // Небольшая задержка между запросами
                 await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
             }
@@ -420,28 +420,28 @@ public sealed class CompanyListScraper : IDisposable
     {
         var baseUrl = AppConfig.CompaniesListUrl;
         var queryParams = new List<string>();
-        
+
         if (page > 1)
         {
             queryParams.Add($"page={page}");
         }
-        
+
         if (sizeFilter.HasValue)
         {
             queryParams.Add($"sz={sizeFilter.Value}");
         }
-        
+
         if (!string.IsNullOrWhiteSpace(categoryId))
         {
             queryParams.Add($"category_root_id={categoryId}");
         }
-        
+
         if (additionalFilter.HasValue)
         {
-            queryParams.Add($"{additionalFilter.Value.Key}={additionalFilter.Value.Value}");
+            queryParams.Add($"{additionalFilter.Key}={additionalFilter.Value}");
         }
 
-        return queryParams.Count > 0 
+        return queryParams.Count > 0
             ? $"{baseUrl}?{string.Join("&", queryParams)}"
             : baseUrl;
     }

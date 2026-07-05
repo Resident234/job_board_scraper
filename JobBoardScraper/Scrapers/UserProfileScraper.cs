@@ -12,12 +12,12 @@ using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
 
-    /// <summary>
-    /// Обходит профили пользователей и извлекает детальную информацию
-    /// TODO нужен selenium, некоторые профили закрыты настройками приватности
-    /// </summary>
-    public sealed class UserProfileScraper : IDisposable
-    {
+/// <summary>
+/// Обходит профили пользователей и извлекает детальную информацию
+/// TODO нужен selenium, некоторые профили закрыты настройками приватности
+/// </summary>
+public sealed class UserProfileScraper : IDisposable
+{
     private readonly SmartHttpClient _httpClient;
     private readonly DatabaseClient _db;
     private readonly Func<List<string>> _getUserCodes;
@@ -48,7 +48,7 @@ namespace JobBoardScraper.Scrapers;
         _workExperienceRegex = new Regex(AppConfig.UserProfileWorkExperienceRegex, RegexOptions.Compiled);
         _lastVisitRegex = new Regex(AppConfig.UserProfileLastVisitRegex, RegexOptions.Compiled);
         _statistics = new ScraperStatistics("UserProfileScraper");
-        
+
         _logger = new ConsoleLogger("UserProfileScraper");
         _logger.SetOutputMode(outputMode);
         _logger.WriteLine($"Инициализация UserProfileScraper с режимом вывода: {outputMode}");
@@ -101,14 +101,14 @@ namespace JobBoardScraper.Scrapers;
     private async Task ScrapeAllUserProfilesAsync(CancellationToken ct)
     {
         ScraperLogger.LogStart(_logger, "Начало обхода профилей пользователей...");
-        
+
         // Получаем список ссылок пользователей из БД
         var userLinks = _getUserCodes();
         var totalLinks = userLinks.Count;
-        
+
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalLinks, "UserProfiles");
-        
+
         ScraperLogger.LogCount(_logger, "Загружено", totalLinks, "пользователей", " из БД");
 
         if (totalLinks == 0)
@@ -137,17 +137,17 @@ namespace JobBoardScraper.Scrapers;
                     var friendsUrl = UrlManager.BuildFriendsUrl(userLink);
 
                     _activeRequests.TryAdd(userLink, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
-                    
+
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     var response = await _httpClient.GetAsync(friendsUrl, ct);
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-                    
+
                     double elapsedSeconds = sw.Elapsed.TotalSeconds;
                     _statistics.IncrementProcessed();
                     _statistics.UpdateActiveRequests(_activeRequests.Count);
                     _progress?.Increment();
-                    
+
                     if (_progress != null)
                     {
                         ScraperParallelLogger.LogProgress(
@@ -158,7 +158,7 @@ namespace JobBoardScraper.Scrapers;
                             (int)response.StatusCode,
                             _progress);
                     }
-                    
+
                     if (!response.IsSuccessStatusCode)
                     {
                         _statistics.IncrementSkipped();
@@ -227,7 +227,7 @@ namespace JobBoardScraper.Scrapers;
 
                     // Извлекаем опыт работы и последний визит из всех секций .basic-section
                     var (workExperience, lastVisit) = UserDataExtractor.ExtractWorkExperienceAndLastVisit(
-                        doc, 
+                        doc,
                         AppConfig.UserProfileBasicSectionSelector);
 
                     // Сохраняем информацию о пользователе (публичный профиль)
@@ -244,8 +244,8 @@ namespace JobBoardScraper.Scrapers;
                         salary: salary,
                         workExperience: workExperience,
                         lastVisit: lastVisit,
-                        isPublic: true
-                    );
+                        isPublic: true);
+
                     ScraperLogger.LogEnqueue(
                         _logger,
                         entityType: "UserProfile",
@@ -280,7 +280,7 @@ namespace JobBoardScraper.Scrapers;
             controller: _adaptiveConcurrencyController,
             ct: ct
         );
-        
+
         _statistics.EndTime = DateTime.Now;
         ScraperLogger.LogEnd(_logger, _statistics);
     }

@@ -43,7 +43,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
         _logger = new ConsoleLogger("CompanyRatingScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация CompanyRatingScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyRatingScraper с режимом вывода: {outputMode}");
     }
 
     public void Dispose()
@@ -178,7 +178,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.WriteLine($"URL {url}: HTTP {(int)response.StatusCode}");
+                ScraperLogger.LogError(_logger, $"URL {url}: HTTP {(int)response.StatusCode}");
                 break;
             }
 
@@ -215,7 +215,7 @@ public sealed class CompanyRatingScraper : IDisposable
             var companiesCount = companies.Count;
             _statistics.AddItemsCollected(companiesCount);
 
-            _logger.WriteLine($"URL {url}: найдено {companiesCount} компаний");
+            ScraperLogger.LogInfo(_logger, $"URL {url}: найдено {companiesCount} компаний");
 
             // Если компаний не найдено, останавливаем пагинацию
             if (companiesCount == 0)

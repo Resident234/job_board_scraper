@@ -50,7 +50,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация CompanyDetailScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyDetailScraper с режимом вывода: {outputMode}");
     }
 
     public void Dispose()
@@ -104,10 +104,10 @@ public sealed class CompanyDetailScraper : IDisposable
         // Получаем список компаний из БД
         var companies = _getCompanies();
         var totalCompanies = companies.Count;
-        
+
         // Используем ProgressTracker для отслеживания прогресса
         _progress = new ProgressTracker(totalCompanies, "CompanyDetails");
-        
+
         ScraperLogger.LogCount(_logger, "Загружено", totalCompanies, "компаний", " из БД");
 
         if (totalCompanies == 0)
@@ -148,6 +148,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     if (!response.IsSuccessStatusCode)
                     {
+                        ScraperLogger.LogError(_logger, $"URL {url}: HTTP {(int)response.StatusCode}");
                         _statistics.IncrementSkipped();
                         return;
                     }
@@ -309,8 +310,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                 {
                                     companyId = parsedId;
                                     companyIdFound = true;
-                                    _logger.WriteLine(
-                                        $"Компания {code}: ID извлечен из company_fav_button: {companyId}");
+                                    ScraperLogger.LogInfo(_logger, $"Компания {code}: ID извлечен из company_fav_button: {companyId}");
                                 }
                             }
                         }
@@ -333,8 +333,7 @@ public sealed class CompanyDetailScraper : IDisposable
                                     {
                                         companyId = parsedId;
                                         companyIdFound = true;
-                                        _logger.WriteLine(
-                                            $"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
+                                        ScraperLogger.LogInfo(_logger, $"Компания {code}: ID извлечен из альтернативной ссылки: {companyId}");
                                     }
                                 }
                             }
