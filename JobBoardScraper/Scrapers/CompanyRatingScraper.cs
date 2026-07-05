@@ -186,31 +186,31 @@ public sealed class CompanyRatingScraper : IDisposable
             var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
             // Парсим компании на странице
-            var companies = await ParseCompaniesFromPage(doc, ct);
+            var companies = CompanyDataExtractor.ParseCompaniesFromPage(doc, ct);
             
-                // Добавляем в очередь БД
-                foreach (var company in companies)
-                {
-                    _db.EnqueueCompany(
-                        companyCode: company.CompanyCode,
-                        companyUrl: company.CompanyUrl,
-                        companyTitle: company.CompanyTitle,
-                        companyRating: company.Rating,
-                        companyAbout: company.About,
-                        city: company.City,
-                        awards: company.Awards,
-                        scores: company.Scores,
-                        reviewRecords: company.ReviewRecords);
-                        
-                    ScraperLogger.LogEnqueue(
-                        _logger,
-                        "Company",
-                        company.CompanyCode,
-                        ("Url", company.CompanyUrl),
-                        ("Title", company.CompanyTitle),
-                        ("Rating", company.Rating?.ToString("F2") ?? "N/A"),
-                        ("City", company.City ?? "N/A"));
-                }
+            // Добавляем в очередь БД
+            foreach (var company in companies)
+            {
+                _db.EnqueueCompany(
+                    companyCode: company.CompanyCode,
+                    companyUrl: company.CompanyUrl,
+                    companyTitle: company.CompanyTitle,
+                    companyRating: company.Rating,
+                    companyAbout: company.About,
+                    city: company.City,
+                    awards: company.Awards,
+                    scores: company.Scores,
+                    reviewRecords: company.ReviewRecords);
+                    
+                ScraperLogger.LogEnqueue(
+                    _logger,
+                    "Company",
+                    company.CompanyCode,
+                    ("Url", company.CompanyUrl),
+                    ("Title", company.CompanyTitle),
+                    ("Rating", company.Rating?.ToString("F2") ?? "N/A"),
+                    ("City", company.City ?? "N/A"));
+            }
 
             var companiesCount = companies.Count;
             _statistics.AddItemsCollected(companiesCount);
@@ -229,141 +229,5 @@ public sealed class CompanyRatingScraper : IDisposable
         }
     }
 
-    private async Task<List<CompanyRecord>> ParseCompaniesFromPage(AngleSharp.Dom.IDocument doc, CancellationToken ct)
-    {
-        var companies = new List<CompanyRecord>();
-        var sections = doc.QuerySelectorAll(AppConfig.CompanyRatingSectionSelector);
-
-        foreach (var section in sections)
-        {
-            try
-            {
-                if (ExtractCompanyData(section) is { } company)
-                {
-                    companies.Add(company);
-                }
-            }
-            catch (Exception ex)
-            {
-                ScraperLogger.LogError(_logger, "Ошибка при парсинге компании", ex);
-            }
-        }
-
-        return companies;
-    }
-
-    private CompanyRecord? ExtractCompanyData(AngleSharp.Dom.IElement section)
-    {
-        // 1. Извлекаем код компании из ссылки
-        var titleLink = section.QuerySelector(AppConfig.CompanyRatingTitleLinkSelector);
-        if (titleLink == null) return null;
-
-        var href = titleLink.GetAttribute("href");
-        if (string.IsNullOrWhiteSpace(href)) return null;
-
-        // Извлекаем код из href (например, "/companies/tensor" или "https://career.habr.com/companies/tensor" -> "tensor")
-        var path = UrlManager.GetAbsolutePath(href);
-        var code = path.TrimStart('/').Replace(AppConfig.CompanyRatingCompanyPathPrefix, "").Trim('/');
-        if (string.IsNullOrWhiteSpace(code)) return null;
-
-        var url = string.Format(AppConfig.CompanyRatingCompanyUrlTemplate, code);
-
-        // 2. Извлекаем название компании
-        var titleElement = section.QuerySelector(AppConfig.CompanyRatingTitleTextSelector);
-        var title = titleElement?.TextContent?.Trim();
-
-        // 3. Извлекаем рейтинг
-        decimal? rating = null;
-        var ratingElement = section.QuerySelector(AppConfig.CompanyRatingRatingSelector);
-        if (ratingElement != null)
-        {
-            // Получаем весь текст, включая дочерние элементы
-            var fullText = ratingElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(fullText))
-            {
-                // Ищем числовое значение с помощью регулярного выражения
-                var match = System.Text.RegularExpressions.Regex.Match(fullText, @"(\d+[.,]\d+|\d+)");
-                if (match.Success && decimal.TryParse(match.Value.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ratingValue))
-                {
-                    rating = ratingValue;
-                }
-            }
-        }
-
-        // 4. Извлекаем описание
-        var descriptionElement = section.QuerySelector(AppConfig.CompanyRatingDescriptionSelector);
-        var about = descriptionElement?.TextContent?.Trim();
-
-        // 5. Извлекаем город (первый элемент до разделителя)
-        string? city = null;
-        var metaElement = section.QuerySelector(AppConfig.CompanyRatingMetaSelector);
-        if (metaElement != null)
-        {
-            var cityLink = metaElement.QuerySelector(AppConfig.CompanyRatingCityLinkSelector);
-            if (cityLink != null)
-            {
-                city = cityLink.TextContent?.Trim();
-            }
-        }
-
-        // 6. Извлекаем награды
-        var awards = new List<string>();
-        var awardsContainer = section.QuerySelector(AppConfig.CompanyRatingAwardsSelector);
-        if (awardsContainer != null)
-        {
-            var awardImages = awardsContainer.QuerySelectorAll(AppConfig.CompanyRatingAwardImageSelector);
-            foreach (var img in awardImages)
-            {
-                var alt = img.GetAttribute("alt");
-                if (!string.IsNullOrWhiteSpace(alt))
-                {
-                    awards.Add(alt.Trim());
-                }
-            }
-        }
-
-        // 7. Извлекаем среднюю оценку
-        decimal? scores = null;
-        var scoresElement = section.QuerySelector(AppConfig.CompanyRatingScoresSelector);
-        if (scoresElement != null)
-        {
-            var scoresText = scoresElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(scoresText) && decimal.TryParse(scoresText.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var scoresValue))
-            {
-                scores = scoresValue;
-            }
-        }
-
-                // 8. Извлекаем текст отзыва (очищенный от HTML) и вычисляем хеш
-                List<CompanyReviewRecord>? reviewRecords = null;
-                var reviewElement = section.QuerySelector(AppConfig.CompanyRatingReviewSelector);
-                if (reviewElement != null)
-                {
-                    var reviewText = reviewElement.TextContent?.Trim();
-                    if (!string.IsNullOrWhiteSpace(reviewText))
-                    {
-                reviewRecords = new List<CompanyReviewRecord>
-                {
-                    new CompanyReviewRecord(
-                        CompanyCode: code,
-                        ReviewHash: HashUtils.ComputeHash(reviewText),
-                        ReviewText: reviewText
-                    )
-                };
-                    }
-                }
-
-                return new CompanyRecord(
-                    CompanyCode: code,
-                    CompanyUrl: url,
-                    CompanyTitle: title,
-                    Rating: rating,
-                    About: about,
-                    City: city,
-                    Awards: awards.Count > 0 ? awards : null,
-                    Scores: scores,
-                    ReviewRecords: reviewRecords
-                );
-    }
 
 }
