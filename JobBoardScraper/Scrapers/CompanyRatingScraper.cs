@@ -6,7 +6,6 @@ using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using JobBoardScraper.Parsing;
 
@@ -343,14 +342,14 @@ public sealed class CompanyRatingScraper : IDisposable
                     var reviewText = reviewElement.TextContent?.Trim();
                     if (!string.IsNullOrWhiteSpace(reviewText))
                     {
-                        reviewRecords = new List<CompanyReviewRecord> 
-                        { 
-                            new CompanyReviewRecord(
-                                CompanyCode: code, 
-                                ReviewHash: ComputeReviewHash(reviewText), 
-                                ReviewText: reviewText
-                            ) 
-                        };
+                reviewRecords = new List<CompanyReviewRecord>
+                {
+                    new CompanyReviewRecord(
+                        CompanyCode: code,
+                        ReviewHash: HashUtils.ComputeHash(reviewText),
+                        ReviewText: reviewText
+                    )
+                };
                     }
                 }
 
@@ -367,17 +366,4 @@ public sealed class CompanyRatingScraper : IDisposable
                 );
     }
 
-    /// <summary>
-    /// Вычисляет SHA256 хеш для текста отзыва
-    /// </summary>
-    public static string ComputeReviewHash(string reviewText)
-    {
-        if (string.IsNullOrWhiteSpace(reviewText))
-            return string.Empty;
-
-        using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(reviewText);
-        var hash = sha256.ComputeHash(bytes);
-        return Convert.ToHexString(hash).ToLowerInvariant();
-    }
 }
