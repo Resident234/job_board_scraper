@@ -276,7 +276,7 @@ public static class UrlManager
     /// <param name="categoryId">Идентификатор категории.</param>
     /// <param name="additionalFilter">Дополнительный фильтр (например, <c>with_vacancies=1</c>).</param>
     /// <returns>Сформированный URL.</returns>
-    public static string BuildCompanyListUrl(
+    public static string BuildCompaniesListUrl(
         int page,
         int? sizeFilter,
         string? categoryId,

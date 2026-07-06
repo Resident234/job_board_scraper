@@ -97,7 +97,7 @@ public sealed class CompanyListScraper : IDisposable
         var totalCompaniesOnSite = await GetTotalCompaniesCountAsync(ct);
         if (totalCompaniesOnSite > 0)
         {
-            ScraperLogger.LogInfo(_logger, $"На сайте найдено {totalCompaniesOnSite:N0} компаний");
+            ScraperLogger.LogCount(_logger, "Найдено", totalCompaniesOnSite, "компаний", "на сайте");
         }
 
         var sizeFilters = new int?[] { null, 1, 2, 3, 4, 5 };
@@ -316,7 +316,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             try
             {
-                var url = UrlManager.BuildCompanyListUrl(page, sizeFilter, categoryId, additionalFilter);
+                var url = UrlManager.BuildCompaniesListUrl(page, sizeFilter, categoryId, additionalFilter);
                 ScraperLogger.LogInfo(_logger, $"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
@@ -387,7 +387,7 @@ public sealed class CompanyListScraper : IDisposable
 
                 _statistics.AddItemsCollected(companiesOnPage);
                 _statistics.IncrementSuccess();
-                ScraperLogger.LogInfo(_logger, $"Страница {page}: найдено {companiesOnPage} уникальных компаний. Всего собрано: {_statistics.TotalItemsCollected}");
+                ScraperLogger.LogCount(_logger, "Найдено", companiesOnPage, "компаний", $"на странице {page}. Всего собрано: {_statistics.TotalItemsCollected}");
 
                 // Проверяем наличие следующей страницы
                 hasMorePages = CompanyDataExtractor.HasNextPage(doc, page);

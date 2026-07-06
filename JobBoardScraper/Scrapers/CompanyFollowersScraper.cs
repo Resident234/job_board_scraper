@@ -144,7 +144,7 @@ public sealed class CompanyFollowersScraper : IDisposable
             ct: ct
         );
         
-        ScraperLogger.LogEnd(_logger, $"Всего найдено пользователей: {totalUsersFound}");
+        ScraperLogger.LogCount(_logger, "Найдено пользователей", totalUsersFound, "пользователей");
     }
 
     private async Task<(int UsersFound, int LastStatusCode)> ScrapeCompanyFollowersAsync(string companyCode, CancellationToken ct)

@@ -627,9 +627,9 @@ public sealed class ResumeListPageScraper : IDisposable
                 ("Title", profile.Title),
                 ("Code", profile.Code ?? "(не найдено)"));
         }
-        var profilesFound = profiles.Count;
-        
-        ScraperLogger.LogEnd(_logger, $"Найдено профилей: {profilesFound}");
+         var profilesFound = profiles.Count;
+
+         ScraperLogger.LogCount(_logger, "Найдено", profilesFound, "профилей");
     }
 
     private async Task ScrapeSkillsEnumerationAsync(CancellationToken ct)
