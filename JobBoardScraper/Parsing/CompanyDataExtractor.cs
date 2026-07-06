@@ -11,6 +11,27 @@ namespace JobBoardScraper.Parsing;
 public static class CompanyDataExtractor
 {
     /// <summary>
+    /// Извлекает общее количество компаний из HTML-документа
+    /// </summary>
+    public static int ExtractTotalCompaniesCount(IHtmlDocument doc)
+    {
+        var totalElement = doc.QuerySelector(AppConfig.CompaniesTotalSelector);
+        if (totalElement == null)
+            return 0;
+
+        var text = totalElement.TextContent;
+        var match = Regex.Match(text, AppConfig.CompaniesTotalRegex);
+        if (!match.Success)
+            return 0;
+
+        var numberStr = StringUtils.RemoveAllWhitespace(match.Groups[1].Value);
+        if (int.TryParse(numberStr, out var total))
+            return total;
+
+        return 0;
+    }
+
+    /// <summary>
     /// Парсит список компаний с HTML-документа
     /// </summary>
     public static List<CompanyRecord> ParseCompaniesFromPage(IDocument doc, CancellationToken ct)

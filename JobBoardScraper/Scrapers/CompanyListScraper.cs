@@ -3,6 +3,7 @@ using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Infrastructure.Url;
+using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
@@ -140,7 +141,7 @@ public sealed class CompanyListScraper : IDisposable
     {
         var totalFilters = sizeFilters.Length + categoryIds.Count + additionalFilters.Count;
         _progressLogger = new ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
-        ScraperLogger.LogInfo(_logger, $"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
+        ScraperLogger.LogPage(_logger, 0, $"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
 
         // Обходим с параметрами sz (включая null = без фильтра)
         foreach (var sz in sizeFilters)
@@ -148,7 +149,7 @@ public sealed class CompanyListScraper : IDisposable
             if (ct.IsCancellationRequested) break;
 
             var filterName = sz.HasValue ? $"sz={sz}" : "без фильтра";
-            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром {filterName}...");
+            ScraperLogger.LogPage(_logger, 0, $"Обход компаний с фильтром {filterName}...");
             await ScrapeWithFiltersAsync(sz, null, null, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Фильтр {filterName}");
@@ -159,7 +160,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             if (ct.IsCancellationRequested) break;
 
-            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром category_root_id={categoryId}...");
+            ScraperLogger.LogPage(_logger, 0, $"Обход компаний с фильтром category_root_id={categoryId}...");
             await ScrapeWithFiltersAsync(null, categoryId, null, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Категория {categoryId}");
@@ -170,7 +171,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             if (ct.IsCancellationRequested) break;
 
-            ScraperLogger.LogInfo(_logger, $"Обход компаний с фильтром {filter.Key}={filter.Value}...");
+            ScraperLogger.LogPage(_logger, 0, $"Обход компаний с фильтром {filter.Key}={filter.Value}...");
             await ScrapeWithFiltersAsync(null, null, filter, ct);
             _progressLogger.Increment();
             LogCompanyProgress(totalCompaniesOnSite, $"Фильтр {filter.Key}={filter.Value}");
@@ -198,10 +199,10 @@ public sealed class CompanyListScraper : IDisposable
         // Общее количество комбинаций
         var totalCombinations = sizeFilters.Length * categoryOptions.Count * additionalOptions.Count;
         _progressLogger = new ScraperProgressLogger(totalCombinations, "CompanyListScraper", _logger, "Combinations");
-        ScraperLogger.LogInfo(_logger, $"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
-        ScraperLogger.LogInfo(_logger, $"  - Размеры (sz): {sizeFilters.Length} вариантов");
-        ScraperLogger.LogInfo(_logger, $"  - Категории: {categoryOptions.Count} вариантов");
-        ScraperLogger.LogInfo(_logger, $"  - Доп. фильтры: {additionalOptions.Count} вариантов");
+        ScraperLogger.LogPage(_logger, 0, $"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
+        ScraperLogger.LogPage(_logger, 0, $"  - Размеры (sz): {sizeFilters.Length} вариантов");
+        ScraperLogger.LogPage(_logger, 0, $"  - Категории: {categoryOptions.Count} вариантов");
+        ScraperLogger.LogPage(_logger, 0, $"  - Доп. фильтры: {additionalOptions.Count} вариантов");
 
         var combinationIndex = 0;
 
@@ -219,7 +220,7 @@ public sealed class CompanyListScraper : IDisposable
 
                     combinationIndex++;
                     var filterDesc = BuildFilterDescription(sz, categoryId, additionalFilter);
-                    ScraperLogger.LogInfo(_logger, $"Комбинация {combinationIndex}/{totalCombinations}: {filterDesc}");
+                    ScraperLogger.LogPage(_logger, 0, $"Комбинация {combinationIndex}/{totalCombinations}: {filterDesc}");
 
                     await ScrapeWithFiltersAsync(sz, categoryId, additionalFilter, ct);
                     _progressLogger.Increment();
@@ -262,19 +263,7 @@ public sealed class CompanyListScraper : IDisposable
             var html = await response.Content.ReadAsStringAsync(ct);
             var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-            var totalElement = doc.QuerySelector(AppConfig.CompaniesTotalSelector);
-            if (totalElement == null)
-                return 0;
-
-            var text = totalElement.TextContent;
-            var match = System.Text.RegularExpressions.Regex.Match(text, AppConfig.CompaniesTotalRegex);
-            if (!match.Success)
-                return 0;
-
-            // Убираем пробелы из числа (37 847 -> 37847)
-            var numberStr = match.Groups[1].Value.Replace(" ", "").Replace("\u00A0", "");
-            if (int.TryParse(numberStr, out var total))
-                return total;
+            return CompanyDataExtractor.ExtractTotalCompaniesCount(doc);
         }
         catch (OperationCanceledException)
         {
@@ -315,7 +304,7 @@ public sealed class CompanyListScraper : IDisposable
             try
             {
                 var url = UrlManager.BuildCompaniesListUrl(page, sizeFilter, categoryId, additionalFilter);
-                ScraperLogger.LogInfo(_logger, $"Обработка страницы {page}: {url}");
+                ScraperLogger.LogPage(_logger, page, url);
 
                 var response = await _httpClient.GetAsync(url, ct);
 
@@ -323,7 +312,7 @@ public sealed class CompanyListScraper : IDisposable
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    ScraperLogger.LogError(_logger, $"Страница {page}: HTTP {(int)response.StatusCode}");
+                    ScraperLogger.LogPage(_logger, page, $"HTTP {(int)response.StatusCode}");
                     _statistics.IncrementFailed();
                     break;
                 }
@@ -376,5 +365,4 @@ public sealed class CompanyListScraper : IDisposable
             }
         }
     }
-
 }
