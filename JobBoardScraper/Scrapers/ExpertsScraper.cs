@@ -35,7 +35,7 @@ public sealed class ExpertsScraper : IDisposable
 
         _logger = new ConsoleLogger("ExpertsScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация ExpertsScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "ExpertsScraper", outputMode);
     }
 
     public void Dispose()

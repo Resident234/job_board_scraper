@@ -42,7 +42,7 @@ public sealed class UserFriendsScraper : IDisposable
         
         _logger = new ConsoleLogger("UserFriendsScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация UserFriendsScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "UserFriendsScraper", outputMode);
     }
 
     public void Dispose()

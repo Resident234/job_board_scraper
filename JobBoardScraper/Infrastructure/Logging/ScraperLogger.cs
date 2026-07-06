@@ -316,6 +316,15 @@ public static class ScraperLogger
             : $"{delayMs / 1000.0:F1}с";
     }
 
+    /// <summary>
+    /// Логирует инициализацию скрапера с указанием его имени и режима вывода.
+    /// Пример: "📝 Инициализация CompanyRatingScraper с режимом вывода: ConsoleOnly"
+    /// </summary>
+    public static void LogInitialization(ConsoleLogger? logger, string scraperName, OutputMode outputMode)
+    {
+        WriteLine(logger, $"📝 Инициализация {scraperName} с режимом вывода: {outputMode}");
+    }
+
     private static void WriteLine(ConsoleLogger? logger, string message)
     {
         if (logger != null)

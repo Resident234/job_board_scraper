@@ -51,7 +51,7 @@ public sealed class UserProfileScraper : IDisposable
 
         _logger = new ConsoleLogger("UserProfileScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация UserProfileScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "UserProfileScraper", outputMode);
     }
 
     public void Dispose()

@@ -43,7 +43,7 @@ public sealed class CompanyRatingScraper : IDisposable
 
         _logger = new ConsoleLogger("CompanyRatingScraper");
         _logger.SetOutputMode(outputMode);
-        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyRatingScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "CompanyRatingScraper", outputMode);
     }
 
     public void Dispose()

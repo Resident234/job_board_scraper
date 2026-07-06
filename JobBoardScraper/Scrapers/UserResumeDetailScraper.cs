@@ -52,7 +52,7 @@ public sealed class UserResumeDetailScraper : IDisposable
 
         _logger = new ConsoleLogger("UserResumeDetailScraper");
         _logger.SetOutputMode(outputMode);
-        ScraperLogger.LogInfo(_logger, $"Инициализация UserResumeDetailScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "UserResumeDetailScraper", outputMode);
 
         if (_proxyCoordinator != null)
         {

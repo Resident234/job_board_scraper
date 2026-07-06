@@ -38,7 +38,7 @@ public sealed class BruteForceUsernameScraper
         
         _logger = new ConsoleLogger("BruteForceUsernameScraper");
         _logger.SetOutputMode(OutputMode.ConsoleOnly);
-        _logger.WriteLine("Инициализация BruteForceUsernameScraper");
+        ScraperLogger.LogInitialization(_logger, "BruteForceUsernameScraper", OutputMode.ConsoleOnly);
     }
 
     public async Task RunAsync(CancellationToken ct)

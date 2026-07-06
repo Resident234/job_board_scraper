@@ -38,7 +38,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         
         _logger = new ConsoleLogger("CompanyFollowersScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация CompanyFollowersScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "CompanyFollowersScraper", outputMode);
     }
 
     public void Dispose()

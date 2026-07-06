@@ -42,7 +42,7 @@ public sealed class CompanyListScraper : IDisposable
 
         _logger = new ConsoleLogger("CompanyListScraper");
         _logger.SetOutputMode(outputMode);
-        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyListScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "CompanyListScraper", outputMode);
     }
 
     public void Dispose()

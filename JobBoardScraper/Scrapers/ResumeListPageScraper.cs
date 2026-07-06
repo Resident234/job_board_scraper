@@ -48,7 +48,7 @@ public sealed class ResumeListPageScraper : IDisposable
         
         _logger = new ConsoleLogger("ResumeListPageScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация ResumeListPageScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "ResumeListPageScraper", outputMode);
     }
 
     public void Dispose()

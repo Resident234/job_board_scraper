@@ -1,6 +1,7 @@
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Statistics;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
@@ -30,7 +31,7 @@ public sealed class CategoryScraper : IDisposable
 
         _logger = new ConsoleLogger("CategoryScraper");
         _logger.SetOutputMode(outputMode);
-        _logger.WriteLine($"Инициализация CategoryScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "CategoryScraper", outputMode);
     }
 
     public void Dispose()

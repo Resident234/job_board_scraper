@@ -50,7 +50,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
         _logger = new ConsoleLogger("CompanyDetailScraper");
         _logger.SetOutputMode(outputMode);
-        ScraperLogger.LogInfo(_logger, $"Инициализация CompanyDetailScraper с режимом вывода: {outputMode}");
+        ScraperLogger.LogInitialization(_logger, "CompanyDetailScraper", outputMode);
     }
 
     public void Dispose()
