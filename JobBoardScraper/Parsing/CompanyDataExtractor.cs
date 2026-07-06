@@ -245,4 +245,21 @@ public static class CompanyDataExtractor
 
         return companies;
     }
+
+    /// <summary>
+    /// Проверяет наличие следующей страницы подписчиков компании.
+    /// </summary>
+    public static bool HasNextFollowersPage(IHtmlDocument doc, int currentPage, string companyCode)
+    {
+        var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
+        var nextPageLink = doc.QuerySelector(nextPageSelector);
+
+        if (nextPageLink == null)
+        {
+            ScraperLogger.LogPage(null, currentPage, $"Достигнута последняя страница для компании {companyCode}.");
+            return false;
+        }
+
+        return true;
+    }
 }

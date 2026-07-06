@@ -247,13 +247,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 _logger.WriteLine($"Страница {page}: найдено {usersOnPage} пользователей.");
 
                 // Проверяем наличие следующей страницы
-                var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, page + 1);
-                var nextPageLink = doc.QuerySelector(nextPageSelector);
-                if (nextPageLink == null)
-                {
-                    ScraperLogger.LogPage(_logger, page, $"Достигнута последняя страница для компании {companyCode}.");
-                    hasMorePages = false;
-                }
+                hasMorePages = CompanyDataExtractor.HasNextFollowersPage(doc, page, companyCode);
 
                 page++;
                 
