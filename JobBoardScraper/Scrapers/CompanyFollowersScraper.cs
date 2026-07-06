@@ -192,7 +192,6 @@ public sealed class CompanyFollowersScraper : IDisposable
                 if (userItems.Length == 0)
                 {
                     _logger.WriteLine($"На странице {page} не найдено пользователей. Завершение обхода компании {companyCode}.");
-                    _logger.WriteLine($"Проверьте селектор в файле: {Path.Combine(AppConfig.LoggingOutputDirectory, "CompanyFollowersScraper_last_page.html")}");
                     hasMorePages = false;
                     break;
                 }
@@ -244,7 +243,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                     }
                 }
 
-                _logger.WriteLine($"Страница {page}: найдено {usersOnPage} пользователей.");
+                ScraperLogger.LogCount(_logger, $"Страница {page}", usersOnPage, "пользователей");
 
                 // Проверяем наличие следующей страницы
                 hasMorePages = CompanyDataExtractor.HasNextFollowersPage(doc, page, companyCode);
