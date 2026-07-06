@@ -158,7 +158,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         {
             try
             {
-                var url = BuildUrl(companyCode, page);
+                var url = UrlManager.BuildCompanyFollowersUrl(companyCode, page);
                 _logger.WriteLine($"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
@@ -275,15 +275,4 @@ public sealed class CompanyFollowersScraper : IDisposable
         return (totalUsersFound, lastStatusCode);
     }
 
-    private string BuildUrl(string companyCode, int page)
-    {
-        var baseUrl = string.Format(AppConfig.CompanyFollowersUrlTemplate, companyCode);
-        
-        if (page == 1)
-        {
-            return baseUrl;
-        }
-
-        return UrlManager.AddQueryParameter(baseUrl, "page", page.ToString());
-    }
 }

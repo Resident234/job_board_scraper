@@ -316,4 +316,22 @@ public static class UrlManager
     {
         return WithPage(AppConfig.ExpertsListUrl, page);
     }
+
+    /// <summary>
+    /// Формирует URL для страницы подписчиков компании.
+    /// </summary>
+    /// <param name="companyCode">Код компании.</param>
+    /// <param name="page">Номер страницы.</param>
+    /// <returns>URL страницы подписчиков компании.</returns>
+    public static string BuildCompanyFollowersUrl(string companyCode, int page)
+    {
+        var baseUrl = string.Format(AppConfig.CompanyFollowersUrlTemplate, companyCode);
+
+        if (page == 1)
+        {
+            return baseUrl;
+        }
+
+        return AddQueryParameter(baseUrl, "page", page.ToString());
+    }
 }
