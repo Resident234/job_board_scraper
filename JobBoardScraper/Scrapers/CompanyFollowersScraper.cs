@@ -251,7 +251,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var nextPageLink = doc.QuerySelector(nextPageSelector);
                 if (nextPageLink == null)
                 {
-                    _logger.WriteLine($"Достигнута последняя страница ({page}) для компании {companyCode}.");
+                    ScraperLogger.LogPage(_logger, page, $"Достигнута последняя страница для компании {companyCode}.");
                     hasMorePages = false;
                 }
 

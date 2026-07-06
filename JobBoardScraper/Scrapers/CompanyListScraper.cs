@@ -316,7 +316,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             try
             {
-                var url = UrlManager.BuildUrlWithFilters(AppConfig.CompaniesListUrl, page, sizeFilter, categoryId, additionalFilter);
+                var url = UrlManager.BuildCompanyListUrl(page, sizeFilter, categoryId, additionalFilter);
                 ScraperLogger.LogInfo(_logger, $"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
@@ -394,7 +394,7 @@ public sealed class CompanyListScraper : IDisposable
                 var nextPageLink = doc.QuerySelector(nextPageSelector);
                 if (nextPageLink == null)
                 {
-                    ScraperLogger.LogInfo(_logger, $"Достигнута последняя страница ({page}). Завершение обхода.");
+                    ScraperLogger.LogPage(_logger, page);
                     hasMorePages = false;
                 }
 

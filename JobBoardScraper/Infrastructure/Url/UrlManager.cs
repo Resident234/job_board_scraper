@@ -269,6 +269,45 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Формирует URL для списка компаний с учетом фильтров.
+    /// </summary>
+    /// <param name="page">Номер страницы.</param>
+    /// <param name="sizeFilter">Фильтр по размеру компании (например, <c>sz=1</c>).</param>
+    /// <param name="categoryId">Идентификатор категории.</param>
+    /// <param name="additionalFilter">Дополнительный фильтр (например, <c>with_vacancies=1</c>).</param>
+    /// <returns>Сформированный URL.</returns>
+    public static string BuildCompanyListUrl(
+        int page,
+        int? sizeFilter,
+        string? categoryId,
+        KeyValuePair<string, string>? additionalFilter)
+    {
+        var url = AppConfig.CompaniesListUrl;
+
+        if (page > 1)
+        {
+            url = WithPage(url, page);
+        }
+
+        if (sizeFilter.HasValue)
+        {
+            url = AddQueryParameter(url, "sz", sizeFilter.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(categoryId))
+        {
+            url = AddQueryParameter(url, "category_root_id", categoryId);
+        }
+
+        if (additionalFilter.HasValue)
+        {
+            url = AddQueryParameter(url, additionalFilter.Value.Key, additionalFilter.Value.Value);
+        }
+
+        return url;
+    }
+
+    /// <summary>
     /// Формирует URL страницы списка экспертов.
     /// </summary>
     /// <param name="page">Номер страницы (<c>1</c> — без параметра пагинации).</param>
