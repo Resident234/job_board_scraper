@@ -262,6 +262,22 @@ public static class ScraperLogger
     }
 
     /// <summary>
+    /// Логирует количество вариантов фильтров.
+    /// Пример: "Σ Варианты фильтров: (Size, 6), (Category, 10), (Additional, 4)"
+    /// </summary>
+    public static void LogCount(ConsoleLogger? logger, string action, params (string Name, int Value)[] filterOptions)
+    {
+        var fields = new List<(string Name, string Value)>();
+        foreach (var option in filterOptions)
+        {
+            fields.Add((option.Name, option.Value.ToString()));
+        }
+
+        var msg = $"{CountIcon} {action}: {string.Join(", ", fields.Select(f => $"({f.Name}, {f.Value})"))}";
+        WriteLine(logger, msg);
+    }
+
+    /// <summary>
     /// Логирует фильтр или комбинацию фильтров с параметрами.
     /// Пример: "🔍 Combination 1/10: (Size, 5), (Category, 123)"
     /// </summary>

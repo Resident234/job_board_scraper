@@ -142,7 +142,7 @@ public sealed class CompanyListScraper : IDisposable
     {
         var totalFilters = sizeFilters.Length + categoryIds.Count + additionalFilters.Count;
         _progressLogger = new ScraperProgressLogger(totalFilters, "CompanyListScraper", _logger, "Filters");
-        ScraperLogger.LogPage(_logger, 0, $"Режим: простой обход фильтров. Всего фильтров: {totalFilters}");
+        ScraperLogger.LogCount(_logger, "Режим: простой обход фильтров", ("Total", totalFilters));
 
         // Обходим с параметрами sz (включая null = без фильтра)
         foreach (var sz in sizeFilters)
@@ -199,10 +199,11 @@ public sealed class CompanyListScraper : IDisposable
         // Общее количество комбинаций
         var totalCombinations = sizeFilters.Length * categoryOptions.Count * additionalOptions.Count;
         _progressLogger = new ScraperProgressLogger(totalCombinations, "CompanyListScraper", _logger, "Combinations");
-        ScraperLogger.LogPage(_logger, 0, $"Режим: полный перебор комбинаций. Всего комбинаций: {totalCombinations}");
-        ScraperLogger.LogPage(_logger, 0, $"  - Размеры (sz): {sizeFilters.Length} вариантов");
-        ScraperLogger.LogPage(_logger, 0, $"  - Категории: {categoryOptions.Count} вариантов");
-        ScraperLogger.LogPage(_logger, 0, $"  - Доп. фильтры: {additionalOptions.Count} вариантов");
+        ScraperLogger.LogCount(_logger, "Режим: полный перебор комбинаций", ("Total", totalCombinations));
+        ScraperLogger.LogCount(_logger, "Варианты фильтров",
+            ("Size", sizeFilters.Length),
+            ("Category", categoryOptions.Count),
+            ("Additional", additionalOptions.Count));
 
         var combinationIndex = 0;
 
