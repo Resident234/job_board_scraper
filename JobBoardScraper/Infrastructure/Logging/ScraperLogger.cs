@@ -20,6 +20,7 @@ public static class ScraperLogger
     private const string EnqueueIcon = "⇪";
     private const string SkipIcon = "⏭";
     private const string CountIcon = "Σ";
+    private const string FilterIcon = "🔍";
     private const string HtmlIcon = "💾";
     private const string ErrorIcon = "✖";
     private const string WarnIcon = "⚠";
@@ -261,6 +262,50 @@ public static class ScraperLogger
     }
 
     /// <summary>
+    /// Логирует фильтр или комбинацию фильтров с параметрами.
+    /// Пример: "🔍 Combination 1/10: (Size, 5), (Category, 123)"
+    /// </summary>
+    public static void LogFilter(ConsoleLogger? logger, string description, int? size, string? categoryId, KeyValuePair<string, string>? additionalFilter)
+    {
+        var fields = new List<(string Name, string Value)>();
+
+        if (size.HasValue)
+            fields.Add(("Size", size.Value.ToString()));
+
+        if (!string.IsNullOrWhiteSpace(categoryId))
+            fields.Add(("Category", categoryId));
+
+        if (additionalFilter.HasValue)
+            fields.Add((additionalFilter.Value.Key, additionalFilter.Value.Value));
+
+        var header = $"{FilterIcon} {description}";
+        var body = FormatFields(fields.ToArray());
+        var msg = string.IsNullOrEmpty(body) ? header : $"{header}: {body}";
+        WriteLine(logger, msg);
+    }
+
+    /// <summary>
+    /// Логирует фильтр или комбинацию фильтров с заданными полями.
+    /// Пример: "🔍 Combination 1/10: (Size, 5), (Category, 123)"
+    /// </summary>
+    public static void LogFilter(ConsoleLogger? logger, string description, params (string Name, string Value)[] fields)
+    {
+        var header = $"{FilterIcon} {description}";
+        var body = FormatFields(fields);
+        var msg = string.IsNullOrEmpty(body) ? header : $"{header}: {body}";
+        WriteLine(logger, msg);
+    }
+
+    /// <summary>
+    /// Логирует фильтр или комбинацию фильтров без дополнительных параметров.
+    /// Пример: "🔍 Combination 1/10: No filters"
+    /// </summary>
+    public static void LogFilter(ConsoleLogger? logger, string description)
+    {
+        WriteLine(logger, $"{FilterIcon} {description}");
+    }
+
+    /// <summary>
     /// Форматирует набор пар (Name, Value) в читаемую строку: "{ Name = '...', Age = '...', ... }".
     /// Значение null выводится как "null". Значения-строки оборачиваются в кавычки.
     /// Коллекции выводятся как "N шт.".
@@ -280,6 +325,25 @@ public static class ScraperLogger
                 sb.Append(", ");
         }
         sb.Append(" }");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Форматирует набор пар (Name, Value) в читаемую строку для фильтров: "(Name, Value), (Name, Value), ...".
+    /// </summary>
+    private static string FormatFields(params (string Name, string Value)[] fields)
+    {
+        if (fields == null || fields.Length == 0)
+            return "No filters";
+
+        var sb = new StringBuilder();
+        for (int i = 0; i < fields.Length; i++)
+        {
+            var (name, value) = fields[i];
+            sb.Append($"({name}, {value})");
+            if (i < fields.Length - 1)
+                sb.Append(", ");
+        }
         return sb.ToString();
     }
 
