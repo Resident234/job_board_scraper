@@ -150,4 +150,17 @@ public static class CompanyDataExtractor
             ReviewRecords: reviewRecords
         );
     }
+
+    /// <summary>
+    /// Проверяет наличие следующей страницы на основе HTML-документа.
+    /// </summary>
+    /// <param name="doc">HTML-документ.</param>
+    /// <param name="currentPage">Текущая страница.</param>
+    /// <returns>True, если есть следующая страница.</returns>
+    public static bool HasNextPage(IDocument doc, int currentPage)
+    {
+        var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
+        var nextPageLink = doc.QuerySelector(nextPageSelector);
+        return nextPageLink != null;
+    }
 }

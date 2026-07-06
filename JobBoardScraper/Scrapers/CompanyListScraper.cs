@@ -390,12 +390,10 @@ public sealed class CompanyListScraper : IDisposable
                 ScraperLogger.LogInfo(_logger, $"Страница {page}: найдено {companiesOnPage} уникальных компаний. Всего собрано: {_statistics.TotalItemsCollected}");
 
                 // Проверяем наличие следующей страницы
-                var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, page + 1);
-                var nextPageLink = doc.QuerySelector(nextPageSelector);
-                if (nextPageLink == null)
+                hasMorePages = CompanyDataExtractor.HasNextPage(doc, page);
+                if (!hasMorePages)
                 {
                     ScraperLogger.LogPage(_logger, page);
-                    hasMorePages = false;
                 }
 
                 page++;
