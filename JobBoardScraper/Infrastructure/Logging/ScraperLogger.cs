@@ -71,6 +71,23 @@ public static class ScraperLogger
     }
 
     /// <summary>
+    /// Логирует завершение сбора компаний с указанием количества собранных компаний и процентом выполнения.
+    /// Пример: "■ Собрано 1234 из 5678 компаний (21.7%). {statistics}"
+    /// </summary>
+    public static void LogCompletion(ConsoleLogger? logger, int totalCollected, int totalOnSite, ScraperStatistics statistics)
+    {
+        if (totalOnSite > 0)
+        {
+            var percent = (double)totalCollected / totalOnSite * 100;
+            WriteLine(logger, $"{EndIcon} Собрано {totalCollected:N0} из {totalOnSite:N0} компаний ({percent:P1}). {statistics}");
+        }
+        else
+        {
+            WriteLine(logger, $"{EndIcon} {statistics}");
+        }
+    }
+
+    /// <summary>
     /// Логирует завершение, вызванное неуспешным HTTP-кодом.
     /// Пример: "■ Страница вернула код 404. Завершение."
     /// </summary>

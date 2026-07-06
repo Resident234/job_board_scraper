@@ -75,10 +75,17 @@ public sealed class ScraperProgressLogger
         WriteMessage($"[{_scraperName}] {filterDescription}{filterParameterDesc}{resultDesc}{orderDesc}:{foundPart} Прогресс: {_progress}.");
     }
 
-    public void LogCompletion(int totalItemsCollected, string? additionalInfo = null)
+    public void LogCompletion(int totalItemsCollected, int totalOnSite, ScraperStatistics statistics)
     {
-        var additionalPart = string.IsNullOrWhiteSpace(additionalInfo) ? "" : $" {additionalInfo}";
-        WriteMessage($"[{_scraperName}] Обход завершён. Обработано: {_progress.Processed}, Собрано: {totalItemsCollected}.{additionalPart}");
+        if (totalOnSite > 0)
+        {
+            var percent = (double)totalItemsCollected / totalOnSite * 100;
+            WriteMessage($"[{_scraperName}] Собрано {totalItemsCollected:N0} из {totalOnSite:N0} компаний ({percent:P1}). {statistics}");
+        }
+        else
+        {
+            WriteMessage($"[{_scraperName}] {statistics}");
+        }
     }
 
     public void LogError(string errorMessage)
