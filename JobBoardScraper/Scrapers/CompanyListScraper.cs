@@ -316,7 +316,7 @@ public sealed class CompanyListScraper : IDisposable
         {
             try
             {
-                var url = BuildUrl(page, sizeFilter, categoryId, additionalFilter);
+                var url = UrlManager.BuildUrlWithFilters(AppConfig.CompaniesListUrl, page, sizeFilter, categoryId, additionalFilter);
                 ScraperLogger.LogInfo(_logger, $"Обработка страницы {page}: {url}");
 
                 var response = await _httpClient.GetAsync(url, ct);
@@ -417,30 +417,4 @@ public sealed class CompanyListScraper : IDisposable
         }
     }
 
-    private static string BuildUrl(int page, int? sizeFilter, string? categoryId, KeyValuePair<string, string>? additionalFilter)
-    {
-        var url = AppConfig.CompaniesListUrl;
-
-        if (page > 1)
-        {
-            url = UrlManager.WithPage(url, page);
-        }
-
-        if (sizeFilter.HasValue)
-        {
-            url = UrlManager.WithQueryParam(url, "sz", sizeFilter.Value.ToString());
-        }
-
-        if (!string.IsNullOrWhiteSpace(categoryId))
-        {
-            url = UrlManager.WithQueryParam(url, "category_root_id", categoryId);
-        }
-
-        if (additionalFilter.HasValue)
-        {
-            url = UrlManager.WithQueryParam(url, additionalFilter.Key, additionalFilter.Value);
-        }
-
-        return url;
-    }
 }

@@ -1,4 +1,5 @@
 ﻿using JobBoardScraper.Core;
+using System.Collections.Generic;
 
 namespace JobBoardScraper.Infrastructure.Url;
 
@@ -11,6 +12,7 @@ namespace JobBoardScraper.Infrastructure.Url;
 ///   <item>формирование URL пагинации друзей (<c>/friends?page=N</c>);</item>
 ///   <item>получение абсолютного пути из абсолютного или относительного URL;</item>
 ///   <item>удаление базового префикса из полного URL.</item>
+///   <item>формирование URL с учетом фильтров для списка компаний.</item>
 /// </list>
 /// </summary>
 public static class UrlManager
@@ -170,6 +172,47 @@ public static class UrlManager
 
         var separator = basePart.Contains('?') ? "&" : "?";
         return $"{basePart}{separator}page={page}";
+    }
+
+    /// <summary>
+    /// Формирует URL для списка компаний с учетом фильтров.
+    /// </summary>
+    /// <param name="baseUrl">Базовый URL списка компаний.</param>
+    /// <param name="page">Номер страницы.</param>
+    /// <param name="sizeFilter">Фильтр по размеру компании (например, <c>sz=1</c>).</param>
+    /// <param name="categoryId">Идентификатор категории.</param>
+    /// <param name="additionalFilter">Дополнительный фильтр (например, <c>with_vacancies=1</c>).</param>
+    /// <returns>Сформированный URL.</returns>
+    public static string BuildUrlWithFilters(
+        string baseUrl,
+        int page,
+        int? sizeFilter,
+        string? categoryId,
+        KeyValuePair<string, string>? additionalFilter)
+    {
+        var url = baseUrl;
+
+        if (page > 1)
+        {
+            url = WithPage(url, page);
+        }
+
+        if (sizeFilter.HasValue)
+        {
+            url = AddQueryParameter(url, "sz", sizeFilter.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(categoryId))
+        {
+            url = AddQueryParameter(url, "category_root_id", categoryId);
+        }
+
+        if (additionalFilter.HasValue)
+        {
+            url = AddQueryParameter(url, additionalFilter.Value.Key, additionalFilter.Value.Value);
+        }
+
+        return url;
     }
 
     /// <summary>
