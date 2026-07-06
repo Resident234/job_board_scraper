@@ -381,7 +381,7 @@ public sealed class CompanyListScraper : IDisposable
                     var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
 
                     _enqueueCompany(companyCode, companyUrl, companyId);
-                    ScraperLogger.LogInfo(_logger, $"В очередь: {companyCode} -> {companyUrl}" + (companyId.HasValue ? $" (ID: {companyId})" : ""));
+                    ScraperLogger.LogEnqueue(_logger, "Company", companyCode, ("Link", companyUrl), ("ID", companyId));
                     companiesOnPage++;
                 }
 
