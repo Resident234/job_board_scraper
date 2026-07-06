@@ -17,7 +17,6 @@ namespace JobBoardScraper.Scrapers;
 /// </summary>
 public sealed class CompanyListScraper : IDisposable
 {
-    private readonly Regex _companyHrefRegex;
     private readonly SmartHttpClient _httpClient;
     private readonly Action<string, string, long?> _enqueueCompany;
     private readonly Func<List<string>> _getCategoryIds;
@@ -37,7 +36,6 @@ public sealed class CompanyListScraper : IDisposable
         _enqueueCompany = enqueueCompany ?? throw new ArgumentNullException(nameof(enqueueCompany));
         _getCategoryIds = getCategoryIds ?? throw new ArgumentNullException(nameof(getCategoryIds));
         _interval = interval ?? TimeSpan.FromDays(7);
-        _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
         _statistics = new ScraperStatistics("CompanyListScraper");
 
         _logger = new ConsoleLogger("CompanyListScraper");
@@ -333,56 +331,20 @@ public sealed class CompanyListScraper : IDisposable
                 var html = await response.Content.ReadAsStringAsync(ct);
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                // Ищем элементы компаний, которые содержат data-company-id
-                var companyItems = doc.QuerySelectorAll(AppConfig.CompaniesItemSelector);
+                var companies = CompanyDataExtractor.ExtractCompanies(doc, page);
+                var companiesOnPage = companies.Count;
 
-                if (companyItems.Length == 0)
+                if (companiesOnPage == 0)
                 {
                     ScraperLogger.LogWarning(_logger, $"На странице {page} не найдено элементов компаний ({AppConfig.CompaniesItemSelector}).");
-                    hasMorePages = false;
-                    break;
                 }
-
-                var companiesOnPage = 0;
-                var seenOnPage = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var item in companyItems)
+                else
                 {
-                    // Извлекаем company_id из атрибута
-                    var companyIdStr = item.GetAttribute(AppConfig.CompaniesIdAttribute);
-                    long? companyId = null;
-                    if (!string.IsNullOrWhiteSpace(companyIdStr) && long.TryParse(companyIdStr, out var id))
+                    foreach (var company in companies)
                     {
-                        companyId = id;
+                        _enqueueCompany(company.CompanyCode, company.CompanyUrl, company.CompanyId);
+                        ScraperLogger.LogEnqueue(_logger, "Company", company.CompanyCode, ("Link", company.CompanyUrl), ("ID", company.CompanyId));
                     }
-
-                    // Ищем ссылку внутри элемента
-                    var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
-                    if (link == null)
-                        continue;
-
-                    var href = link.GetAttribute("href");
-                    if (string.IsNullOrWhiteSpace(href))
-                        continue;
-
-                    var match = _companyHrefRegex.Match(href);
-                    if (!match.Success)
-                        continue;
-
-                    var companyCode = match.Groups[1].Value;
-
-                    if (string.IsNullOrWhiteSpace(companyCode))
-                        continue;
-
-                    // Дедупликация на странице
-                    if (!seenOnPage.Add(companyCode))
-                        continue;
-
-                    var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
-
-                    _enqueueCompany(companyCode, companyUrl, companyId);
-                    ScraperLogger.LogEnqueue(_logger, "Company", companyCode, ("Link", companyUrl), ("ID", companyId));
-                    companiesOnPage++;
                 }
 
                 _statistics.AddItemsCollected(companiesOnPage);

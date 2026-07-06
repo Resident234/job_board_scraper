@@ -151,6 +151,8 @@ public static class CompanyDataExtractor
         );
     }
 
+    private static readonly Regex _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
+
     /// <summary>
     /// Проверяет наличие следующей страницы на основе HTML-документа.
     /// </summary>
@@ -162,5 +164,64 @@ public static class CompanyDataExtractor
         var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
         var nextPageLink = doc.QuerySelector(nextPageSelector);
         return nextPageLink != null;
+    }
+
+    /// <summary>
+    /// Извлекает компании из HTML-документа списка компаний.
+    /// </summary>
+    /// <param name="doc">HTML-документ.</param>
+    /// <param name="page">Текущая страница.</param>
+    /// <returns>Список найденных компаний.</returns>
+    public static List<CompanyRecord> ExtractCompanies(
+        IDocument doc,
+        int page)
+    {
+        var companyItems = doc.QuerySelectorAll(AppConfig.CompaniesItemSelector);
+        var companies = new List<CompanyRecord>();
+
+        if (companyItems.Length == 0)
+        {
+            return companies;
+        }
+
+        var seenOnPage = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in companyItems)
+        {
+            // Извлекаем company_id из атрибута
+            var companyIdStr = item.GetAttribute(AppConfig.CompaniesIdAttribute);
+            long? companyId = null;
+            if (!string.IsNullOrWhiteSpace(companyIdStr) && long.TryParse(companyIdStr, out var id))
+            {
+                companyId = id;
+            }
+
+            // Ищем ссылку внутри элемента
+            var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
+            if (link == null)
+                continue;
+
+            var href = link.GetAttribute("href");
+            if (string.IsNullOrWhiteSpace(href))
+                continue;
+
+            var match = _companyHrefRegex.Match(href);
+            if (!match.Success)
+                continue;
+
+            var companyCode = match.Groups[1].Value;
+
+            if (string.IsNullOrWhiteSpace(companyCode))
+                continue;
+
+            // Дедупликация на странице
+            if (!seenOnPage.Add(companyCode))
+                continue;
+
+            var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
+            companies.Add(new CompanyRecord(companyCode, companyUrl, companyId));
+        }
+
+        return companies;
     }
 }
