@@ -19,6 +19,7 @@ public sealed class CompanyFollowersScraper : IDisposable
     private readonly Func<List<string>> _getCompanyCodes;
     private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
+    private readonly bool _saveHtml;
     private readonly ConsoleLogger _logger;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
 
@@ -27,6 +28,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         Action<string, string, string?, InsertMode> enqueueUser,
         Func<List<string>> getCompanyCodes,
         AdaptiveConcurrencyController controller,
+        bool saveHtml = false,
         TimeSpan? interval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly)
     {
@@ -34,6 +36,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         _enqueueUser = enqueueUser ?? throw new ArgumentNullException(nameof(enqueueUser));
         _getCompanyCodes = getCompanyCodes ?? throw new ArgumentNullException(nameof(getCompanyCodes));
         _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
+        _saveHtml = saveHtml || AppConfig.CompanyFollowersSaveHtml;
         _interval = interval ?? TimeSpan.FromDays(7);
 
         _logger = new ConsoleLogger("CompanyFollowersScraper");
@@ -175,18 +178,22 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var encoding = response.GetEncoding();
                 var html = response.DecodeBodyAsString(htmlBytes);
 
-                // Сохраняем HTML в файл для отладки
-                await HtmlDebug.SaveHtmlAsync(
-                    html,
-                    "CompanyFollowersScraper",
-                    _logger,
-                    "last_page.html",
-                    encoding: encoding,
-                    ct: ct);
+                // Сохраняем HTML в файл для отладки, если включено
+                if (_saveHtml)
+                {
+                    await HtmlDebug.SaveHtmlAsync(
+                        html,
+                        "CompanyFollowersScraper",
+                        _logger,
+                        $"followers_page_{companyCode}_{page}.html",
+                        encoding: encoding,
+                        ct: ct);
+                }
 
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
                 var users = CompanyDataExtractor.ExtractFollowersUsers(doc, _logger);
+
                 if (users.Count == 0)
                 {
                     ScraperLogger.LogPage(_logger, page, $"На странице не найдено пользователей. Завершение обхода компании {companyCode}.");

@@ -151,6 +151,9 @@ public static class AppConfig
             ? value
             : true;
 
+    public static bool CompanyFollowersSaveHtml =>
+        bool.TryParse(ConfigurationManager.AppSettings["CompanyFollowers:SaveHtml"], out var value) && value;
+
     // Настройки для ExpertsScraper
     public static bool ExpertsEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["Experts:Enabled"], out var value) ? value : true;
