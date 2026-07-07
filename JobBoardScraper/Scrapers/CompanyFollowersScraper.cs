@@ -21,6 +21,7 @@ public sealed class CompanyFollowersScraper : IDisposable
     private readonly TimeSpan _interval;
     private readonly bool _saveHtml;
     private readonly ConsoleLogger _logger;
+    private readonly ScraperProgressLogger _progressLogger;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
 
     public CompanyFollowersScraper(
@@ -42,6 +43,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         _logger = new ConsoleLogger("CompanyFollowersScraper");
         _logger.SetOutputMode(outputMode);
         ScraperLogger.LogInitialization(_logger, "CompanyFollowersScraper", outputMode);
+        _progressLogger = new ScraperProgressLogger(getCompanyCodes().Count, "CompanyFollowersScraper", _logger);
     }
 
     public void Dispose()
@@ -93,6 +95,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         ScraperLogger.LogStart(_logger, "Начало обхода подписчиков компаний...");
 
         var companyCodes = _getCompanyCodes();
+        _progressLogger.Reset(companyCodes.Count);
         ScraperLogger.LogCount(_logger, "Загружено", companyCodes.Count, "компаний", " для обхода");
 
         var totalUsersFound = 0;
@@ -110,22 +113,21 @@ public sealed class CompanyFollowersScraper : IDisposable
 
                 try
                 {
-                    _logger.WriteLine($"Обработка компании: {companyCode}");
+                    _progressLogger.LogItemProgress($"Обработка компании: {companyCode}");
                     var (usersFound, statusCode) = await ScrapeCompanyFollowersAsync(companyCode, ct);
 
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
 
+                    var url = UrlManager.BuildCompanyFollowersUrl(companyCode, 1);
+
                     lock (lockObj)
                     {
                         totalUsersFound += usersFound;
-                        completed++;
-                        var percent = completed * 100.0 / companyCodes.Count;
-                        _logger.WriteLine($"Компания {companyCode}: найдено {usersFound} пользователей. " +
-                            $"Код ответа: {statusCode}. " +
-                            $"Обработано: {completed}/{companyCodes.Count} ({percent:F2}%). " +
-                            $"Время: {sw.Elapsed.TotalSeconds:F2}с. " +
-                            $"Параллельных процессов: {_activeRequests.Count}");
+                        _progressLogger.Increment();
+                        _progressLogger.UpdateActiveRequests(_activeRequests.Count);
+                        _progressLogger.LogItemProgress($"Компания {companyCode}: найдено {usersFound} пользователей", usersFound);
+                        _progressLogger.LogHttpProgress(url, sw.Elapsed.TotalSeconds, statusCode);
                     }
                 }
                 catch (OperationCanceledException)
@@ -162,14 +164,15 @@ public sealed class CompanyFollowersScraper : IDisposable
             try
             {
                 var url = UrlManager.BuildCompanyFollowersUrl(companyCode, page);
-                _logger.WriteLine($"Обработка страницы {page}: {url}");
+                ScraperLogger.LogPage(_logger, page, $"Обработка страницы {page}: {url}");
+                _progressLogger.LogPageProgress(page, usersOnPage);
 
                 var response = await _httpClient.GetAsync(url, ct);
                 lastStatusCode = (int)response.StatusCode;
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода компании {companyCode}.");
+                    ScraperLogger.LogPage(_logger, page, $"Страница вернула код {response.StatusCode}. Завершение обхода компании {companyCode}.");
                     break;
                 }
 
@@ -209,13 +212,13 @@ public sealed class CompanyFollowersScraper : IDisposable
                         _enqueueUser(user.Link, user.UserName, user.Slogan, user.Mode);
                         ScraperLogger.LogEnqueue(_logger, user);
                         usersOnPage++;
-                        totalUsersFound++;
                     }
                     catch (Exception ex)
                     {
                         ScraperLogger.LogError(_logger, "Ошибка при обработке пользователя", ex);
                     }
                 }
+                totalUsersFound += usersOnPage;
 
                 ScraperLogger.LogCount(_logger, $"Страница {page}", usersOnPage, "пользователей");
 
