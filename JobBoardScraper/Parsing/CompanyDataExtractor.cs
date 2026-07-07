@@ -1,5 +1,7 @@
 using AngleSharp.Dom;
 using JobBoardScraper.Core;
+using JobBoardScraper.Data;
+using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Utils;
 using System.Text.RegularExpressions;
 
@@ -10,6 +12,15 @@ namespace JobBoardScraper.Parsing;
 /// </summary>
 public static class CompanyDataExtractor
 {
+    private static void LogFollowerParsingError(ConsoleLogger? logger, Exception ex)
+    {
+        var message = $"Ошибка при парсинге подписчика: {ex.Message}";
+        if (logger != null)
+            logger.WriteLine(message);
+        else
+            Console.WriteLine(message);
+    }
+
     /// <summary>
     /// Извлекает общее количество компаний из HTML-документа
     /// </summary>
@@ -50,7 +61,7 @@ public static class CompanyDataExtractor
             }
             catch (Exception ex)
             {
-                ScraperLogger.LogError(null, "Ошибка при парсинге компании", ex);
+                LogFollowerParsingError(null, ex);
             }
         }
 
@@ -209,38 +220,45 @@ public static class CompanyDataExtractor
 
         foreach (var item in companyItems)
         {
-            // Извлекаем company_id из атрибута
-            var companyIdStr = item.GetAttribute(AppConfig.CompaniesIdAttribute);
-            long? companyId = null;
-            if (!string.IsNullOrWhiteSpace(companyIdStr) && long.TryParse(companyIdStr, out var id))
+            try
             {
-                companyId = id;
+                // Извлекаем company_id из атрибута
+                var companyIdStr = item.GetAttribute(AppConfig.CompaniesIdAttribute);
+                long? companyId = null;
+                if (!string.IsNullOrWhiteSpace(companyIdStr) && long.TryParse(companyIdStr, out var id))
+                {
+                    companyId = id;
+                }
+
+                // Ищем ссылку внутри элемента
+                var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
+                if (link == null)
+                    continue;
+
+                var href = link.GetAttribute("href");
+                if (string.IsNullOrWhiteSpace(href))
+                    continue;
+
+                var match = _companyHrefRegex.Match(href);
+                if (!match.Success)
+                    continue;
+
+                var companyCode = match.Groups[1].Value;
+
+                if (string.IsNullOrWhiteSpace(companyCode))
+                    continue;
+
+                // Дедупликация на странице
+                if (!seenOnPage.Add(companyCode))
+                    continue;
+
+                var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
+                companies.Add(new CompanyRecord(companyCode, companyUrl, companyId));
             }
-
-            // Ищем ссылку внутри элемента
-            var link = item.QuerySelector(AppConfig.CompaniesLinkSelector);
-            if (link == null)
-                continue;
-
-            var href = link.GetAttribute("href");
-            if (string.IsNullOrWhiteSpace(href))
-                continue;
-
-            var match = _companyHrefRegex.Match(href);
-            if (!match.Success)
-                continue;
-
-            var companyCode = match.Groups[1].Value;
-
-            if (string.IsNullOrWhiteSpace(companyCode))
-                continue;
-
-            // Дедупликация на странице
-            if (!seenOnPage.Add(companyCode))
-                continue;
-
-            var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
-            companies.Add(new CompanyRecord(companyCode, companyUrl, companyId));
+            catch (Exception ex)
+            {
+                LogFollowerParsingError(null, ex);
+            }
         }
 
         return companies;
@@ -254,12 +272,62 @@ public static class CompanyDataExtractor
         var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
         var nextPageLink = doc.QuerySelector(nextPageSelector);
 
-        if (nextPageLink == null)
+        return nextPageLink != null;
+    }
+
+    /// <summary>
+    /// Извлекает список пользователей из HTML-документа страницы подписчиков компании.
+    /// </summary>
+    /// <param name="doc">HTML-документ.</param>
+    /// <param name="logger">Опциональный логгер для записи ошибок парсинга.</param>
+    /// <returns>Список пользователей в виде ResumeRecord.</returns>
+    public static List<ResumeRecord> ExtractFollowersUsers(IHtmlDocument doc, ConsoleLogger? logger = null)
+    {
+        var userItems = doc.QuerySelectorAll(AppConfig.CompanyFollowersUserItemSelector);
+        var users = new List<ResumeRecord>();
+
+        foreach (var userItem in userItems)
         {
-            ScraperLogger.LogPage(null, currentPage, $"Достигнута последняя страница для компании {companyCode}.");
-            return false;
+            try
+            {
+                // Извлекаем имя пользователя
+                var usernameElement = userItem.QuerySelector(AppConfig.CompanyFollowersUsernameSelector);
+                if (usernameElement == null)
+                    continue;
+
+                var username = usernameElement.TextContent?.Trim();
+                if (string.IsNullOrWhiteSpace(username))
+                    continue;
+
+                // Извлекаем ссылку
+                var linkElement = userItem.QuerySelector(AppConfig.CompanyFollowersLinkSelector);
+                if (linkElement == null)
+                    continue;
+
+                var href = linkElement.GetAttribute("href");
+                if (string.IsNullOrWhiteSpace(href))
+                    continue;
+
+                // Формируем полный URL
+                var fullUrl = UrlManager.ToAbsolute(href);
+
+                // Извлекаем слоган (может отсутствовать)
+                var sloganElement = userItem.QuerySelector(AppConfig.CompanyFollowersSloganSelector);
+                var slogan = sloganElement?.TextContent?.Trim();
+
+                users.Add(new ResumeRecord(
+                    Mode: InsertMode.UpdateIfExists,
+                    Link: fullUrl,
+                    UserName: username,
+                    Slogan: slogan
+                ));
+            }
+            catch (Exception ex)
+            {
+                LogFollowerParsingError(logger, ex);
+            }
         }
 
-        return true;
+        return users;
     }
 }

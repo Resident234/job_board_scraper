@@ -35,7 +35,7 @@ public sealed class CompanyFollowersScraper : IDisposable
         _getCompanyCodes = getCompanyCodes ?? throw new ArgumentNullException(nameof(getCompanyCodes));
         _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(7);
-        
+
         _logger = new ConsoleLogger("CompanyFollowersScraper");
         _logger.SetOutputMode(outputMode);
         ScraperLogger.LogInitialization(_logger, "CompanyFollowersScraper", outputMode);
@@ -88,31 +88,31 @@ public sealed class CompanyFollowersScraper : IDisposable
     private async Task ScrapeAllCompaniesAsync(CancellationToken ct)
     {
         ScraperLogger.LogStart(_logger, "Начало обхода подписчиков компаний...");
-        
+
         var companyCodes = _getCompanyCodes();
         ScraperLogger.LogCount(_logger, "Загружено", companyCodes.Count, "компаний", " для обхода");
-        
+
         var totalUsersFound = 0;
         var completed = 0;
         var lockObj = new object();
-        
+
         // Используем AdaptiveForEach для параллельной обработки компаний
         await AdaptiveForEach.ForEachAdaptiveAsync(
             source: companyCodes,
             body: async companyCode =>
             {
                 _activeRequests.TryAdd(companyCode, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
-                
+
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                
+
                 try
                 {
                     _logger.WriteLine($"Обработка компании: {companyCode}");
                     var (usersFound, statusCode) = await ScrapeCompanyFollowersAsync(companyCode, ct);
-                    
+
                     sw.Stop();
                     _adaptiveConcurrencyController.ReportLatency(sw.Elapsed);
-                    
+
                     lock (lockObj)
                     {
                         totalUsersFound += usersFound;
@@ -121,7 +121,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                         _logger.WriteLine($"Компания {companyCode}: найдено {usersFound} пользователей. " +
                             $"Код ответа: {statusCode}. " +
                             $"Обработано: {completed}/{companyCodes.Count} ({percent:F2}%). " +
-                            $"Время: {sw.Elapsed.TotalSeconds:F2}с. " + 
+                            $"Время: {sw.Elapsed.TotalSeconds:F2}с. " +
                             $"Параллельных процессов: {_activeRequests.Count}");
                     }
                 }
@@ -143,7 +143,7 @@ public sealed class CompanyFollowersScraper : IDisposable
             controller: _adaptiveConcurrencyController,
             ct: ct
         );
-        
+
         ScraperLogger.LogCount(_logger, "Найдено пользователей", totalUsersFound, "пользователей");
     }
 
@@ -163,7 +163,7 @@ public sealed class CompanyFollowersScraper : IDisposable
 
                 var response = await _httpClient.GetAsync(url, ct);
                 lastStatusCode = (int)response.StatusCode;
-                
+
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.WriteLine($"Страница {page} вернула код {response.StatusCode}. Завершение обхода компании {companyCode}.");
@@ -174,7 +174,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var htmlBytes = await response.Content.ReadAsByteArrayAsync(ct);
                 var encoding = response.GetEncoding();
                 var html = response.DecodeBodyAsString(htmlBytes);
-                
+
                 // Сохраняем HTML в файл для отладки
                 await HtmlDebug.SaveHtmlAsync(
                     html,
@@ -183,13 +183,11 @@ public sealed class CompanyFollowersScraper : IDisposable
                     "last_page.html",
                     encoding: encoding,
                     ct: ct);
-                
+
                 var doc = await HtmlParser.ParseDocumentAsync(html, ct);
-                
-                var userItems = doc.QuerySelectorAll(AppConfig.CompanyFollowersUserItemSelector);
-                _logger.WriteLine($"Селектор '{AppConfig.CompanyFollowersUserItemSelector}' нашёл {userItems.Length} элементов");
-                
-                if (userItems.Length == 0)
+
+                var users = CompanyDataExtractor.ExtractFollowersUsers(doc, _logger);
+                if (users.Count == 0)
                 {
                     _logger.WriteLine($"На странице {page} не найдено пользователей. Завершение обхода компании {companyCode}.");
                     hasMorePages = false;
@@ -197,43 +195,12 @@ public sealed class CompanyFollowersScraper : IDisposable
                 }
 
                 var usersOnPage = 0;
-
-                foreach (var userItem in userItems)
+                foreach (var user in users)
                 {
                     try
                     {
-                        // Извлекаем имя пользователя
-                        var usernameElement = userItem.QuerySelector(AppConfig.CompanyFollowersUsernameSelector);
-                        if (usernameElement == null)
-                            continue;
-
-                        var username = usernameElement.TextContent?.Trim();
-                        if (string.IsNullOrWhiteSpace(username))
-                            continue;
-
-                        // Извлекаем ссылку
-                        var linkElement = userItem.QuerySelector(AppConfig.CompanyFollowersLinkSelector);
-                        if (linkElement == null)
-                            continue;
-
-                        var href = linkElement.GetAttribute("href");
-                        if (string.IsNullOrWhiteSpace(href))
-                            continue;
-
-                        // Формируем полный URL
-                        var fullUrl = UrlManager.ToAbsolute(href);
-
-                        // Извлекаем слоган (может отсутствовать)
-                        var sloganElement = userItem.QuerySelector(AppConfig.CompanyFollowersSloganSelector);
-                        var slogan = sloganElement?.TextContent?.Trim();
-
-                        _enqueueUser(fullUrl, username, slogan, InsertMode.UpdateIfExists);
-                        ScraperLogger.LogEnqueue(
-                            _logger,
-                            "Resume",
-                            username,
-                            ("Link", fullUrl),
-                            ("Slogan", slogan ?? "(нет)"));
+                        _enqueueUser(user.Link, user.UserName, user.Slogan, user.Mode);
+                        ScraperLogger.LogEnqueue(_logger, user);
                         usersOnPage++;
                         totalUsersFound++;
                     }
@@ -247,9 +214,13 @@ public sealed class CompanyFollowersScraper : IDisposable
 
                 // Проверяем наличие следующей страницы
                 hasMorePages = CompanyDataExtractor.HasNextFollowersPage(doc, page, companyCode);
+                if (!hasMorePages)
+                {
+                    _logger.WriteLine($"Достигнута последняя страница для компании {companyCode}.");
+                }
 
                 page++;
-                
+
                 // Небольшая задержка между запросами
                 await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
             }
@@ -267,5 +238,4 @@ public sealed class CompanyFollowersScraper : IDisposable
 
         return (totalUsersFound, lastStatusCode);
     }
-
 }
