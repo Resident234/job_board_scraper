@@ -189,7 +189,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 var users = CompanyDataExtractor.ExtractFollowersUsers(doc, _logger);
                 if (users.Count == 0)
                 {
-                    _logger.WriteLine($"На странице {page} не найдено пользователей. Завершение обхода компании {companyCode}.");
+                    ScraperLogger.LogPage(_logger, page, $"На странице не найдено пользователей. Завершение обхода компании {companyCode}.");
                     hasMorePages = false;
                     break;
                 }
@@ -216,7 +216,7 @@ public sealed class CompanyFollowersScraper : IDisposable
                 hasMorePages = CompanyDataExtractor.HasNextFollowersPage(doc, page, companyCode);
                 if (!hasMorePages)
                 {
-                    _logger.WriteLine($"Достигнута последняя страница для компании {companyCode}.");
+                    ScraperLogger.LogPage(_logger, page, $"Достигнута последняя страница для компании {companyCode}.");
                 }
 
                 page++;
