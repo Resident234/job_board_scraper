@@ -165,7 +165,7 @@ public sealed class CompanyFollowersScraper : IDisposable
             {
                 var url = UrlManager.BuildCompanyFollowersUrl(companyCode, page);
                 ScraperLogger.LogPage(_logger, page, $"Обработка страницы {page}: {url}");
-                _progressLogger.LogPageProgress(page, usersOnPage);
+                _progressLogger.LogPageProgress(page, 0);
 
                 var response = await _httpClient.GetAsync(url, ct);
                 lastStatusCode = (int)response.StatusCode;
@@ -209,8 +209,13 @@ public sealed class CompanyFollowersScraper : IDisposable
                 {
                     try
                     {
-                        _enqueueUser(user.Link, user.UserName, user.Slogan, user.Mode);
-                        ScraperLogger.LogEnqueue(_logger, user);
+                        _enqueueUser(user.Link, user.UserName, user.Slogan, InsertMode.UpdateIfExists);
+                        ScraperLogger.LogEnqueue(
+                            _logger,
+                            "Resume",
+                            user.UserName,
+                            ("Link", user.Link),
+                            ("Slogan", user.Slogan ?? "(нет)"));
                         usersOnPage++;
                     }
                     catch (Exception ex)
