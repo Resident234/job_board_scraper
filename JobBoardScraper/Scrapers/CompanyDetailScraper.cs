@@ -5,7 +5,6 @@ using JobBoardScraper.Infrastructure.Statistics;
 using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
-using System.Text.RegularExpressions;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;
@@ -21,10 +20,6 @@ public sealed class CompanyDetailScraper : IDisposable
     private readonly AdaptiveConcurrencyController _adaptiveConcurrencyController;
     private readonly TimeSpan _interval;
     private readonly ConsoleLogger _logger;
-    private readonly Regex _companyIdRegex;
-    private readonly Regex _alternativeLinkRegex;
-    private readonly Regex _employeesRegex;
-    private readonly Regex _followersRegex;
     private readonly ScraperStatistics _statistics;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _activeRequests = new();
     private ProgressTracker? _progress;
@@ -42,10 +37,6 @@ public sealed class CompanyDetailScraper : IDisposable
         _getCompanies = getCompanies ?? throw new ArgumentNullException(nameof(getCompanies));
         _adaptiveConcurrencyController = controller ?? throw new ArgumentNullException(nameof(controller));
         _interval = interval ?? TimeSpan.FromDays(30);
-        _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
-        _alternativeLinkRegex = new Regex(AppConfig.CompanyDetailAlternativeLinkRegex, RegexOptions.Compiled);
-        _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
-        _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
         _statistics = new ScraperStatistics("CompanyDetailScraper");
 
         _logger = new ConsoleLogger("CompanyDetailScraper");
@@ -207,17 +198,17 @@ public sealed class CompanyDetailScraper : IDisposable
                     companyRecord.Rating = CompanyDataExtractor.ExtractCompanyRating(doc);
 
                     // Извлекаем количество сотрудников
-                    var (currentEmp, pastEmp) = CompanyDataExtractor.ExtractEmployeesCount(doc, _employeesRegex);
+                    var (currentEmp, pastEmp) = CompanyDataExtractor.ExtractEmployeesCount(doc);
                     companyRecord.CurrentEmployees = currentEmp;
                     companyRecord.PastEmployees = pastEmp;
 
                     // Извлекаем количество подписчиков и желающих работать
-                    var (follower, want) = CompanyDataExtractor.ExtractFollowersCount(doc, _followersRegex);
+                    var (follower, want) = CompanyDataExtractor.ExtractFollowersCount(doc);
                     companyRecord.Followers = follower;
                     companyRecord.WantWork = want;
 
                     // Извлекаем company_id
-                    var (id, success) = CompanyDataExtractor.ExtractCompanyId(doc, _companyIdRegex, _alternativeLinkRegex, code, _logger);
+                    var (id, success) = CompanyDataExtractor.ExtractCompanyId(doc, code, _logger);
                     companyRecord.CompanyId = id;
                     if (!success)
                     {

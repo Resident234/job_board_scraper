@@ -12,6 +12,12 @@ namespace JobBoardScraper.Parsing;
 /// </summary>
 public static class CompanyDataExtractor
 {
+    private static readonly Regex _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
+    private static readonly Regex _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
+    private static readonly Regex _alternativeLinkRegex = new Regex(AppConfig.CompanyDetailAlternativeLinkRegex, RegexOptions.Compiled);
+    private static readonly Regex _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
+    private static readonly Regex _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
+
     private static void LogError(ConsoleLogger? logger, string message, Exception? ex = null)
     {
         if (logger != null)
@@ -277,8 +283,6 @@ public static class CompanyDataExtractor
         );
     }
 
-    private static readonly Regex _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
-
     /// <summary>
     /// Проверяет наличие следующей страницы на основе HTML-документа.
     /// </summary>
@@ -462,8 +466,6 @@ public static class CompanyDataExtractor
     /// </summary>
     public static (long? companyId, bool success) ExtractCompanyId(
         IHtmlDocument doc,
-        Regex companyIdRegex,
-        Regex alternativeLinkRegex,
         string companyCode,
         ConsoleLogger logger)
     {
@@ -477,7 +479,7 @@ public static class CompanyDataExtractor
             var elementId = favButton.GetAttribute("id");
             if (!string.IsNullOrWhiteSpace(elementId))
             {
-                var companyIdMatch = companyIdRegex.Match(elementId);
+                var companyIdMatch = _companyIdRegex.Match(elementId);
                 if (companyIdMatch.Success)
                 {
                     var companyIdStr = companyIdMatch.Groups[1].Value;
@@ -500,7 +502,7 @@ public static class CompanyDataExtractor
                 var href = alternativeLink.GetAttribute("href");
                 if (!string.IsNullOrWhiteSpace(href))
                 {
-                    var altMatch = alternativeLinkRegex.Match(href);
+                    var altMatch = _alternativeLinkRegex.Match(href);
                     if (altMatch.Success)
                     {
                         var companyIdStr = altMatch.Groups[1].Value;
@@ -521,7 +523,7 @@ public static class CompanyDataExtractor
     /// <summary>
     /// Извлекает количество подписчиков и желающих работать из HTML-документа
     /// </summary>
-    public static (int? followers, int? wantWork) ExtractFollowersCount(IHtmlDocument doc, Regex followersRegex)
+    public static (int? followers, int? wantWork) ExtractFollowersCount(IHtmlDocument doc)
     {
         int? followers = null;
         int? wantWork = null;
@@ -535,7 +537,7 @@ public static class CompanyDataExtractor
                 var countText = countElement.TextContent?.Trim();
                 if (!string.IsNullOrWhiteSpace(countText))
                 {
-                    var followersMatch = followersRegex.Match(countText);
+                    var followersMatch = _followersRegex.Match(countText);
                     if (followersMatch.Success && followersMatch.Groups.Count >= 3)
                     {
                         if (int.TryParse(followersMatch.Groups[1].Value, out var follower))
@@ -558,7 +560,7 @@ public static class CompanyDataExtractor
     /// <summary>
     /// Извлекает количество сотрудников из HTML-документа
     /// </summary>
-    public static (int? currentEmployees, int? pastEmployees) ExtractEmployeesCount(IHtmlDocument doc, Regex employeesRegex)
+    public static (int? currentEmployees, int? pastEmployees) ExtractEmployeesCount(IHtmlDocument doc)
     {
         int? currentEmployees = null;
         int? pastEmployees = null;
@@ -572,7 +574,7 @@ public static class CompanyDataExtractor
                 var countText = countElement.TextContent?.Trim();
                 if (!string.IsNullOrWhiteSpace(countText))
                 {
-                    var employeesMatch = employeesRegex.Match(countText);
+                    var employeesMatch = _employeesRegex.Match(countText);
                     if (employeesMatch.Success && employeesMatch.Groups.Count >= 3)
                     {
                         if (int.TryParse(employeesMatch.Groups[1].Value, out var current))
