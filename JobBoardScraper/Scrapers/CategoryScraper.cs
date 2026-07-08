@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Statistics;
@@ -98,26 +99,11 @@ public sealed class CategoryScraper : IDisposable
             var html = await response.Content.ReadAsStringAsync(ct);
             var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-            // Ищем select с id="category_root_id"
-            var selectElement = doc.QuerySelector(AppConfig.CategorySelectElementSelector);
+            // Извлекаем категории из документа
+            var categories = CompanyDataExtractor.ExtractCategories(doc);
 
-            if (selectElement == null)
+            foreach (var (value, text) in categories)
             {
-                ScraperLogger.LogError(_logger, "Не найден элемент select#category_root_id");
-                return;
-            }
-
-            // Собираем все option с value
-            var options = selectElement.QuerySelectorAll(AppConfig.CategoryOptionSelector);
-
-            foreach (var option in options)
-            {
-                var value = option.GetAttribute("value");
-                var text = option.TextContent?.Trim() ?? "";
-
-                if (string.IsNullOrWhiteSpace(value))
-                    continue;
-
                 _enqueueCategory(value, text);
                 ScraperLogger.LogEnqueue(
                     _logger,

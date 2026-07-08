@@ -54,22 +54,30 @@ public static class CompanyDataExtractor
     /// </summary>
     public static string? ExtractCompanyTitle(IHtmlDocument doc)
     {
-        var companyNameElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyNameSelector);
-        if (companyNameElement != null)
+        try
         {
-            // Ищем ссылку внутри элемента
-            var linkElement = companyNameElement.QuerySelector(AppConfig.CompanyDetailCompanyNameLinkSelector);
-            if (linkElement != null)
+            var companyNameElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyNameSelector);
+            if (companyNameElement != null)
             {
-                return linkElement.TextContent?.Trim();
+                // Ищем ссылку внутри элемента
+                var linkElement = companyNameElement.QuerySelector(AppConfig.CompanyDetailCompanyNameLinkSelector);
+                if (linkElement != null)
+                {
+                    return linkElement.TextContent?.Trim();
+                }
+                else
+                {
+                    // Если ссылки нет, берём текст из самого элемента
+                    return companyNameElement.TextContent?.Trim();
+                }
             }
-            else
-            {
-                // Если ссылки нет, берём текст из самого элемента
-                return companyNameElement.TextContent?.Trim();
-            }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении названия компании", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -77,18 +85,26 @@ public static class CompanyDataExtractor
     /// </summary>
     public static decimal? ExtractCompanyRating(IHtmlDocument doc)
     {
-        var companyRatingElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyRatingSelector);
-        if (companyRatingElement != null)
+        try
         {
-            var ratingText = companyRatingElement.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(ratingText) &&
-                decimal.TryParse(ratingText, System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out var rating))
+            var companyRatingElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyRatingSelector);
+            if (companyRatingElement != null)
             {
-                return rating;
+                var ratingText = companyRatingElement.TextContent?.Trim();
+                if (!string.IsNullOrWhiteSpace(ratingText) &&
+                    decimal.TryParse(ratingText, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var rating))
+                {
+                    return rating;
+                }
             }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении рейтинга компании", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -96,16 +112,24 @@ public static class CompanyDataExtractor
     /// </summary>
     public static string? ExtractCompanySite(IHtmlDocument doc)
     {
-        var companySiteElement = doc.QuerySelector(AppConfig.CompanyDetailCompanySiteSelector);
-        if (companySiteElement != null)
+        try
         {
-            var siteLinkElement = companySiteElement.QuerySelector(AppConfig.CompanyDetailCompanySiteLinkSelector);
-            if (siteLinkElement != null)
+            var companySiteElement = doc.QuerySelector(AppConfig.CompanyDetailCompanySiteSelector);
+            if (companySiteElement != null)
             {
-                return siteLinkElement.GetAttribute("href");
+                var siteLinkElement = companySiteElement.QuerySelector(AppConfig.CompanyDetailCompanySiteLinkSelector);
+                if (siteLinkElement != null)
+                {
+                    return siteLinkElement.GetAttribute("href");
+                }
             }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении ссылки на сайт компании", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -113,12 +137,20 @@ public static class CompanyDataExtractor
     /// </summary>
     public static string? ExtractCompanyDescription(IHtmlDocument doc)
     {
-        var companyDescriptionElement = doc.QuerySelector(AppConfig.CompanyDetailDescriptionSelector);
-        if (companyDescriptionElement != null)
+        try
         {
-            return companyDescriptionElement.TextContent?.Trim();
+            var companyDescriptionElement = doc.QuerySelector(AppConfig.CompanyDetailDescriptionSelector);
+            if (companyDescriptionElement != null)
+            {
+                return companyDescriptionElement.TextContent?.Trim();
+            }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении описания компании", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -126,20 +158,28 @@ public static class CompanyDataExtractor
     /// </summary>
     public static int ExtractTotalCompaniesCount(IHtmlDocument doc)
     {
-        var totalElement = doc.QuerySelector(AppConfig.CompaniesTotalSelector);
-        if (totalElement == null)
+        try
+        {
+            var totalElement = doc.QuerySelector(AppConfig.CompaniesTotalSelector);
+            if (totalElement == null)
+                return 0;
+
+            var text = totalElement.TextContent;
+            var match = Regex.Match(text, AppConfig.CompaniesTotalRegex);
+            if (!match.Success)
+                return 0;
+
+            var numberStr = StringUtils.RemoveAllWhitespace(match.Groups[1].Value);
+            if (int.TryParse(numberStr, out var total))
+                return total;
+
             return 0;
-
-        var text = totalElement.TextContent;
-        var match = Regex.Match(text, AppConfig.CompaniesTotalRegex);
-        if (!match.Success)
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении общего количества компаний", ex);
             return 0;
-
-        var numberStr = StringUtils.RemoveAllWhitespace(match.Groups[1].Value);
-        if (int.TryParse(numberStr, out var total))
-            return total;
-
-        return 0;
+        }
     }
 
     /// <summary>
@@ -291,9 +331,17 @@ public static class CompanyDataExtractor
     /// <returns>True, если есть следующая страница.</returns>
     public static bool HasNextPage(IDocument doc, int currentPage)
     {
-        var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
-        var nextPageLink = doc.QuerySelector(nextPageSelector);
-        return nextPageLink != null;
+        try
+        {
+            var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
+            var nextPageLink = doc.QuerySelector(nextPageSelector);
+            return nextPageLink != null;
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при проверке наличия следующей страницы", ex);
+            return false;
+        }
     }
 
     /// <summary>
@@ -369,10 +417,18 @@ public static class CompanyDataExtractor
     /// </summary>
     public static bool HasNextFollowersPage(IHtmlDocument doc, int currentPage, string companyCode)
     {
-        var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
-        var nextPageLink = doc.QuerySelector(nextPageSelector);
+        try
+        {
+            var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
+            var nextPageLink = doc.QuerySelector(nextPageSelector);
 
-        return nextPageLink != null;
+            return nextPageLink != null;
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при проверке наличия следующей страницы подписчиков", ex);
+            return false;
+        }
     }
 
     /// <summary>
@@ -453,12 +509,20 @@ public static class CompanyDataExtractor
     /// </summary>
     public static string? ExtractCompanySize(IHtmlDocument doc)
     {
-        var employeesCountElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesCountElementSelector);
-        if (employeesCountElement != null)
+        try
         {
-            return employeesCountElement.TextContent?.Trim();
+            var employeesCountElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesCountElementSelector);
+            if (employeesCountElement != null)
+            {
+                return employeesCountElement.TextContent?.Trim();
+            }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении размера компании", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -469,55 +533,63 @@ public static class CompanyDataExtractor
         string companyCode,
         ConsoleLogger logger)
     {
-        long? companyId = null;
-        bool companyIdFound = false;
-
-        // Пробуем извлечь company_id из company_fav_button
-        var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
-        if (favButton != null)
+        try
         {
-            var elementId = favButton.GetAttribute("id");
-            if (!string.IsNullOrWhiteSpace(elementId))
-            {
-                var companyIdMatch = _companyIdRegex.Match(elementId);
-                if (companyIdMatch.Success)
-                {
-                    var companyIdStr = companyIdMatch.Groups[1].Value;
-                    if (long.TryParse(companyIdStr, out var parsedId))
-                    {
-                        companyId = parsedId;
-                        companyIdFound = true;
-                        LogInfo(logger, $"Компания {companyCode}: ID извлечен из company_fav_button: {companyId}");
-                    }
-                }
-            }
-        }
+            long? companyId = null;
+            bool companyIdFound = false;
 
-        // Если не нашли через company_fav_button, пробуем альтернативный способ
-        if (!companyIdFound)
-        {
-            var alternativeLink = doc.QuerySelector(AppConfig.CompanyDetailAlternativeLinkSelector);
-            if (alternativeLink != null)
+            // Пробуем извлечь company_id из company_fav_button
+            var favButton = doc.QuerySelector(AppConfig.CompanyDetailFavButtonSelector);
+            if (favButton != null)
             {
-                var href = alternativeLink.GetAttribute("href");
-                if (!string.IsNullOrWhiteSpace(href))
+                var elementId = favButton.GetAttribute("id");
+                if (!string.IsNullOrWhiteSpace(elementId))
                 {
-                    var altMatch = _alternativeLinkRegex.Match(href);
-                    if (altMatch.Success)
+                    var companyIdMatch = _companyIdRegex.Match(elementId);
+                    if (companyIdMatch.Success)
                     {
-                        var companyIdStr = altMatch.Groups[1].Value;
+                        var companyIdStr = companyIdMatch.Groups[1].Value;
                         if (long.TryParse(companyIdStr, out var parsedId))
                         {
                             companyId = parsedId;
                             companyIdFound = true;
-                            LogInfo(logger, $"Компания {companyCode}: ID извлечен из альтернативной ссылки: {companyId}");
+                            LogInfo(logger, $"Компания {companyCode}: ID извлечен из company_fav_button: {companyId}");
                         }
                     }
                 }
             }
-        }
 
-        return (companyId, companyIdFound);
+            // Если не нашли через company_fav_button, пробуем альтернативный способ
+            if (!companyIdFound)
+            {
+                var alternativeLink = doc.QuerySelector(AppConfig.CompanyDetailAlternativeLinkSelector);
+                if (alternativeLink != null)
+                {
+                    var href = alternativeLink.GetAttribute("href");
+                    if (!string.IsNullOrWhiteSpace(href))
+                    {
+                        var altMatch = _alternativeLinkRegex.Match(href);
+                        if (altMatch.Success)
+                        {
+                            var companyIdStr = altMatch.Groups[1].Value;
+                            if (long.TryParse(companyIdStr, out var parsedId))
+                            {
+                                companyId = parsedId;
+                                companyIdFound = true;
+                                LogInfo(logger, $"Компания {companyCode}: ID извлечен из альтернативной ссылки: {companyId}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            return (companyId, companyIdFound);
+        }
+        catch (Exception ex)
+        {
+            LogError(logger, $"Ошибка при извлечении company_id для компании {companyCode}", ex);
+            return (null, false);
+        }
     }
 
     /// <summary>
@@ -525,73 +597,89 @@ public static class CompanyDataExtractor
     /// </summary>
     public static (int? followers, int? wantWork) ExtractFollowersCount(IHtmlDocument doc)
     {
-        int? followers = null;
-        int? wantWork = null;
-
-        var followersElement = doc.QuerySelector(AppConfig.CompanyDetailFollowersSelector);
-        if (followersElement != null)
+        try
         {
-            var countElement = followersElement.QuerySelector(AppConfig.CompanyDetailFollowersCountSelector);
-            if (countElement != null)
-            {
-                var countText = countElement.TextContent?.Trim();
-                if (!string.IsNullOrWhiteSpace(countText))
-                {
-                    var followersMatch = _followersRegex.Match(countText);
-                    if (followersMatch.Success && followersMatch.Groups.Count >= 3)
-                    {
-                        if (int.TryParse(followersMatch.Groups[1].Value, out var follower))
-                        {
-                            followers = follower;
-                        }
+            int? followers = null;
+            int? wantWork = null;
 
-                        if (int.TryParse(followersMatch.Groups[2].Value, out var want))
+            var followersElement = doc.QuerySelector(AppConfig.CompanyDetailFollowersSelector);
+            if (followersElement != null)
+            {
+                var countElement = followersElement.QuerySelector(AppConfig.CompanyDetailFollowersCountSelector);
+                if (countElement != null)
+                {
+                    var countText = countElement.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(countText))
+                    {
+                        var followersMatch = _followersRegex.Match(countText);
+                        if (followersMatch.Success && followersMatch.Groups.Count >= 3)
                         {
-                            wantWork = want;
+                            if (int.TryParse(followersMatch.Groups[1].Value, out var follower))
+                            {
+                                followers = follower;
+                            }
+
+                            if (int.TryParse(followersMatch.Groups[2].Value, out var want))
+                            {
+                                wantWork = want;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        return (followers, wantWork);
+            return (followers, wantWork);
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении количества подписчиков", ex);
+            return (null, null);
+        }
     }
 
     /// <summary>
     /// Извлекает количество сотрудников из HTML-документа
     /// </summary>
-    public static (int? currentEmployees, int? pastEmployees) ExtractEmployeesCount(IHtmlDocument doc)
+    public static (int? current, int? past) ExtractEmployeesCount(IHtmlDocument doc)
     {
-        int? currentEmployees = null;
-        int? pastEmployees = null;
-
-        var employeesElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesSelector);
-        if (employeesElement != null)
+        try
         {
-            var countElement = employeesElement.QuerySelector(AppConfig.CompanyDetailEmployeesCountSelector);
-            if (countElement != null)
-            {
-                var countText = countElement.TextContent?.Trim();
-                if (!string.IsNullOrWhiteSpace(countText))
-                {
-                    var employeesMatch = _employeesRegex.Match(countText);
-                    if (employeesMatch.Success && employeesMatch.Groups.Count >= 3)
-                    {
-                        if (int.TryParse(employeesMatch.Groups[1].Value, out var current))
-                        {
-                            currentEmployees = current;
-                        }
+            int? currentEmployees = null;
+            int? pastEmployees = null;
 
-                        if (int.TryParse(employeesMatch.Groups[2].Value, out var past))
+            var employeesElement = doc.QuerySelector(AppConfig.CompanyDetailEmployeesSelector);
+            if (employeesElement != null)
+            {
+                var countElement = employeesElement.QuerySelector(AppConfig.CompanyDetailEmployeesCountSelector);
+                if (countElement != null)
+                {
+                    var countText = countElement.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(countText))
+                    {
+                        var employeesMatch = _employeesRegex.Match(countText);
+                        if (employeesMatch.Success && employeesMatch.Groups.Count >= 3)
                         {
-                            pastEmployees = past;
+                            if (int.TryParse(employeesMatch.Groups[1].Value, out var current))
+                            {
+                                currentEmployees = current;
+                            }
+
+                            if (int.TryParse(employeesMatch.Groups[2].Value, out var past))
+                            {
+                                pastEmployees = past;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        return (currentEmployees, pastEmployees);
+            return (currentEmployees, pastEmployees);
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении количества сотрудников", ex);
+            return (null, null);
+        }
     }
 
     /// <summary>
@@ -599,21 +687,29 @@ public static class CompanyDataExtractor
     /// </summary>
     public static List<SkillsRecord> ExtractCompanySkills(IHtmlDocument doc)
     {
-        var skills = new List<SkillsRecord>();
-        var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
-        if (skillsContainer != null)
+        try
         {
-            var skillElements = skillsContainer.QuerySelectorAll(AppConfig.CompanyDetailSkillSelector);
-            foreach (var skillElement in skillElements)
+            var skills = new List<SkillsRecord>();
+            var skillsContainer = doc.QuerySelector(AppConfig.CompanyDetailSkillsContainerSelector);
+            if (skillsContainer != null)
             {
-                var skillTitle = skillElement.TextContent?.Trim();
-                if (!string.IsNullOrWhiteSpace(skillTitle))
+                var skillElements = skillsContainer.QuerySelectorAll(AppConfig.CompanyDetailSkillSelector);
+                foreach (var skillElement in skillElements)
                 {
-                    skills.Add(new SkillsRecord(SkillId: null, SkillTitle: skillTitle));
+                    var skillTitle = skillElement.TextContent?.Trim();
+                    if (!string.IsNullOrWhiteSpace(skillTitle))
+                    {
+                        skills.Add(new SkillsRecord(SkillId: null, SkillTitle: skillTitle));
+                    }
                 }
             }
+            return skills;
         }
-        return skills;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении навыков компании", ex);
+            return new List<SkillsRecord>();
+        }
     }
 
     /// <summary>
@@ -621,47 +717,55 @@ public static class CompanyDataExtractor
     /// </summary>
     public static List<CompanyRecord> ExtractRelatedCompanies(IHtmlDocument doc)
     {
-        var relatedCompanies = new List<CompanyRecord>();
-        var inlineCompaniesList = doc.QuerySelector(AppConfig.CompanyDetailInlineCompaniesListSelector);
-
-        if (inlineCompaniesList != null)
+        try
         {
-            var companyItems = inlineCompaniesList.QuerySelectorAll(AppConfig.CompanyDetailCompanyItemSelector);
-            var companyHrefRegex = new Regex(AppConfig.CompanyDetailCompanyHrefRegex, RegexOptions.Compiled);
+            var relatedCompanies = new List<CompanyRecord>();
+            var inlineCompaniesList = doc.QuerySelector(AppConfig.CompanyDetailInlineCompaniesListSelector);
 
-            foreach (var companyItem in companyItems)
+            if (inlineCompaniesList != null)
             {
-                try
+                var companyItems = inlineCompaniesList.QuerySelectorAll(AppConfig.CompanyDetailCompanyItemSelector);
+                var companyHrefRegex = new Regex(AppConfig.CompanyDetailCompanyHrefRegex, RegexOptions.Compiled);
+
+                foreach (var companyItem in companyItems)
                 {
-                    // Извлекаем название компании и ссылку
-                    var titleLink = companyItem.QuerySelector(AppConfig.CompanyDetailCompanyTitleLinkSelector);
-                    if (titleLink == null)
-                        continue;
+                    try
+                    {
+                        // Извлекаем название компании и ссылку
+                        var titleLink = companyItem.QuerySelector(AppConfig.CompanyDetailCompanyTitleLinkSelector);
+                        if (titleLink == null)
+                            continue;
 
-                    var companyName = titleLink.TextContent?.Trim();
-                    var href = titleLink.GetAttribute("href");
+                        var companyName = titleLink.TextContent?.Trim();
+                        var href = titleLink.GetAttribute("href");
 
-                    if (string.IsNullOrWhiteSpace(href))
-                        continue;
+                        if (string.IsNullOrWhiteSpace(href))
+                            continue;
 
-                    var hrefMatch = companyHrefRegex.Match(href);
-                    if (!hrefMatch.Success)
-                        continue;
+                        var hrefMatch = companyHrefRegex.Match(href);
+                        if (!hrefMatch.Success)
+                            continue;
 
-                    var companyCode = hrefMatch.Groups[1].Value;
+                        var companyCode = hrefMatch.Groups[1].Value;
 
-                    // Формируем полную ссылку
-                    var companyUrl = UrlManager.Combine(AppConfig.CompanyDetailCompanyBaseUrl, companyCode);
+                        // Формируем полную ссылку
+                        var companyUrl = UrlManager.Combine(AppConfig.CompanyDetailCompanyBaseUrl, companyCode);
 
-                    relatedCompanies.Add(new CompanyRecord(companyCode, companyUrl, companyTitle: companyName));
-                }
-                catch (Exception ex)
-                {
-                    LogError(null, "Ошибка при обработке связанной компании", ex);
+                        relatedCompanies.Add(new CompanyRecord(companyCode, companyUrl, companyTitle: companyName));
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError(null, "Ошибка при обработке связанной компании", ex);
+                    }
                 }
             }
+            return relatedCompanies;
         }
-        return relatedCompanies;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении связанных компаний", ex);
+            return new List<CompanyRecord>();
+        }
     }
 
     /// <summary>
@@ -669,45 +773,53 @@ public static class CompanyDataExtractor
     /// </summary>
     public static List<ResumeRecord> ExtractCompanyEmployees(IHtmlDocument doc)
     {
-        var employees = new List<ResumeRecord>();
-        var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
-        if (usersList != null)
+        try
         {
-            var userLinks = usersList.QuerySelectorAll(AppConfig.CompanyDetailUserLinkSelector);
-            var userHrefRegex = new Regex(AppConfig.CompanyDetailUserHrefRegex, RegexOptions.Compiled);
-
-            foreach (var userLink in userLinks)
+            var employees = new List<ResumeRecord>();
+            var usersList = doc.QuerySelector(AppConfig.CompanyDetailUsersListSelector);
+            if (usersList != null)
             {
-                try
+                var userLinks = usersList.QuerySelectorAll(AppConfig.CompanyDetailUserLinkSelector);
+                var userHrefRegex = new Regex(AppConfig.CompanyDetailUserHrefRegex, RegexOptions.Compiled);
+
+                foreach (var userLink in userLinks)
                 {
-                    // Извлекаем код из href
-                    var href = userLink.GetAttribute("href");
-                    if (string.IsNullOrWhiteSpace(href))
-                        continue;
+                    try
+                    {
+                        // Извлекаем код из href
+                        var href = userLink.GetAttribute("href");
+                        if (string.IsNullOrWhiteSpace(href))
+                            continue;
 
-                    var hrefMatch = userHrefRegex.Match(href);
-                    if (!hrefMatch.Success)
-                        continue;
+                        var hrefMatch = userHrefRegex.Match(href);
+                        if (!hrefMatch.Success)
+                            continue;
 
-                    var userCode = hrefMatch.Groups[1].Value;
+                        var userCode = hrefMatch.Groups[1].Value;
 
-                    // Формируем полную ссылку
-                    var userFullLink = UrlManager.Combine(AppConfig.CompanyDetailUserBaseUrl, userCode);
+                        // Формируем полную ссылку
+                        var userFullLink = UrlManager.Combine(AppConfig.CompanyDetailUserBaseUrl, userCode);
 
-                    employees.Add(new ResumeRecord(
-                        Mode: InsertMode.SkipIfExists,
-                        Link: userFullLink,
-                        UserName: userCode,
-                        Slogan: null
-                    ));
-                }
-                catch (Exception ex)
-                {
-                    LogError(null, "Ошибка при обработке сотрудника", ex);
+                        employees.Add(new ResumeRecord(
+                            Mode: InsertMode.SkipIfExists,
+                            Link: userFullLink,
+                            UserName: userCode,
+                            Slogan: null
+                        ));
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError(null, "Ошибка при обработке сотрудника", ex);
+                    }
                 }
             }
+            return employees;
         }
-        return employees;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении сотрудников компании", ex);
+            return new List<ResumeRecord>();
+        }
     }
 
     /// <summary>
@@ -715,45 +827,53 @@ public static class CompanyDataExtractor
     /// </summary>
     public static List<ResumeRecord> ExtractPublicMembers(IHtmlDocument doc)
     {
-        var members = new List<ResumeRecord>();
-        var publicMembers = doc.QuerySelectorAll(AppConfig.CompanyDetailPublicMemberSelector);
-        var memberHrefRegex = new Regex(AppConfig.CompanyDetailPublicMemberHrefRegex, RegexOptions.Compiled);
-
-        foreach (var member in publicMembers)
+        try
         {
-            try
+            var members = new List<ResumeRecord>();
+            var publicMembers = doc.QuerySelectorAll(AppConfig.CompanyDetailPublicMemberSelector);
+            var memberHrefRegex = new Regex(AppConfig.CompanyDetailPublicMemberHrefRegex, RegexOptions.Compiled);
+
+            foreach (var member in publicMembers)
             {
-                // Извлекаем имя
-                var nameElement = member.QuerySelector(AppConfig.CompanyDetailPublicMemberNameSelector);
-                var memberName = nameElement?.TextContent?.Trim();
+                try
+                {
+                    // Извлекаем имя
+                    var nameElement = member.QuerySelector(AppConfig.CompanyDetailPublicMemberNameSelector);
+                    var memberName = nameElement?.TextContent?.Trim();
 
-                // Извлекаем код из href
-                var href = member.GetAttribute("href");
-                if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(memberName))
-                    continue;
+                    // Извлекаем код из href
+                    var href = member.GetAttribute("href");
+                    if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(memberName))
+                        continue;
 
-                var hrefMatch = memberHrefRegex.Match(href);
-                if (!hrefMatch.Success)
-                    continue;
+                    var hrefMatch = memberHrefRegex.Match(href);
+                    if (!hrefMatch.Success)
+                        continue;
 
-                var memberCode = hrefMatch.Groups[1].Value;
+                    var memberCode = hrefMatch.Groups[1].Value;
 
-                // Формируем полную ссылку
-                var memberLink = UrlManager.Combine(AppConfig.CompanyDetailPublicMemberBaseUrl, memberCode);
+                    // Формируем полную ссылку
+                    var memberLink = UrlManager.Combine(AppConfig.CompanyDetailPublicMemberBaseUrl, memberCode);
 
-                members.Add(new ResumeRecord(
-                    Mode: InsertMode.UpdateIfExists,
-                    Link: memberLink,
-                    UserName: memberName,
-                    Slogan: null
-                ));
+                    members.Add(new ResumeRecord(
+                        Mode: InsertMode.UpdateIfExists,
+                        Link: memberLink,
+                        UserName: memberName,
+                        Slogan: null
+                    ));
+                }
+                catch (Exception ex)
+                {
+                    LogError(null, "Ошибка при обработке контактного лица", ex);
+                }
             }
-            catch (Exception ex)
-            {
-                LogError(null, "Ошибка при обработке контактного лица", ex);
-            }
+            return members;
         }
-        return members;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении контактных лиц компании", ex);
+            return new List<ResumeRecord>();
+        }
     }
 
     /// <summary>
@@ -761,11 +881,60 @@ public static class CompanyDataExtractor
     /// </summary>
     public static string? ExtractCompanyAbout(IHtmlDocument doc)
     {
-        var companyAboutElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyAboutSelector);
-        if (companyAboutElement != null)
+        try
         {
-            return companyAboutElement.TextContent?.Trim();
+            var companyAboutElement = doc.QuerySelector(AppConfig.CompanyDetailCompanyAboutSelector);
+            if (companyAboutElement != null)
+            {
+                return companyAboutElement.TextContent?.Trim();
+            }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении краткого описания компании", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Извлекает категории из HTML-документа
+    /// </summary>
+    public static List<(string value, string text)> ExtractCategories(IHtmlDocument doc)
+    {
+        try
+        {
+            var categories = new List<(string value, string text)>();
+
+            // Ищем select с id="category_root_id"
+            var selectElement = doc.QuerySelector(AppConfig.CategorySelectElementSelector);
+
+            if (selectElement == null)
+            {
+                LogError(null, "Не найден элемент select#category_root_id");
+                return categories;
+            }
+
+            // Собираем все option с value
+            var options = selectElement.QuerySelectorAll(AppConfig.CategoryOptionSelector);
+
+            foreach (var option in options)
+            {
+                var value = option.GetAttribute("value");
+                var text = option.TextContent?.Trim() ?? "";
+
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                categories.Add((value, text));
+            }
+
+            return categories;
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при извлечении категорий", ex);
+            return new List<(string value, string text)>();
+        }
     }
 }
