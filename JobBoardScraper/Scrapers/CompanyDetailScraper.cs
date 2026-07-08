@@ -233,7 +233,7 @@ public sealed class CompanyDetailScraper : IDisposable
                     foreach (var relatedCompany in relatedCompanies)
                     {
                         _db.EnqueueCompany(relatedCompany.CompanyCode, relatedCompany.CompanyUrl, relatedCompany.CompanyTitle);
-                        _logger.WriteLine($"Добавлена связанная компания: {relatedCompany.CompanyCode} ({relatedCompany.CompanyTitle})");
+                        ScraperLogger.LogEnqueue(_logger, "RelatedCompany", relatedCompany.CompanyCode, ("Url", relatedCompany.CompanyUrl), ("Title", relatedCompany.CompanyTitle));
                     }
 
                     // Извлекаем сотрудников компании
@@ -249,7 +249,7 @@ public sealed class CompanyDetailScraper : IDisposable
                             expert: null,
                             workExperience: null
                         );
-                        _logger.WriteLine($"Добавлен сотрудник компании: {employee.UserName}");
+                        ScraperLogger.LogEnqueue(_logger, "Employee", employee.Link, ("Code", employee.UserName), ("Link", employee.Link));
                     }
 
                     // Извлекаем контактных лиц компании
@@ -258,14 +258,14 @@ public sealed class CompanyDetailScraper : IDisposable
                     {
                         _db.EnqueueResume(
                             link: member.Link,
-                            title: member.UserName,
+                            title: "",
                             slogan: null,
                             mode: InsertMode.UpdateIfExists,
                             code: member.UserName,
                             expert: null,
                             workExperience: null
                         );
-                        _logger.WriteLine($"Добавлено контактное лицо: {member.UserName}");
+                        ScraperLogger.LogEnqueue(_logger, "ContactPerson", member.Link, ("Code", member.UserName), ("Link", member.Link), ("Title", member.UserName));
                     }
 
                     // Извлекаем навыки компании
