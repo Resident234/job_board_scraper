@@ -30,23 +30,32 @@ public static class UrlManager
     }
 
     /// <summary>
-    /// Извлекает последний непустой сегмент пути из URL.
-    /// Например, для <c>https://career.habr.com/username/</c> вернёт <c>username</c>.
+    /// Формирует URL страницы подписчиков компании.
     /// </summary>
-    /// <param name="url">Абсолютный или относительный URL.</param>
-    /// <returns>Последний сегмент пути или <c>null</c>, если URL пустой/некорректный.</returns>
-    public static string? GetLastPathSegment(string? url)
+    /// <param name="companyCode">Код компании.</param>
+    /// <param name="page">Номер страницы.</param>
+    /// <returns>URL страницы подписчиков компании.</returns>
+    public static string BuildCompanyFollowersUrl(string companyCode, int page)
     {
-        if (string.IsNullOrWhiteSpace(url))
-            return null;
+        var baseUrl = string.Format(AppConfig.CompanyFollowersUrlTemplate, companyCode);
 
-        var trimmed = url.TrimEnd('/');
-        if (trimmed.Length == 0)
-            return null;
+        if (page == 1)
+        {
+            return baseUrl;
+        }
 
-        var lastSlash = trimmed.LastIndexOf('/');
-        return lastSlash < 0 ? trimmed : trimmed[(lastSlash + 1)..];
+        return AddQueryParameter(baseUrl, "page", page.ToString());
     }
+
+    /// <summary>
+    /// Возвращает URL списка компаний.
+    /// </summary>
+    /// <returns>URL списка компаний.</returns>
+    public static string GetCompaniesListUrl()
+    {
+        return AppConfig.CompaniesListUrl;
+    }
+}
 
     /// <summary>
     /// Склеивает <paramref name="baseUrl"/> и относительный <paramref name="relativePath"/>,
@@ -318,7 +327,7 @@ public static class UrlManager
     }
 
     /// <summary>
-    /// Формирует URL для страницы подписчиков компании.
+    /// Формирует URL страницы подписчиков компании.
     /// </summary>
     /// <param name="companyCode">Код компании.</param>
     /// <param name="page">Номер страницы.</param>
@@ -333,5 +342,14 @@ public static class UrlManager
         }
 
         return AddQueryParameter(baseUrl, "page", page.ToString());
+    }
+
+    /// <summary>
+    /// Возвращает URL списка компаний.
+    /// </summary>
+    /// <returns>URL списка компаний.</returns>
+    public static string GetCompaniesListUrl()
+    {
+        return AppConfig.CompaniesListUrl;
     }
 }

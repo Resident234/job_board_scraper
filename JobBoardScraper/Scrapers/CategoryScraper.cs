@@ -85,7 +85,7 @@ public sealed class CategoryScraper : IDisposable
 
         try
         {
-            var url = AppConfig.CompaniesListUrl;
+            var url = UrlManager.GetCompaniesListUrl();
             ScraperLogger.LogPage(_logger, url);
 
             var response = await _httpClient.GetAsync(url, ct);
