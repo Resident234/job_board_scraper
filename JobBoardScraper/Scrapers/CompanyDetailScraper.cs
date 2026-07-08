@@ -270,43 +270,9 @@ public sealed class CompanyDetailScraper : IDisposable
                     companyRecord.HasHabrBlog = CompanyDataExtractor.HasHabrBlog(doc);
 
                     // Сохраняем данные компании в БД
-                    _db.EnqueueCompany(
-                        companyRecord.CompanyCode,
-                        companyRecord.CompanyUrl,
-                        companyRecord.CompanyId,
-                        companyRecord.CompanyTitle,
-                        companyRecord.About,
-                        companyRecord.Description,
-                        companyRecord.Site,
-                        companyRecord.Rating,
-                        companyRecord.CurrentEmployees,
-                        companyRecord.PastEmployees,
-                        companyRecord.Followers,
-                        companyRecord.WantWork,
-                        companyRecord.EmployeesCount,
-                        companyRecord.HasHabrBlog,
-                        skills: companyRecord.Skills
-                    );
+                    _db.EnqueueCompany(companyRecord);
 
-                    ScraperLogger.LogEnqueue(
-                        _logger,
-                        entityType: "CompanyDetail",
-                        entityId: url,
-                        ("Code", code),
-                        ("CompanyId", companyRecord.CompanyId?.ToString() ?? "(не найдено)"),
-                        ("Title", companyRecord.CompanyTitle ?? "(не найдено)"),
-                        ("Site", companyRecord.Site ?? "(не найдено)"),
-                        ("Rating", companyRecord.Rating?.ToString("F2") ?? "(не найдено)"),
-                        ("CurrentEmployees", companyRecord.CurrentEmployees?.ToString() ?? "(не найдено)"),
-                        ("PastEmployees", companyRecord.PastEmployees?.ToString() ?? "(не найдено)"),
-                        ("Followers", companyRecord.Followers?.ToString() ?? "(не найдено)"),
-                        ("WantWork", companyRecord.WantWork?.ToString() ?? "(не найдено)"),
-                        ("Size", companyRecord.EmployeesCount ?? "(не найдено)"),
-                        ("HabrBlog", (companyRecord.HasHabrBlog == true ? "Да" : "Нет")),
-                        ("Skills", skills.Count.ToString()),
-                        ("Members", members.Count.ToString()),
-                        ("Employees", employees.Count.ToString()),
-                        ("RelatedCompanies", relatedCompanies.Count.ToString()));
+                    ScraperLogger.LogEnqueue(_logger, companyRecord);
 
                     _statistics.IncrementSuccess();
                 }

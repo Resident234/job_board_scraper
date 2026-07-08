@@ -969,6 +969,24 @@ public sealed class DatabaseClient
     }
 
     /// <summary>
+    /// Добавить компанию в очередь на запись в базу данных, используя готовый CompanyRecord.
+    /// Удобно для парсеров, которые формируют CompanyRecord целиком.
+    /// </summary>
+    public bool EnqueueCompany(CompanyRecord companyRecord)
+    {
+        if (_saveQueue == null || companyRecord == null) return false;
+
+        var record = new DbRecord(
+            Type: DbRecordType.Company,
+            Company: companyRecord
+        );
+        _saveQueue.Enqueue(record);
+        LogEnqueue("Company", companyRecord);
+
+        return true;
+    }
+
+    /// <summary>
     /// Добавить category_root_id в очередь на запись в базу данных
     /// </summary>
     public bool EnqueueCategoryRootId(string categoryId, string categoryName)
