@@ -242,12 +242,9 @@ public sealed class CompanyDetailScraper : IDisposable
                     {
                         _db.EnqueueResume(
                             link: employee.Link,
-                            title: "",
-                            slogan: null,
-                            mode: InsertMode.SkipIfExists,
+                            title: employee.UserName,
                             code: employee.UserName,
-                            expert: null,
-                            workExperience: null
+                            mode: InsertMode.SkipIfExists
                         );
                         ScraperLogger.LogEnqueue(_logger, "Employee", employee.Link, ("Code", employee.UserName), ("Link", employee.Link));
                     }
@@ -258,12 +255,9 @@ public sealed class CompanyDetailScraper : IDisposable
                     {
                         _db.EnqueueResume(
                             link: member.Link,
-                            title: "",
-                            slogan: null,
-                            mode: InsertMode.UpdateIfExists,
+                            title: member.UserName,
                             code: member.UserName,
-                            expert: null,
-                            workExperience: null
+                            mode: InsertMode.UpdateIfExists
                         );
                         ScraperLogger.LogEnqueue(_logger, "ContactPerson", member.Link, ("Code", member.UserName), ("Link", member.Link), ("Title", member.UserName));
                     }
