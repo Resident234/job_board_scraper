@@ -1210,7 +1210,7 @@ public static class UserDataExtractor
         {
             try
             {
-                experiences.Add(BuildExperienceRecord(item, userLink, isFirst));
+                experiences.Add(ExtractExperienceItem(item, userLink, isFirst));
                 isFirst = false;
             }
             catch
@@ -1378,6 +1378,95 @@ public static class UserDataExtractor
         var companyUrl = UrlManager.ToAbsolute(companyHref);
 
         return new CompanyRecord(companyCode, companyUrl, CompanyTitle: companyName);
+    }
+
+    /// <summary>
+    /// Формирует запись об опыте работы из DOM-элемента позиции на странице резюме.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи об опыте работы.</param>
+    /// <param name="userLink">Ссылка на профиль пользователя.</param>
+    /// <param name="isFirst">true, если это первая (наиболее актуальная) запись об опыте работы.</param>
+    /// <returns>Заполненная запись <see cref="UserExperienceRecord"/>.</returns>
+    private static UserExperienceRecord ExtractExperienceItem(
+        IElement item, string userLink, bool isFirst)
+    {
+        string? companyCode = null;
+        string? companyUrl = null;
+        string? companyTitle = null;
+
+        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
+        if (companyLink != null)
+        {
+            companyUrl = companyLink.GetAttribute("href");
+            companyTitle = companyLink.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(companyUrl))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
+                if (match.Success)
+                {
+                    companyCode = match.Groups[1].Value;
+                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
+                }
+            }
+        }
+
+        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
+
+        string? companySize = null;
+        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+        {
+            var href = link.GetAttribute("href");
+            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
+            {
+                companySize = link.TextContent?.Trim();
+                break;
+            }
+        }
+
+        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
+        }
+
+        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
+        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
+
+        var experienceSkills = new List<SkillsRecord>();
+        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
+        if (tagsContainer != null)
+        {
+            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+            {
+                var skillName = skillLink.TextContent?.Trim();
+                if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                int? skillId = null;
+                var skillHref = skillLink.GetAttribute("href");
+                if (!string.IsNullOrWhiteSpace(skillHref))
+                {
+                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
+                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
+                        skillId = id;
+                }
+                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
+            }
+        }
+
+        return new UserExperienceRecord(
+            UserLink: userLink,
+            Company: new CompanyRecord(
+                CompanyCode: companyCode ?? string.Empty,
+                CompanyUrl: companyUrl ?? string.Empty,
+                CompanyTitle: companyTitle,
+                About: companyAbout,
+                EmployeesCount: companySize),
+            Position: position,
+            Duration: duration,
+            Description: description,
+            Skills: experienceSkills,
+            IsFirstRecord: isFirst);
     }
 
     /// <summary>
@@ -1578,94 +1667,6 @@ public static class UserDataExtractor
         return text.Trim();
     }
 
-    /// <summary>
-    /// Формирует запись об опыте работы из DOM-элемента позиции на странице резюме.
-    /// </summary>
-    /// <param name="item">DOM-элемент записи об опыте работы.</param>
-    /// <param name="userLink">Ссылка на профиль пользователя.</param>
-    /// <param name="isFirst">true, если это первая (наиболее актуальная) запись об опыте работы.</param>
-    /// <returns>Заполненная запись <see cref="UserExperienceRecord"/>.</returns>
-    private static UserExperienceRecord BuildExperienceRecord(
-        IElement item, string userLink, bool isFirst)
-    {
-        string? companyCode = null;
-        string? companyUrl = null;
-        string? companyTitle = null;
-
-        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
-        if (companyLink != null)
-        {
-            companyUrl = companyLink.GetAttribute("href");
-            companyTitle = companyLink.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(companyUrl))
-            {
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
-                if (match.Success)
-                {
-                    companyCode = match.Groups[1].Value;
-                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
-                }
-            }
-        }
-
-        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
-
-        string? companySize = null;
-        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-        {
-            var href = link.GetAttribute("href");
-            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
-            {
-                companySize = link.TextContent?.Trim();
-                break;
-            }
-        }
-
-        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
-        }
-
-        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
-        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
-
-        var experienceSkills = new List<SkillsRecord>();
-        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
-        if (tagsContainer != null)
-        {
-            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-            {
-                var skillName = skillLink.TextContent?.Trim();
-                if (string.IsNullOrWhiteSpace(skillName)) continue;
-
-                int? skillId = null;
-                var skillHref = skillLink.GetAttribute("href");
-                if (!string.IsNullOrWhiteSpace(skillHref))
-                {
-                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
-                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
-                        skillId = id;
-                }
-                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
-            }
-        }
-
-        return new UserExperienceRecord(
-            UserLink: userLink,
-            Company: new CompanyRecord(
-                CompanyCode: companyCode ?? string.Empty,
-                CompanyUrl: companyUrl ?? string.Empty,
-                CompanyTitle: companyTitle,
-                About: companyAbout,
-                EmployeesCount: companySize),
-            Position: position,
-            Duration: duration,
-            Description: description,
-            Skills: experienceSkills,
-            IsFirstRecord: isFirst);
-    }
 
     /// <summary>
     /// Записывает сообщение об ошибке парсинга профиля в логгер или в консоль.
