@@ -30,6 +30,16 @@ public static class UrlManager
     }
 
     /// <summary>
+    /// Формирует ссылку на профиль пользователя.
+    /// </summary>
+    /// <param name="username">Имя пользователя.</param>
+    /// <returns>Ссылка на профиль пользователя (например, http://career.habr.com/username).</returns>
+    public static string BuildUserProfileUrl(string username)
+    {
+        return Combine(AppConfig.BaseUrl, username);
+    }
+
+    /// <summary>
     /// Формирует URL страницы подписчиков компании.
     /// </summary>
     /// <param name="companyCode">Код компании.</param>
@@ -55,7 +65,6 @@ public static class UrlManager
     {
         return AppConfig.CompaniesListUrl;
     }
-}
 
     /// <summary>
     /// Склеивает <paramref name="baseUrl"/> и относительный <paramref name="relativePath"/>,

@@ -78,7 +78,7 @@ public sealed class BruteForceUsernameScraper
                 source: usernames,
                 body: async username =>
                 {
-                    string link = UrlManager.Combine(AppConfig.BaseUrl, username);
+                    string link = UrlManager.BuildUserProfileUrl(username);
 
                     _activeRequests.TryAdd(link, Task.CurrentId.HasValue ? Task.FromResult(Task.CurrentId.Value) : Task.CompletedTask);
                     try
