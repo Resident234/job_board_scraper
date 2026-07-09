@@ -51,12 +51,11 @@ public sealed class BruteForceUsernameScraper
             var usernames = new List<string>(GenerateUsernames(len));
             int totalLinks = usernames.Count;
 
-            _logger.WriteLine($"Сгенерировано адресов: {totalLinks}");
+            ScraperLogger.LogCount(_logger, "Сгенерировано адресов", totalLinks, "адресов");
 
             int totalLength = (AppConfig.BaseUrl?.Length ?? 0) + AppConfig.MaxLength;
             var lastLink = _getLastResumeLink(totalLength);
-            _logger.WriteLine($"Последний обработанный link из БД: {lastLink}");
-
+            ScraperLogger.LogPage(_logger, $"Последний обработанный link из БД: {lastLink}");
             int startIndex = 0;
             if (!string.IsNullOrEmpty(lastLink))
             {
@@ -64,11 +63,11 @@ public sealed class BruteForceUsernameScraper
                 if (foundIndex >= 0 && foundIndex < usernames.Count - 1)
                 {
                     startIndex = foundIndex + 1;
-                    _logger.WriteLine($"Продолжаем перебор с {startIndex}-го элемента: {usernames[startIndex]}");
+                    ScraperLogger.LogPage(_logger, $"Продолжаем перебор с {startIndex}-го элемента: {usernames[startIndex]}");
                 }
                 else
                 {
-                    _logger.WriteLine("Последний link из БД не найден, начинаем с начала.");
+                    ScraperLogger.LogPage(_logger, "Последний link из БД не найден, начинаем с начала.");
                 }
             }
 
