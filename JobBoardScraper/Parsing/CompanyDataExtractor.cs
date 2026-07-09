@@ -18,37 +18,6 @@ public static class CompanyDataExtractor
     private static readonly Regex _employeesRegex = new Regex(AppConfig.CompanyDetailEmployeesRegex, RegexOptions.Compiled);
     private static readonly Regex _followersRegex = new Regex(AppConfig.CompanyDetailFollowersRegex, RegexOptions.Compiled);
 
-    private static void LogError(ConsoleLogger? logger, string message, Exception? ex = null)
-    {
-        if (logger != null)
-        {
-            if (ex != null)
-            {
-                logger.WriteLine($"{message}: {ex.Message}");
-            }
-            else
-            {
-                logger.WriteLine(message);
-            }
-        }
-        else
-        {
-            Console.WriteLine(ex != null ? $"{message}: {ex.Message}" : message);
-        }
-    }
-
-    private static void LogInfo(ConsoleLogger? logger, string message)
-    {
-        if (logger != null)
-        {
-            logger.WriteLine(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-        }
-    }
-
     /// <summary>
     /// Извлекает название компании из HTML-документа
     /// </summary>
@@ -935,6 +904,37 @@ public static class CompanyDataExtractor
         {
             LogError(null, "Ошибка при извлечении категорий", ex);
             return new List<(string value, string text)>();
+        }
+    }
+
+    private static void LogError(ConsoleLogger? logger, string message, Exception? ex = null)
+    {
+        if (logger != null)
+        {
+            if (ex != null)
+            {
+                logger.WriteLine($"{message}: {ex.Message}");
+            }
+            else
+            {
+                logger.WriteLine(message);
+            }
+        }
+        else
+        {
+            Console.WriteLine(ex != null ? $"{message}: {ex.Message}" : message);
+        }
+    }
+
+    private static void LogInfo(ConsoleLogger? logger, string message)
+    {
+        if (logger != null)
+        {
+            logger.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
         }
     }
 }
