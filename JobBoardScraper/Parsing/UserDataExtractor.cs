@@ -11,6 +11,20 @@ namespace JobBoardScraper.Parsing;
 /// </summary>
 public static class UserDataExtractor
 {
+    #region Константы для кириллических строк
+
+    private const string PrivacyRestrictedText = "Доступ ограничен настройками приватности";
+    private const string Error404Text = "Ошибка 404";
+    private const string ProfileDeletedText = "Профиль удален";
+    private const string ProfileDeletedClass = "user-profile__deleted";
+    private const string PageDeletedText = "Страница удалена";
+    private const string InfoHiddenText = "Информация скрыта";
+    private const string ProfileHiddenClass = "user-page-sidebar--status-hidden";
+    private const string SpecialistsNotFoundRuText = "Специалисты не найдены";
+    private const string SpecialistsNotFoundEnText = "Specialists not found";
+
+    #endregion
+
     /// <summary>
     /// Определяет, является ли профиль пустым (нет ни одного блока данных).
     /// Профиль считается пустым, если выполняются ВСЕ условия:
@@ -31,7 +45,7 @@ public static class UserDataExtractor
         // 1) Секция "О себе" — ищем непустой текст внутри .style-ugc, исключая служебные сообщения.
         string? about = ExtractAboutSection(doc);
         bool isServiceMessage = !string.IsNullOrWhiteSpace(about) &&
-                                (about == "Доступ ограничен настройками приватности" || about == "Ошибка 404");
+                                (about == PrivacyRestrictedText || about == Error404Text);
         bool hasAbout = !isServiceMessage && !string.IsNullOrWhiteSpace(about);
         if (hasAbout)
         {
@@ -127,20 +141,16 @@ public static class UserDataExtractor
         if (doc == null)
             return false;
 
-        const string deletedMarker1 = "Профиль удален";
-        const string deletedMarker2 = "user-profile__deleted";
-        const string deletedMarker3 = "Страница удалена";
-
         // Проверяем CSS-класс через DOM-запрос
-        if (!string.IsNullOrEmpty(doc.QuerySelector($".{deletedMarker2}")?.ClassName))
+        if (!string.IsNullOrEmpty(doc.QuerySelector($".{ProfileDeletedClass}")?.ClassName))
         {
             return true;
         }
 
         // Проверяем текстовые маркеры в содержимом документа
         var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
-        return documentText.Contains(deletedMarker1, StringComparison.OrdinalIgnoreCase) ||
-               documentText.Contains(deletedMarker3, StringComparison.OrdinalIgnoreCase);
+        return documentText.Contains(ProfileDeletedText, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(PageDeletedText, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -157,20 +167,16 @@ public static class UserDataExtractor
         if (doc == null)
             return false;
 
-        const string privateProfileText1 = "Доступ ограничен настройками приватности";
-        const string privateProfileText2 = "Информация скрыта";
-        const string privateProfileClass = "user-page-sidebar--status-hidden";
-
         // Проверяем CSS-класс через DOM-запрос
-        if (doc.QuerySelector($".{privateProfileClass}") != null)
+        if (doc.QuerySelector($".{ProfileHiddenClass}") != null)
         {
             return true;
         }
 
         // Проверяем текстовые маркеры в содержимом документа
         var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
-        return documentText.Contains(privateProfileText1, StringComparison.OrdinalIgnoreCase) ||
-               documentText.Contains(privateProfileText2, StringComparison.OrdinalIgnoreCase);
+        return documentText.Contains(PrivacyRestrictedText, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(InfoHiddenText, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -232,7 +238,7 @@ public static class UserDataExtractor
     {
         if (string.IsNullOrWhiteSpace(levelTitle))
             return false;
-        
+
         return AppConfig.ValidLevelTitles.Contains(levelTitle.Trim());
     }
 
@@ -243,12 +249,12 @@ public static class UserDataExtractor
     /// <param name="basicSectionSelector">Селектор для .basic-section</param>
     /// <returns>Кортеж (workExperience, lastVisit)</returns>
     public static (string? workExperience, string? lastVisit) ExtractWorkExperienceAndLastVisit(
-        IDocument doc, 
+        IDocument doc,
         string basicSectionSelector = ".basic-section")
     {
         string? workExperience = null;
         string? lastVisit = null;
-        
+
         var basicSectionElements = doc.QuerySelectorAll(basicSectionSelector);
         foreach (var basicSectionElement in basicSectionElements)
         {
@@ -259,7 +265,7 @@ public static class UserDataExtractor
                 var textContent = div.TextContent?.Trim();
                 if (string.IsNullOrWhiteSpace(textContent))
                     continue;
-                
+
                 // Проверяем на опыт работы
                 if (textContent.Contains("Опыт работы:"))
                 {
@@ -270,7 +276,7 @@ public static class UserDataExtractor
                         workExperience = parts[1].Trim();
                     }
                 }
-                
+
                 // Проверяем на последний визит
                 if (textContent.Contains("Последний визит:"))
                 {
@@ -283,10 +289,10 @@ public static class UserDataExtractor
                 }
             }
         }
-        
+
         return (workExperience, lastVisit);
     }
-    
+
     /// <summary>
     /// Извлекает текст после указанного префикса из элементов
     /// </summary>
@@ -300,7 +306,7 @@ public static class UserDataExtractor
             var textContent = element.TextContent?.Trim();
             if (string.IsNullOrWhiteSpace(textContent))
                 continue;
-            
+
             if (textContent.Contains(prefix))
             {
                 var parts = textContent.Split(new[] { prefix }, StringSplitOptions.None);
@@ -310,10 +316,10 @@ public static class UserDataExtractor
                 }
             }
         }
-        
+
         return null;
     }
-    
+
     /// <summary>
     /// Извлекает дополнительные данные профиля из секций .basic-section
     /// и возвращает частично заполненную <see cref="ResumeRecord"/> (Age, WorkExperience,
@@ -418,11 +424,11 @@ public static class UserDataExtractor
             Citizenship: citizenship,
             RemoteWork: remoteWork);
     }
-    
+
     /// <summary>
     /// Извлекает имя пользователя из заголовка страницы
     /// </summary>
-    /// <param name="doc">Документ для парсинга</param>
+    /// <param>name="doc">Документ для парсинга</param>
     /// <param name="pageTitleSelector">Селектор для заголовка страницы</param>
     /// <returns>Имя пользователя или null</returns>
     public static string? ExtractUserName(IDocument doc, string pageTitleSelector = "h1.page-title__title")
@@ -430,7 +436,7 @@ public static class UserDataExtractor
         var pageTitleElement = doc.QuerySelector(pageTitleSelector);
         return pageTitleElement?.TextContent?.Trim();
     }
-    
+
     /// <summary>
     /// Извлекает техническую информацию и уровень из метаданных профиля
     /// </summary>
@@ -445,7 +451,7 @@ public static class UserDataExtractor
     {
         string? infoTech = null;
         string? levelTitle = null;
-        
+
         var metaElement = doc.QuerySelector(metaSelector);
         if (metaElement != null)
         {
@@ -454,7 +460,7 @@ public static class UserDataExtractor
             {
                 var directChildren = inlineList.Children.Where(c => c.TagName.ToLower() == "span");
                 var textParts = new List<string>();
-                
+
                 foreach (var child in directChildren)
                 {
                     var textSpan = child.QuerySelector("span:first-child");
@@ -467,7 +473,7 @@ public static class UserDataExtractor
                         }
                     }
                 }
-                
+
                 if (textParts.Count > 0)
                 {
                     var lastPart = textParts[textParts.Count - 1];
@@ -486,12 +492,10 @@ public static class UserDataExtractor
                     }
                 }
             }
-        }
-        
-        return (infoTech, levelTitle);
-    }
 
-    
+            return (infoTech, levelTitle);
+        }
+
     /// <summary>
     /// Извлекает зарплату и статус поиска работы из карьерной секции
     /// </summary>
@@ -506,7 +510,7 @@ public static class UserDataExtractor
     {
         int? salary = null;
         string? jobSearchStatus = null;
-        
+
         var careerElement = doc.QuerySelector(careerSelector);
         if (careerElement != null)
         {
@@ -524,7 +528,7 @@ public static class UserDataExtractor
                         salary = salaryValue;
                     }
                 }
-                
+
                 // Извлекаем статус поиска работы
                 if (careerText.Contains("Ищу работу"))
                 {
@@ -540,7 +544,7 @@ public static class UserDataExtractor
                 }
             }
         }
-        
+
         return (salary, jobSearchStatus);
     }
 
@@ -556,18 +560,18 @@ public static class UserDataExtractor
         string? name = null;
         string? infoTech = null;
         string? levelTitle = null;
-        
+
         var profileLink = section.QuerySelector(profileLinkSelector);
         if (profileLink != null)
         {
             name = profileLink.TextContent?.Trim();
         }
-        
+
         var separators = section.QuerySelectorAll(separatorSelector);
         if (separators.Length > 0)
         {
             var parts = new List<string>();
-            
+
             foreach (var separator in separators)
             {
                 var prevSibling = separator.PreviousElementSibling;
@@ -580,7 +584,7 @@ public static class UserDataExtractor
                     }
                 }
             }
-            
+
             var lastSeparator = separators[separators.Length - 1];
             var nextSibling = lastSeparator.NextElementSibling;
             if (nextSibling != null)
@@ -591,7 +595,7 @@ public static class UserDataExtractor
                     parts.Add(text);
                 }
             }
-            
+
             if (parts.Count > 0)
             {
                 var lastPart = parts[^1].Trim();
@@ -610,10 +614,10 @@ public static class UserDataExtractor
                 }
             }
         }
-        
+
         return (name, infoTech, levelTitle);
     }
-    
+
     /// <summary>
     /// Извлекает зарплату из секции профиля в списке резюме
     /// </summary>
@@ -651,13 +655,13 @@ public static class UserDataExtractor
     public static string? ExtractJobSearchStatusFromSection(IElement section)
     {
         var allSpans = section.QuerySelectorAll("span");
-        
+
         foreach (var span in allSpans)
         {
             var text = span.TextContent?.Trim();
             if (string.IsNullOrWhiteSpace(text))
                 continue;
-            
+
             if (text.Contains("Ищу работу"))
             {
                 return "Ищу работу";
@@ -671,7 +675,7 @@ public static class UserDataExtractor
                 return "Рассматриваю предложения";
             }
         }
-        
+
         return null;
     }
 
@@ -812,15 +816,15 @@ public static class UserDataExtractor
     private static List<CourseData> ExtractCourses(IElement item)
     {
         var courses = new List<CourseData>();
-        
+
         var coursesContainer = item.QuerySelector(AppConfig.EducationCoursesContainerSelector);
         if (coursesContainer == null)
         {
             return courses;
         }
-        
+
         var courseElements = coursesContainer.QuerySelectorAll(AppConfig.EducationCourseSelector);
-        
+
         foreach (var courseElement in courseElements)
         {
             try
@@ -836,7 +840,7 @@ public static class UserDataExtractor
                 continue;
             }
         }
-        
+
         return courses;
     }
 
@@ -844,17 +848,17 @@ public static class UserDataExtractor
     {
         var nameElement = courseElement.QuerySelector(AppConfig.EducationCourseNameSelector);
         var courseName = nameElement?.TextContent?.Trim();
-        
+
         if (string.IsNullOrWhiteSpace(courseName))
         {
             return null;
         }
-        
+
         var periodElement = courseElement.QuerySelector(AppConfig.EducationCoursePeriodSelector);
         var periodText = periodElement?.TextContent?.Trim();
-        
+
         var (startDate, endDate, duration, isCurrent) = ParseCoursePeriod(periodText);
-        
+
         return new CourseData
         {
             Name = courseName,
@@ -871,35 +875,35 @@ public static class UserDataExtractor
         {
             return (null, null, null, false);
         }
-        
+
         string? startDate = null;
         string? endDate = null;
         string? duration = null;
         bool isCurrent = false;
-        
+
         if (periodText.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
         {
             isCurrent = true;
         }
-        
+
         var match = System.Text.RegularExpressions.Regex.Match(periodText, AppConfig.CoursePeriodRegex);
-        
+
         if (match.Success)
         {
             startDate = match.Groups[1].Value.Trim();
-            
+
             var endPart = match.Groups[2].Value.Trim();
             if (!endPart.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
             {
                 endDate = endPart;
             }
-            
+
             if (match.Groups.Count > 3 && !string.IsNullOrWhiteSpace(match.Groups[3].Value))
             {
                 duration = match.Groups[3].Value.Trim();
             }
         }
-        
+
         return (startDate, endDate, duration, isCurrent);
     }
 
@@ -909,13 +913,13 @@ public static class UserDataExtractor
         {
             return null;
         }
-        
+
         var match = System.Text.RegularExpressions.Regex.Match(url, AppConfig.UniversityIdRegex);
         if (match.Success && int.TryParse(match.Groups[1].Value, out var id))
         {
             return id;
         }
-        
+
         return null;
     }
 
@@ -925,37 +929,37 @@ public static class UserDataExtractor
     public static List<AdditionalEducationRecord> ExtractAdditionalEducationData(IDocument doc, string userLink = "")
     {
         var result = new List<AdditionalEducationRecord>();
-        
+
         try
         {
             var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
             IElement? additionalEducationSection = null;
-            
+
             foreach (var section in sections)
             {
                 var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
                 var titleText = titleElement?.TextContent?.Trim();
-                
+
                 if (titleText != null && titleText.Contains(AppConfig.AdditionalEducationSectionTitleText, StringComparison.OrdinalIgnoreCase))
                 {
                     additionalEducationSection = section;
                     break;
                 }
             }
-            
+
             if (additionalEducationSection == null)
             {
                 return result;
             }
-            
+
             var container = additionalEducationSection.QuerySelector(AppConfig.AdditionalEducationContainerSelector);
             if (container == null)
             {
                 container = additionalEducationSection;
             }
-            
+
             var educationItems = container.QuerySelectorAll(AppConfig.AdditionalEducationItemSelector);
-            
+
             foreach (var item in educationItems)
             {
                 try
@@ -975,7 +979,7 @@ public static class UserDataExtractor
         catch
         {
         }
-        
+
         return result;
     }
 
@@ -983,26 +987,26 @@ public static class UserDataExtractor
     {
         var titleElement = item.QuerySelector(AppConfig.AdditionalEducationTitleSelector);
         var title = titleElement?.TextContent?.Trim();
-        
+
         if (string.IsNullOrWhiteSpace(title))
         {
             return null;
         }
-        
+
         string? course = null;
         var courseElement = item.QuerySelector(AppConfig.AdditionalEducationCourseSelector);
         if (courseElement != null)
         {
             course = courseElement.TextContent?.Trim();
         }
-        
+
         string? duration = null;
         var durationElement = item.QuerySelector(AppConfig.AdditionalEducationDurationSelector);
         if (durationElement != null)
         {
             duration = durationElement.TextContent?.Trim();
         }
-        
+
         return new AdditionalEducationRecord(
             UserLink: userLink,
             Title: title,
@@ -1017,37 +1021,37 @@ public static class UserDataExtractor
     public static List<CommunityParticipationData> ExtractCommunityParticipationRecords(IDocument doc)
     {
         var result = new List<CommunityParticipationData>();
-        
+
         try
         {
             var sections = doc.QuerySelectorAll(AppConfig.EducationSectionSelector);
             IElement? communitySection = null;
-            
+
             foreach (var section in sections)
             {
                 var titleElement = section.QuerySelector(AppConfig.EducationSectionTitleSelector);
                 var titleText = titleElement?.TextContent?.Trim();
-                
+
                 if (titleText != null && titleText.Contains(AppConfig.CommunityParticipationSectionTitleText, StringComparison.OrdinalIgnoreCase))
                 {
                     communitySection = section;
                     break;
                 }
             }
-            
+
             if (communitySection == null)
             {
                 return result;
             }
-            
+
             var container = communitySection.QuerySelector(AppConfig.CommunityParticipationContainerSelector);
             if (container == null)
             {
                 container = communitySection;
             }
-            
+
             var items = container.QuerySelectorAll(AppConfig.CommunityParticipationItemSelector);
-            
+
             foreach (var item in items)
             {
                 try
@@ -1067,7 +1071,7 @@ public static class UserDataExtractor
         catch
         {
         }
-        
+
         return result;
     }
 
@@ -1075,33 +1079,33 @@ public static class UserDataExtractor
     {
         var nameElement = item.QuerySelector(AppConfig.CommunityParticipationNameSelector);
         var name = nameElement?.TextContent?.Trim();
-        
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return null;
         }
-        
+
         string? memberSince = null;
         var memberSinceElement = item.QuerySelector(AppConfig.CommunityParticipationMemberSinceSelector);
         if (memberSinceElement != null)
         {
             memberSince = memberSinceElement.TextContent?.Trim();
         }
-        
+
         string? contribution = null;
         var contributionElement = item.QuerySelector(AppConfig.CommunityParticipationContributionSelector);
         if (contributionElement != null)
         {
             contribution = contributionElement.TextContent?.Trim();
         }
-        
+
         string? topics = null;
         var topicsElement = item.QuerySelector(AppConfig.CommunityParticipationTopicsSelector);
         if (topicsElement != null)
         {
             var topicLinks = topicsElement.QuerySelectorAll("a.link-comp");
             var topicsList = new List<string>();
-            
+
             foreach (var link in topicLinks)
             {
                 var topicText = link.TextContent?.Trim();
@@ -1114,13 +1118,13 @@ public static class UserDataExtractor
                     }
                 }
             }
-            
+
             if (topicsList.Count > 0)
             {
                 topics = string.Join(" • ", topicsList);
             }
         }
-        
+
         return new CommunityParticipationData
         {
             Name = name,
@@ -1339,8 +1343,8 @@ public static class UserDataExtractor
         if (doc == null)
             return false;
 
-        const string notFoundProfilesText1 = "Специалисты не найдены";
-        const string notFoundProfilesText2 = "Specialists not found";
+        const string notFoundProfilesText1 = SpecialistsNotFoundRuText;
+        const string notFoundProfilesText2 = SpecialistsNotFoundEnText;
 
         var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
         return documentText.Contains(notFoundProfilesText1, StringComparison.OrdinalIgnoreCase) ||
