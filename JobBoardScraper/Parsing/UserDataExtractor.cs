@@ -771,6 +771,12 @@ public static class UserDataExtractor
         return result;
     }
 
+    /// <summary>
+    /// Извлекает данные одной записи о высшем образовании из DOM-элемента.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи об образовании.</param>
+    /// <param name="userLink">Ссылка на профиль пользователя, проставляется в UserLink записи.</param>
+    /// <returns>Запись <see cref="UserUniversityRecord"/> или null, если элемент не содержит обязательных данных.</returns>
     private static UserUniversityRecord? ExtractSingleEducationItem(IElement item, string userLink)
     {
         var universityLink = item.QuerySelector(AppConfig.EducationUniversityLinkSelector);
@@ -849,6 +855,11 @@ public static class UserDataExtractor
             Description: description);
     }
 
+    /// <summary>
+    /// Извлекает список курсов из DOM-элемента записи об образовании.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи об образовании.</param>
+    /// <returns>Список <see cref="CourseData"/>; пустой список, если курсов нет.</returns>
     private static List<CourseData> ExtractCourses(IElement item)
     {
         var courses = new List<CourseData>();
@@ -880,6 +891,11 @@ public static class UserDataExtractor
         return courses;
     }
 
+    /// <summary>
+    /// Извлекает данные одного курса из DOM-элемента.
+    /// </summary>
+    /// <param name="courseElement">DOM-элемент курса.</param>
+    /// <returns>Запись <see cref="CourseData"/> или null, если название курса не найдено.</returns>
     private static CourseData? ExtractCourse(IElement courseElement)
     {
         var nameElement = courseElement.QuerySelector(AppConfig.EducationCourseNameSelector);
@@ -906,6 +922,11 @@ public static class UserDataExtractor
     }
 
 
+    /// <summary>
+    /// Извлекает числовой идентификатор университета из URL-ссылки.
+    /// </summary>
+    /// <param name="url">URL профиля университета.</param>
+    /// <returns>Числовой идентификатор или null, если URL не содержит идентификатора.</returns>
     public static int? ExtractUniversityIdFromUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -982,6 +1003,12 @@ public static class UserDataExtractor
         return result;
     }
 
+    /// <summary>
+    /// Извлекает данные одной записи о дополнительном образовании из DOM-элемента.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи о дополнительном образовании.</param>
+    /// <param name="userLink">Ссылка на профиль пользователя, проставляется в UserLink записи.</param>
+    /// <returns>Запись <see cref="AdditionalEducationRecord"/> или null, если название не найдено.</returns>
     private static AdditionalEducationRecord? ExtractSingleAdditionalEducationItem(IElement item, string userLink)
     {
         var titleElement = item.QuerySelector(AppConfig.AdditionalEducationTitleSelector);
@@ -1074,6 +1101,11 @@ public static class UserDataExtractor
         return result;
     }
 
+    /// <summary>
+    /// Извлекает данные одной записи об участии в профсообществе из DOM-элемента.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи участия в сообществе.</param>
+    /// <returns>Запись <see cref="CommunityParticipationData"/> или null, если название сообщества не найдено.</returns>
     private static CommunityParticipationData? ExtractSingleCommunityParticipationItem(IElement item)
     {
         var nameElement = item.QuerySelector(AppConfig.CommunityParticipationNameSelector);
@@ -1255,6 +1287,11 @@ public static class UserDataExtractor
 
 
 
+    /// <summary>
+    /// Извлекает данные одной карточки эксперта: резюме и связанную компанию.
+    /// </summary>
+    /// <param name="card">DOM-элемент карточки эксперта.</param>
+    /// <returns>Кортеж (Resume, Company) или null, если карточка не содержит обязательных данных (ссылки или имени).</returns>
     private static (ResumeRecord Resume, CompanyRecord? Company)? ExtractExpertCard(IElement card)
     {
         var titleLink = card.QuerySelector(AppConfig.ExpertsTitleLinkSelector);
@@ -1288,6 +1325,11 @@ public static class UserDataExtractor
         return (resume, company);
     }
 
+    /// <summary>
+    /// Извлекает текстовое значение стажа работы из карточки эксперта.
+    /// </summary>
+    /// <param name="card">DOM-элемент карточки эксперта.</param>
+    /// <returns>Строка со стажем (без префикса «Стаж ») или null, если данные не найдены.</returns>
     private static string? ExtractExpertWorkExperience(IElement card)
     {
         const string workExperiencePrefix = JobSearchStatusesPrefixText;
@@ -1305,6 +1347,11 @@ public static class UserDataExtractor
         return null;
     }
 
+    /// <summary>
+    /// Извлекает данные компании из карточки эксперта.
+    /// </summary>
+    /// <param name="card">DOM-элемент карточки эксперта.</param>
+    /// <returns>Запись <see cref="CompanyRecord"/> или null, если ссылка на компанию не найдена или не содержит валидного кода.</returns>
     private static CompanyRecord? ExtractExpertCompany(IElement card)
     {
         var companyLink = card.QuerySelector(AppConfig.ExpertsCompanyLinkSelector);
@@ -1453,6 +1500,11 @@ public static class UserDataExtractor
         return text.Trim();
     }
 
+    /// <summary>
+    /// Разбирает текст периода курса и извлекает дату начала, дату окончания, продолжительность и признак текущего курса.
+    /// </summary>
+    /// <param name="periodText">Текст периода в формате, принятом на сайте (например, «Январь 2020 — Май 2021, 1 год 4 месяца»).</param>
+    /// <returns>Кортеж (startDate, endDate, duration, isCurrent).</returns>
     public static (string? startDate, string? endDate, string? duration, bool isCurrent) ParseCoursePeriod(string? periodText)
     {
         if (string.IsNullOrWhiteSpace(periodText))
@@ -1491,6 +1543,13 @@ public static class UserDataExtractor
         return (startDate, endDate, duration, isCurrent);
     }
 
+    /// <summary>
+    /// Формирует запись об опыте работы из DOM-элемента позиции на странице резюме.
+    /// </summary>
+    /// <param name="item">DOM-элемент записи об опыте работы.</param>
+    /// <param name="userLink">Ссылка на профиль пользователя.</param>
+    /// <param name="isFirst">true, если это первая (наиболее актуальная) запись об опыте работы.</param>
+    /// <returns>Заполненная запись <see cref="UserExperienceRecord"/>.</returns>
     private static UserExperienceRecord BuildExperienceRecord(
         IElement item, string userLink, bool isFirst)
     {
@@ -1608,6 +1667,11 @@ public static class UserDataExtractor
         return (expertCards.Length, experts, failedCards);
     }
 
+    /// <summary>
+    /// Записывает сообщение об ошибке парсинга профиля в логгер или в консоль.
+    /// </summary>
+    /// <param name="logger">Опциональный логгер; если null, вывод идёт в Console.WriteLine.</param>
+    /// <param name="ex">Перехваченное исключение.</param>
     private static void LogProfileParsingError(ConsoleLogger? logger, Exception ex)
     {
         var message = $"{ProfileParsingErrorText} {ex.Message}";
