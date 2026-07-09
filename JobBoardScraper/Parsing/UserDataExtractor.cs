@@ -1,4 +1,4 @@
-﻿using AngleSharp.Dom;
+using AngleSharp.Dom;
 using JobBoardScraper.Data;
 using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Infrastructure.Logging;
@@ -16,12 +16,45 @@ public static class UserDataExtractor
     private const string PrivacyRestrictedText = "Доступ ограничен настройками приватности";
     private const string Error404Text = "Ошибка 404";
     private const string ProfileDeletedText = "Профиль удален";
-    private const string ProfileDeletedClass = "user-profile__deleted";
     private const string PageDeletedText = "Страница удалена";
     private const string InfoHiddenText = "Информация скрыта";
-    private const string ProfileHiddenClass = "user-page-sidebar--status-hidden";
     private const string SpecialistsNotFoundRuText = "Специалисты не найдены";
     private const string SpecialistsNotFoundEnText = "Specialists not found";
+    private const string AboutMeText = "Обо мне";
+    private const string BulletText = "•";
+    private const string WorkExperienceText = "Опыт работы:";
+    private const string LastVisitText = "Последний визит:";
+    private const string AgeText = "Возраст:";
+    private const string RegistrationText = "Регистрация:";
+    private const string CitizenshipText = "Гражданство:";
+    private const string RemoteWorkText = "Удаленн";
+    private const string SearchForWorkText = "Ищу работу";
+    private const string NotSearchingForWorkText = "Не ищу работу";
+    private const string ConsiderOffersText = "Рассматриваю предложения";
+    private const string AdditionalInfoText = "Дополнительно:";
+    private const string JobSearchStatusesPrefixText = "Стаж ";
+    private const string SalaryText = "От";
+    private const string RubleText = "₽";
+    private const string SalaryRegexPattern = @"От\s+([\d\s]+)\s*₽";
+    private const string ProfileParsingErrorText = "Ошибка при парсинге профиля:";
+
+    #endregion
+
+    #region CSS селекторы и классы
+
+    private const string ProfileDeletedClass = "user-profile__deleted";
+    private const string ProfileHiddenClass = "user-page-sidebar--status-hidden";
+    private const string ContentSectionTitleSelector = ".content-section__title";
+    private const string StyleUgcSelector = ".style-ugc";
+    private const string BasicSectionSelector = ".basic-section";
+    private const string PageTitleSelector = "h1.page-title__title";
+    private const string UserPageSidebarMetaSelector = ".user-page-sidebar__meta";
+    private const string InlineListSelector = ".inline-list";
+    private const string FirstChildSpanSelector = "span:first-child";
+    private const string UserPageSidebarCareerSelector = ".user-page-sidebar__career";
+    private const string ProfileLinkSelector = "a[href^='/']";
+    private const string InlineSeparatorSelector = "span.inline-separator";
+    private const string LinkCompSelector = "a.link-comp";
 
     #endregion
 
@@ -89,45 +122,6 @@ public static class UserDataExtractor
 
         return true;
     }
-
-    /// <summary>
-    /// Извлекает текст "О себе" из секции с заголовком "Обо мне".
-    /// </summary>
-    public static string? ExtractAboutSection(IDocument doc)
-    {
-        var contentSections = doc.QuerySelectorAll(AppConfig.UserResumeDetailContentSelector);
-        foreach (var section in contentSections)
-        {
-            var titleElement = section.QuerySelector(".content-section__title");
-            var titleText = titleElement?.TextContent?.Trim();
-            if (titleText != null && titleText.Contains("Обо мне", StringComparison.OrdinalIgnoreCase))
-            {
-                var ugcContent = section.QuerySelector(".style-ugc");
-                if (ugcContent != null)
-                {
-                    return NormalizeHtmlToText(ugcContent.InnerHtml);
-                }
-                break;
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
-    /// </summary>
-    private static string NormalizeHtmlToText(string html)
-    {
-        var text = html;
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
-        text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
-        return text.Trim();
-    }
-
 
     /// <summary>
     /// Проверяет, содержит ли документ маркеры удалённого профиля пользователя.
@@ -216,7 +210,7 @@ public static class UserDataExtractor
     /// </returns>
     public static (string? userName, bool isPublic) IsPublicProfile(
         IDocument doc,
-        string pageTitleSelector = "h1.page-title__title")
+        string pageTitleSelector = PageTitleSelector)
     {
         if (doc == null)
         {
@@ -243,6 +237,46 @@ public static class UserDataExtractor
     }
 
     /// <summary>
+    /// Проверяет, содержит ли документ списка резюме сообщение об отсутствии специалистов.
+    /// </summary>
+    public static bool IsNotFoundProfiles(IDocument doc)
+    {
+        if (doc == null)
+            return false;
+
+        const string notFoundProfilesText1 = SpecialistsNotFoundRuText;
+        const string notFoundProfilesText2 = SpecialistsNotFoundEnText;
+
+        var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
+        return documentText.Contains(notFoundProfilesText1, StringComparison.OrdinalIgnoreCase) ||
+               documentText.Contains(notFoundProfilesText2, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Извлекает текст "О себе" из секции с заголовком "Обо мне".
+    /// </summary>
+    public static string? ExtractAboutSection(IDocument doc)
+    {
+        var contentSections = doc.QuerySelectorAll(AppConfig.UserResumeDetailContentSelector);
+        foreach (var section in contentSections)
+        {
+            var titleElement = section.QuerySelector(ContentSectionTitleSelector);
+            var titleText = titleElement?.TextContent?.Trim();
+            if (titleText != null && titleText.Contains(AboutMeText, StringComparison.OrdinalIgnoreCase))
+            {
+                var ugcContent = section.QuerySelector(StyleUgcSelector);
+                if (ugcContent != null)
+                {
+                    return NormalizeHtmlToText(ugcContent.InnerHtml);
+                }
+                break;
+            }
+        }
+        return null;
+    }
+
+
+    /// <summary>
     /// Извлекает опыт работы и последний визит из секций .basic-section
     /// </summary>
     /// <param name="doc">Документ для парсинга</param>
@@ -250,7 +284,7 @@ public static class UserDataExtractor
     /// <returns>Кортеж (workExperience, lastVisit)</returns>
     public static (string? workExperience, string? lastVisit) ExtractWorkExperienceAndLastVisit(
         IDocument doc,
-        string basicSectionSelector = ".basic-section")
+        string basicSectionSelector = BasicSectionSelector)
     {
         string? workExperience = null;
         string? lastVisit = null;
@@ -267,10 +301,10 @@ public static class UserDataExtractor
                     continue;
 
                 // Проверяем на опыт работы
-                if (textContent.Contains("Опыт работы:"))
+                if (textContent.Contains(WorkExperienceText))
                 {
                     // Извлекаем текст после "Опыт работы:"
-                    var parts = textContent.Split(new[] { "Опыт работы:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { WorkExperienceText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         workExperience = parts[1].Trim();
@@ -278,10 +312,10 @@ public static class UserDataExtractor
                 }
 
                 // Проверяем на последний визит
-                if (textContent.Contains("Последний визит:"))
+                if (textContent.Contains(LastVisitText))
                 {
                     // Извлекаем текст после "Последний визит:"
-                    var parts = textContent.Split(new[] { "Последний визит:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { LastVisitText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         lastVisit = parts[1].Trim();
@@ -330,7 +364,7 @@ public static class UserDataExtractor
     /// <returns>Частично заполненная <see cref="ResumeRecord"/>.</returns>
     public static ResumeRecord ExtractAdditionalProfileData(
         IDocument doc,
-        string basicSectionSelector = ".basic-section")
+        string basicSectionSelector = BasicSectionSelector)
     {
         string? age = null;
         string? experienceText = null;
@@ -350,9 +384,9 @@ public static class UserDataExtractor
                     continue;
 
                 // Извлекаем возраст
-                if (textContent.Contains("Возраст:"))
+                if (textContent.Contains(AgeText))
                 {
-                    var parts = textContent.Split(new[] { "Возраст:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { AgeText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         age = parts[1].Trim();
@@ -360,9 +394,9 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем опыт работы (текстовое описание)
-                if (textContent.Contains("Опыт работы:"))
+                if (textContent.Contains(WorkExperienceText))
                 {
-                    var parts = textContent.Split(new[] { "Опыт работы:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { WorkExperienceText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         experienceText = parts[1].Trim();
@@ -370,9 +404,9 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем регистрацию
-                if (textContent.Contains("Регистрация:"))
+                if (textContent.Contains(RegistrationText))
                 {
-                    var parts = textContent.Split(new[] { "Регистрация:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { RegistrationText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         registration = parts[1].Trim();
@@ -380,9 +414,9 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем последний визит
-                if (textContent.Contains("Последний визит:"))
+                if (textContent.Contains(LastVisitText))
                 {
-                    var parts = textContent.Split(new[] { "Последний визит:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { LastVisitText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         lastVisit = parts[1].Trim();
@@ -390,9 +424,9 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем гражданство
-                if (textContent.Contains("Гражданство:"))
+                if (textContent.Contains(CitizenshipText))
                 {
-                    var parts = textContent.Split(new[] { "Гражданство:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { CitizenshipText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
                         citizenship = parts[1].Trim();
@@ -400,14 +434,14 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем дополнительную информацию (готовность к удаленной работе)
-                if (textContent.Contains("Дополнительно:"))
+                if (textContent.Contains(AdditionalInfoText))
                 {
-                    var parts = textContent.Split(new[] { "Дополнительно:" }, StringSplitOptions.None);
+                    var parts = textContent.Split(new[] { AdditionalInfoText }, StringSplitOptions.None);
                     if (parts.Length > 1)
                     {
-                        var additionalInfo = parts[1].Trim().ToLower();
+                        var additionalInfo = parts[1].Trim();
                         // Проверяем наличие ключевых слов, указывающих на готовность к удаленной работе
-                        if (additionalInfo.Contains("удаленн") || additionalInfo.Contains("remote"))
+                        if (additionalInfo.Contains(RemoteWorkText, StringComparison.OrdinalIgnoreCase) || additionalInfo.Contains("remote", StringComparison.OrdinalIgnoreCase))
                         {
                             remoteWork = true;
                         }
@@ -431,7 +465,7 @@ public static class UserDataExtractor
     /// <param>name="doc">Документ для парсинга</param>
     /// <param name="pageTitleSelector">Селектор для заголовка страницы</param>
     /// <returns>Имя пользователя или null</returns>
-    public static string? ExtractUserName(IDocument doc, string pageTitleSelector = "h1.page-title__title")
+    public static string? ExtractUserName(IDocument doc, string pageTitleSelector = PageTitleSelector)
     {
         var pageTitleElement = doc.QuerySelector(pageTitleSelector);
         return pageTitleElement?.TextContent?.Trim();
@@ -446,8 +480,8 @@ public static class UserDataExtractor
     /// <returns>Кортеж (infoTech, levelTitle)</returns>
     public static (string? infoTech, string? levelTitle) ExtractInfoTechAndLevel(
         IDocument doc,
-        string metaSelector = ".user-page-sidebar__meta",
-        string inlineListSelector = ".inline-list")
+        string metaSelector = UserPageSidebarMetaSelector,
+        string inlineListSelector = InlineListSelector)
     {
         string? infoTech = null;
         string? levelTitle = null;
@@ -463,11 +497,11 @@ public static class UserDataExtractor
 
                 foreach (var child in directChildren)
                 {
-                    var textSpan = child.QuerySelector("span:first-child");
+                    var textSpan = child.QuerySelector(FirstChildSpanSelector);
                     if (textSpan != null)
                     {
                         var text = textSpan.TextContent?.Trim();
-                        if (!string.IsNullOrWhiteSpace(text) && !text.Contains("•"))
+                        if (!string.IsNullOrWhiteSpace(text) && !text.Contains(BulletText))
                         {
                             textParts.Add(text);
                         }
@@ -493,8 +527,10 @@ public static class UserDataExtractor
                 }
             }
 
-            return (infoTech, levelTitle);
         }
+
+        return (infoTech, levelTitle);
+    }
 
     /// <summary>
     /// Извлекает зарплату и статус поиска работы из карьерной секции
@@ -505,7 +541,7 @@ public static class UserDataExtractor
     /// <returns>Кортеж (salary, jobSearchStatus)</returns>
     public static (int? salary, string? jobSearchStatus) ExtractSalaryAndJobStatus(
         IDocument doc,
-        string careerSelector = ".user-page-sidebar__career",
+        string careerSelector = UserPageSidebarCareerSelector,
         string? salaryRegex = null)
     {
         int? salary = null;
@@ -518,7 +554,7 @@ public static class UserDataExtractor
             if (!string.IsNullOrWhiteSpace(careerText))
             {
                 // Извлекаем зарплату
-                var pattern = salaryRegex ?? @"От\s+([\d\s]+)\s*₽";
+                var pattern = salaryRegex ?? SalaryRegexPattern;
                 var salaryMatch = System.Text.RegularExpressions.Regex.Match(careerText, pattern);
                 if (salaryMatch.Success && salaryMatch.Groups.Count >= 2)
                 {
@@ -530,17 +566,17 @@ public static class UserDataExtractor
                 }
 
                 // Извлекаем статус поиска работы
-                if (careerText.Contains("Ищу работу"))
+                if (careerText.Contains(SearchForWorkText))
                 {
-                    jobSearchStatus = "Ищу работу";
+                    jobSearchStatus = SearchForWorkText;
                 }
-                else if (careerText.Contains("Не ищу работу"))
+                else if (careerText.Contains(NotSearchingForWorkText))
                 {
-                    jobSearchStatus = "Не ищу работу";
+                    jobSearchStatus = NotSearchingForWorkText;
                 }
-                else if (careerText.Contains("Рассматриваю предложения"))
+                else if (careerText.Contains(ConsiderOffersText))
                 {
-                    jobSearchStatus = "Рассматриваю предложения";
+                    jobSearchStatus = ConsiderOffersText;
                 }
             }
         }
@@ -554,8 +590,8 @@ public static class UserDataExtractor
     /// </summary>
     public static (string? name, string? infoTech, string? levelTitle) ExtractNameInfoTechAndLevel(
         IElement section,
-        string profileLinkSelector = "a[href^='/']",
-        string separatorSelector = "span.inline-separator")
+        string profileLinkSelector = ProfileLinkSelector,
+        string separatorSelector = InlineSeparatorSelector)
     {
         string? name = null;
         string? infoTech = null;
@@ -625,13 +661,13 @@ public static class UserDataExtractor
         IElement section,
         string? salaryRegex = null)
     {
-        var pattern = salaryRegex ?? @"От\s+([\d\s]+)\s*₽";
+        var pattern = salaryRegex ?? SalaryRegexPattern;
         var salarySpans = section.QuerySelectorAll("span");
 
         foreach (var span in salarySpans)
         {
             var text = span.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(text) && text.Contains("От") && text.Contains("₽"))
+            if (!string.IsNullOrWhiteSpace(text) && text.Contains(SalaryText) && text.Contains(RubleText))
             {
                 var salaryMatch = System.Text.RegularExpressions.Regex.Match(text, pattern);
                 if (salaryMatch.Success && salaryMatch.Groups.Count >= 2)
@@ -662,17 +698,17 @@ public static class UserDataExtractor
             if (string.IsNullOrWhiteSpace(text))
                 continue;
 
-            if (text.Contains("Ищу работу"))
+            if (text.Contains(SearchForWorkText))
             {
-                return "Ищу работу";
+                return SearchForWorkText;
             }
-            else if (text.Contains("Не ищу работу"))
+            else if (text.Contains(NotSearchingForWorkText))
             {
-                return "Не ищу работу";
+                return NotSearchingForWorkText;
             }
-            else if (text.Contains("Рассматриваю предложения"))
+            else if (text.Contains(ConsiderOffersText))
             {
-                return "Рассматриваю предложения";
+                return ConsiderOffersText;
             }
         }
 
@@ -829,7 +865,7 @@ public static class UserDataExtractor
         {
             try
             {
-                var course = ExtractSingleCourse(courseElement);
+                var course = ExtractCourse(courseElement);
                 if (course != null)
                 {
                     courses.Add(course);
@@ -844,7 +880,7 @@ public static class UserDataExtractor
         return courses;
     }
 
-    private static CourseData? ExtractSingleCourse(IElement courseElement)
+    private static CourseData? ExtractCourse(IElement courseElement)
     {
         var nameElement = courseElement.QuerySelector(AppConfig.EducationCourseNameSelector);
         var courseName = nameElement?.TextContent?.Trim();
@@ -869,43 +905,6 @@ public static class UserDataExtractor
         };
     }
 
-    public static (string? startDate, string? endDate, string? duration, bool isCurrent) ParseCoursePeriod(string? periodText)
-    {
-        if (string.IsNullOrWhiteSpace(periodText))
-        {
-            return (null, null, null, false);
-        }
-
-        string? startDate = null;
-        string? endDate = null;
-        string? duration = null;
-        bool isCurrent = false;
-
-        if (periodText.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
-        {
-            isCurrent = true;
-        }
-
-        var match = System.Text.RegularExpressions.Regex.Match(periodText, AppConfig.CoursePeriodRegex);
-
-        if (match.Success)
-        {
-            startDate = match.Groups[1].Value.Trim();
-
-            var endPart = match.Groups[2].Value.Trim();
-            if (!endPart.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
-            {
-                endDate = endPart;
-            }
-
-            if (match.Groups.Count > 3 && !string.IsNullOrWhiteSpace(match.Groups[3].Value))
-            {
-                duration = match.Groups[3].Value.Trim();
-            }
-        }
-
-        return (startDate, endDate, duration, isCurrent);
-    }
 
     public static int? ExtractUniversityIdFromUrl(string? url)
     {
@@ -1103,7 +1102,7 @@ public static class UserDataExtractor
         var topicsElement = item.QuerySelector(AppConfig.CommunityParticipationTopicsSelector);
         if (topicsElement != null)
         {
-            var topicLinks = topicsElement.QuerySelectorAll("a.link-comp");
+            var topicLinks = topicsElement.QuerySelectorAll(LinkCompSelector);
             var topicsList = new List<string>();
 
             foreach (var link in topicLinks)
@@ -1190,87 +1189,6 @@ public static class UserDataExtractor
         return (experiences.Count, experiences);
     }
 
-    private static UserExperienceRecord BuildExperienceRecord(
-        IElement item, string userLink, bool isFirst)
-    {
-        string? companyCode = null;
-        string? companyUrl = null;
-        string? companyTitle = null;
-
-        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
-        if (companyLink != null)
-        {
-            companyUrl = companyLink.GetAttribute("href");
-            companyTitle = companyLink.TextContent?.Trim();
-            if (!string.IsNullOrWhiteSpace(companyUrl))
-            {
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
-                if (match.Success)
-                {
-                    companyCode = match.Groups[1].Value;
-                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
-                }
-            }
-        }
-
-        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
-
-        string? companySize = null;
-        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-        {
-            var href = link.GetAttribute("href");
-            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
-            {
-                companySize = link.TextContent?.Trim();
-                break;
-            }
-        }
-
-        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
-        }
-
-        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
-        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
-
-        var experienceSkills = new List<SkillsRecord>();
-        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
-        if (tagsContainer != null)
-        {
-            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
-            {
-                var skillName = skillLink.TextContent?.Trim();
-                if (string.IsNullOrWhiteSpace(skillName)) continue;
-
-                int? skillId = null;
-                var skillHref = skillLink.GetAttribute("href");
-                if (!string.IsNullOrWhiteSpace(skillHref))
-                {
-                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
-                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
-                        skillId = id;
-                }
-                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
-            }
-        }
-
-        return new UserExperienceRecord(
-            UserLink: userLink,
-            Company: new CompanyRecord(
-                CompanyCode: companyCode ?? string.Empty,
-                CompanyUrl: companyUrl ?? string.Empty,
-                CompanyTitle: companyTitle,
-                About: companyAbout,
-                EmployeesCount: companySize),
-            Position: position,
-            Duration: duration,
-            Description: description,
-            Skills: experienceSkills,
-            IsFirstRecord: isFirst);
-    }
 
     /// <summary>
     /// Извлекает данные о высшем образовании.
@@ -1335,56 +1253,7 @@ public static class UserDataExtractor
             .ToArray();
     }
 
-    /// <summary>
-    /// Проверяет, содержит ли документ списка резюме сообщение об отсутствии специалистов.
-    /// </summary>
-    public static bool IsNotFoundProfiles(IDocument doc)
-    {
-        if (doc == null)
-            return false;
 
-        const string notFoundProfilesText1 = SpecialistsNotFoundRuText;
-        const string notFoundProfilesText2 = SpecialistsNotFoundEnText;
-
-        var documentText = doc.DocumentElement?.TextContent ?? string.Empty;
-        return documentText.Contains(notFoundProfilesText1, StringComparison.OrdinalIgnoreCase) ||
-               documentText.Contains(notFoundProfilesText2, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Извлекает данные экспертов и связанных компаний со страницы списка экспертов.
-    /// Скрапер получает уже готовые данные и не работает с DOM-элементами напрямую.
-    /// </summary>
-    public static (int CardCount, IReadOnlyList<(ResumeRecord Resume, CompanyRecord? Company)> Experts, int FailedCards) ParseExpertsFromPage(
-        IDocument doc)
-    {
-        if (doc == null)
-        {
-            return (0, Array.Empty<(ResumeRecord Resume, CompanyRecord? Company)>(), 0);
-        }
-
-        var experts = new List<(ResumeRecord Resume, CompanyRecord? Company)>();
-        var failedCards = 0;
-        var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
-
-        foreach (var card in expertCards)
-        {
-            try
-            {
-                var expert = ExtractExpertCard(card);
-                if (expert.HasValue)
-                {
-                    experts.Add(expert.Value);
-                }
-            }
-            catch
-            {
-                failedCards++;
-            }
-        }
-
-        return (expertCards.Length, experts, failedCards);
-    }
 
     private static (ResumeRecord Resume, CompanyRecord? Company)? ExtractExpertCard(IElement card)
     {
@@ -1421,7 +1290,7 @@ public static class UserDataExtractor
 
     private static string? ExtractExpertWorkExperience(IElement card)
     {
-        const string workExperiencePrefix = "Стаж ";
+        const string workExperiencePrefix = JobSearchStatusesPrefixText;
 
         var spans = card.QuerySelectorAll(AppConfig.ExpertsSpanSelector);
         foreach (var span in spans)
@@ -1569,9 +1438,179 @@ public static class UserDataExtractor
         return profiles;
     }
 
+    /// <summary>
+    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
+    /// </summary>
+    private static string NormalizeHtmlToText(string html)
+    {
+        var text = html;
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
+        return text.Trim();
+    }
+
+    public static (string? startDate, string? endDate, string? duration, bool isCurrent) ParseCoursePeriod(string? periodText)
+    {
+        if (string.IsNullOrWhiteSpace(periodText))
+        {
+            return (null, null, null, false);
+        }
+
+        string? startDate = null;
+        string? endDate = null;
+        string? duration = null;
+        bool isCurrent = false;
+
+        if (periodText.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
+        {
+            isCurrent = true;
+        }
+
+        var match = System.Text.RegularExpressions.Regex.Match(periodText, AppConfig.CoursePeriodRegex);
+
+        if (match.Success)
+        {
+            startDate = match.Groups[1].Value.Trim();
+
+            var endPart = match.Groups[2].Value.Trim();
+            if (!endPart.Contains(AppConfig.CurrentPeriodText, StringComparison.OrdinalIgnoreCase))
+            {
+                endDate = endPart;
+            }
+
+            if (match.Groups.Count > 3 && !string.IsNullOrWhiteSpace(match.Groups[3].Value))
+            {
+                duration = match.Groups[3].Value.Trim();
+            }
+        }
+
+        return (startDate, endDate, duration, isCurrent);
+    }
+
+    private static UserExperienceRecord BuildExperienceRecord(
+        IElement item, string userLink, bool isFirst)
+    {
+        string? companyCode = null;
+        string? companyUrl = null;
+        string? companyTitle = null;
+
+        var companyLink = item.QuerySelector(AppConfig.UserResumeDetailCompanyLinkSelector);
+        if (companyLink != null)
+        {
+            companyUrl = companyLink.GetAttribute("href");
+            companyTitle = companyLink.TextContent?.Trim();
+            if (!string.IsNullOrWhiteSpace(companyUrl))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    companyUrl, AppConfig.UserResumeDetailCompanyCodeRegex);
+                if (match.Success)
+                {
+                    companyCode = match.Groups[1].Value;
+                    companyUrl = string.Format(AppConfig.UserResumeDetailCompanyUrlTemplate, companyCode);
+                }
+            }
+        }
+
+        string? companyAbout = item.QuerySelector(AppConfig.UserResumeDetailCompanyAboutSelector)?.TextContent?.Trim();
+
+        string? companySize = null;
+        foreach (var link in item.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+        {
+            var href = link.GetAttribute("href");
+            if (!string.IsNullOrWhiteSpace(href) && href.Contains(AppConfig.UserResumeDetailCompanySizeUrlPattern))
+            {
+                companySize = link.TextContent?.Trim();
+                break;
+            }
+        }
+
+        string? position = item.QuerySelector(AppConfig.UserResumeDetailPositionSelector)?.TextContent?.Trim();
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            position = System.Text.RegularExpressions.Regex.Replace(position, @"\s+", " ");
+        }
+
+        string? duration = item.QuerySelector(AppConfig.UserResumeDetailDurationSelector)?.TextContent?.Trim();
+        string? description = item.QuerySelector(AppConfig.UserResumeDetailDescriptionSelector)?.TextContent?.Trim();
+
+        var experienceSkills = new List<SkillsRecord>();
+        var tagsContainer = item.QuerySelector(AppConfig.UserResumeDetailTagsSelector);
+        if (tagsContainer != null)
+        {
+            foreach (var skillLink in tagsContainer.QuerySelectorAll(AppConfig.UserResumeDetailCompanyLinkSelector))
+            {
+                var skillName = skillLink.TextContent?.Trim();
+                if (string.IsNullOrWhiteSpace(skillName)) continue;
+
+                int? skillId = null;
+                var skillHref = skillLink.GetAttribute("href");
+                if (!string.IsNullOrWhiteSpace(skillHref))
+                {
+                    var skillMatch = System.Text.RegularExpressions.Regex.Match(skillHref, AppConfig.UserResumeDetailSkillIdRegex);
+                    if (skillMatch.Success && int.TryParse(skillMatch.Groups[1].Value, out var id))
+                        skillId = id;
+                }
+                experienceSkills.Add(new SkillsRecord(SkillId: skillId, SkillTitle: skillName));
+            }
+        }
+
+        return new UserExperienceRecord(
+            UserLink: userLink,
+            Company: new CompanyRecord(
+                CompanyCode: companyCode ?? string.Empty,
+                CompanyUrl: companyUrl ?? string.Empty,
+                CompanyTitle: companyTitle,
+                About: companyAbout,
+                EmployeesCount: companySize),
+            Position: position,
+            Duration: duration,
+            Description: description,
+            Skills: experienceSkills,
+            IsFirstRecord: isFirst);
+    }
+
+    /// <summary>
+    /// Извлекает данные экспертов и связанных компаний со страницы списка экспертов.
+    /// Скрапер получает уже готовые данные и не работает с DOM-элементами напрямую.
+    /// </summary>
+    public static (int CardCount, IReadOnlyList<(ResumeRecord Resume, CompanyRecord? Company)> Experts, int FailedCards) ParseExpertsFromPage(
+        IDocument doc)
+    {
+        if (doc == null)
+        {
+            return (0, Array.Empty<(ResumeRecord Resume, CompanyRecord? Company)>(), 0);
+        }
+
+        var experts = new List<(ResumeRecord Resume, CompanyRecord? Company)>();
+        var failedCards = 0;
+        var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
+
+        foreach (var card in expertCards)
+        {
+            try
+            {
+                var expert = ExtractExpertCard(card);
+                if (expert.HasValue)
+                {
+                    experts.Add(expert.Value);
+                }
+            }
+            catch
+            {
+                failedCards++;
+            }
+        }
+
+        return (expertCards.Length, experts, failedCards);
+    }
+
     private static void LogProfileParsingError(ConsoleLogger? logger, Exception ex)
     {
-        var message = $"Ошибка при парсинге профиля: {ex.Message}";
+        var message = $"{ProfileParsingErrorText} {ex.Message}";
         if (logger != null)
             logger.WriteLine(message);
         else
