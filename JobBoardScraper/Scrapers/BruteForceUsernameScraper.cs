@@ -129,7 +129,7 @@ public sealed class BruteForceUsernameScraper
                         string html = result.Content;
                         var title = HtmlParser.ExtractTitle(html);
 
-                        _logger.WriteLine($"Страница {link}: {title}");
+                        ScraperLogger.LogPage(_logger, link);
 
                         _db.EnqueueResume(link, title);
                         ScraperLogger.LogEnqueue(
