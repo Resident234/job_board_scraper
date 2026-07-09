@@ -984,7 +984,7 @@ public static class UserDataExtractor
             {
                 try
                 {
-                    var educationData = ExtractSingleAdditionalEducationItem(item, userLink);
+                    var educationData = ExtractAdditionalEducationItem(item, userLink);
                     if (educationData != null)
                     {
                         result.Add(educationData.Value);
@@ -1009,7 +1009,7 @@ public static class UserDataExtractor
     /// <param name="item">DOM-элемент записи о дополнительном образовании.</param>
     /// <param name="userLink">Ссылка на профиль пользователя, проставляется в UserLink записи.</param>
     /// <returns>Запись <see cref="AdditionalEducationRecord"/> или null, если название не найдено.</returns>
-    private static AdditionalEducationRecord? ExtractSingleAdditionalEducationItem(IElement item, string userLink)
+    private static AdditionalEducationRecord? ExtractAdditionalEducationItem(IElement item, string userLink)
     {
         var titleElement = item.QuerySelector(AppConfig.AdditionalEducationTitleSelector);
         var title = titleElement?.TextContent?.Trim();
@@ -1486,21 +1486,6 @@ public static class UserDataExtractor
     }
 
     /// <summary>
-    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
-    /// </summary>
-    private static string NormalizeHtmlToText(string html)
-    {
-        var text = html;
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
-        text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
-        return text.Trim();
-    }
-
-    /// <summary>
     /// Разбирает текст периода курса и извлекает дату начала, дату окончания, продолжительность и признак текущего курса.
     /// </summary>
     /// <param name="periodText">Текст периода в формате, принятом на сайте (например, «Январь 2020 — Май 2021, 1 год 4 месяца»).</param>
@@ -1541,6 +1526,56 @@ public static class UserDataExtractor
         }
 
         return (startDate, endDate, duration, isCurrent);
+    }
+
+    /// <summary>
+    /// Извлекает данные экспертов и связанных компаний со страницы списка экспертов.
+    /// Скрапер получает уже готовые данные и не работает с DOM-элементами напрямую.
+    /// </summary>
+    public static (int CardCount, IReadOnlyList<(ResumeRecord Resume, CompanyRecord? Company)> Experts, int FailedCards) ParseExpertsFromPage(
+        IDocument doc)
+    {
+        if (doc == null)
+        {
+            return (0, Array.Empty<(ResumeRecord Resume, CompanyRecord? Company)>(), 0);
+        }
+
+        var experts = new List<(ResumeRecord Resume, CompanyRecord? Company)>();
+        var failedCards = 0;
+        var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
+
+        foreach (var card in expertCards)
+        {
+            try
+            {
+                var expert = ExtractExpertCard(card);
+                if (expert.HasValue)
+                {
+                    experts.Add(expert.Value);
+                }
+            }
+            catch
+            {
+                failedCards++;
+            }
+        }
+
+        return (expertCards.Length, experts, failedCards);
+    }
+
+    /// <summary>
+    /// Преобразует HTML-фрагмент в читаемый текст с сохранением переносов строк.
+    /// </summary>
+    private static string NormalizeHtmlToText(string html)
+    {
+        var text = html;
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"</li>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
+        return text.Trim();
     }
 
     /// <summary>
@@ -1630,41 +1665,6 @@ public static class UserDataExtractor
             Description: description,
             Skills: experienceSkills,
             IsFirstRecord: isFirst);
-    }
-
-    /// <summary>
-    /// Извлекает данные экспертов и связанных компаний со страницы списка экспертов.
-    /// Скрапер получает уже готовые данные и не работает с DOM-элементами напрямую.
-    /// </summary>
-    public static (int CardCount, IReadOnlyList<(ResumeRecord Resume, CompanyRecord? Company)> Experts, int FailedCards) ParseExpertsFromPage(
-        IDocument doc)
-    {
-        if (doc == null)
-        {
-            return (0, Array.Empty<(ResumeRecord Resume, CompanyRecord? Company)>(), 0);
-        }
-
-        var experts = new List<(ResumeRecord Resume, CompanyRecord? Company)>();
-        var failedCards = 0;
-        var expertCards = doc.QuerySelectorAll(AppConfig.ExpertsExpertCardSelector);
-
-        foreach (var card in expertCards)
-        {
-            try
-            {
-                var expert = ExtractExpertCard(card);
-                if (expert.HasValue)
-                {
-                    experts.Add(expert.Value);
-                }
-            }
-            catch
-            {
-                failedCards++;
-            }
-        }
-
-        return (expertCards.Length, experts, failedCards);
     }
 
     /// <summary>
