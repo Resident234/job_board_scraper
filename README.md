@@ -41,6 +41,7 @@ JobBoardScraper - .NET 9 консольное приложение для сбо
 - [TRAFFIC_OPTIMIZATION.md](docs/TRAFFIC_OPTIMIZATION.md)
 - [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md)
 - [USERRESUME_WITH_PROXY.md](docs/USERRESUME_WITH_PROXY.md)
+- [PROGRESS_TRACKING.md](docs/PROGRESS_TRACKING.md) - потокобезопасное отслеживание и логирование прогресса скрапинга.
 
 ## Реализованная Функциональность
 

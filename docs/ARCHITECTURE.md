@@ -140,6 +140,12 @@ graph TB
     WL --> DB
 ```
 
+### 7. Progress Tracking System
+
+The system uses a custom thread-safe progress tracking mechanism to report scraping execution statistics in multi-threaded environments. It ensures accurate, atomic updates of items processed and displays real-time progress.
+
+For more details, see [Progress Tracking System](PROGRESS_TRACKING.md).
+
 ## Technical Stack
 
 ### Backend
