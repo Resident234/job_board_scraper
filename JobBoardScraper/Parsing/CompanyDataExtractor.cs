@@ -152,32 +152,6 @@ public static class CompanyDataExtractor
     }
 
     /// <summary>
-    /// Парсит список компаний с HTML-документа
-    /// </summary>
-    public static List<CompanyRecord> ParseCompaniesFromPage(IDocument doc, CancellationToken ct, ConsoleLogger? logger = null)
-    {
-        var companies = new List<CompanyRecord>();
-        var sections = doc.QuerySelectorAll(AppConfig.CompanyRatingSectionSelector);
-
-        foreach (var section in sections)
-        {
-            try
-            {
-                if (ExtractCompanyData(section) is { } company)
-                {
-                    companies.Add(company);
-                }
-            }
-            catch (Exception ex)
-            {
-                LogError(logger, "Ошибка при парсинге компании", ex);
-            }
-        }
-
-        return companies;
-    }
-
-    /// <summary>
     /// Извлекает данные компании из HTML-элемента
     /// </summary>
     public static CompanyRecord? ExtractCompanyData(IElement section)
@@ -293,27 +267,6 @@ public static class CompanyDataExtractor
     }
 
     /// <summary>
-    /// Проверяет наличие следующей страницы на основе HTML-документа.
-    /// </summary>
-    /// <param name="doc">HTML-документ.</param>
-    /// <param name="currentPage">Текущая страница.</param>
-    /// <returns>True, если есть следующая страница.</returns>
-    public static bool HasNextPage(IDocument doc, int currentPage)
-    {
-        try
-        {
-            var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
-            var nextPageLink = doc.QuerySelector(nextPageSelector);
-            return nextPageLink != null;
-        }
-        catch (Exception ex)
-        {
-            LogError(null, "Ошибка при проверке наличия следующей страницы", ex);
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Извлекает компании из HTML-документа списка компаний.
     /// </summary>
     /// <param name="doc">HTML-документ.</param>
@@ -382,25 +335,6 @@ public static class CompanyDataExtractor
     }
 
     /// <summary>
-    /// Проверяет наличие следующей страницы подписчиков компании.
-    /// </summary>
-    public static bool HasNextFollowersPage(IHtmlDocument doc, int currentPage, string companyCode)
-    {
-        try
-        {
-            var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
-            var nextPageLink = doc.QuerySelector(nextPageSelector);
-
-            return nextPageLink != null;
-        }
-        catch (Exception ex)
-        {
-            LogError(null, "Ошибка при проверке наличия следующей страницы подписчиков", ex);
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Извлекает список пользователей из HTML-документа страницы подписчиков компании.
     /// </summary>
     /// <param name="doc">HTML-документ.</param>
@@ -454,23 +388,6 @@ public static class CompanyDataExtractor
         }
 
         return users;
-    }
-
-    /// <summary>
-    /// Проверяет наличие блога компании на Хабре
-    /// </summary>
-    public static bool? HasHabrBlog(IHtmlDocument doc)
-    {
-        var allDivs = doc.QuerySelectorAll("div.title");
-        foreach (var div in allDivs)
-        {
-            var divText = div.TextContent?.Trim();
-            if (divText == AppConfig.CompanyDetailHabrBlogText)
-            {
-                return true;
-            }
-        }
-        return null;
     }
 
     /// <summary>
@@ -906,6 +823,90 @@ public static class CompanyDataExtractor
             return new List<(string value, string text)>();
         }
     }
+
+    /// <summary>
+    /// Парсит список компаний с HTML-документа
+    /// </summary>
+    public static List<CompanyRecord> ParseCompaniesFromPage(IDocument doc, CancellationToken ct, ConsoleLogger? logger = null)
+    {
+        var companies = new List<CompanyRecord>();
+        var sections = doc.QuerySelectorAll(AppConfig.CompanyRatingSectionSelector);
+
+        foreach (var section in sections)
+        {
+            try
+            {
+                if (ExtractCompanyData(section) is { } company)
+                {
+                    companies.Add(company);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError(logger, "Ошибка при парсинге компании", ex);
+            }
+        }
+
+        return companies;
+    }
+
+    /// <summary>
+    /// Проверяет наличие следующей страницы на основе HTML-документа.
+    /// </summary>
+    /// <param name="doc">HTML-документ.</param>
+    /// <param name="currentPage">Текущая страница.</param>
+    /// <returns>True, если есть следующая страница.</returns>
+    public static bool HasNextPage(IDocument doc, int currentPage)
+    {
+        try
+        {
+            var nextPageSelector = string.Format(AppConfig.CompaniesNextPageSelector, currentPage + 1);
+            var nextPageLink = doc.QuerySelector(nextPageSelector);
+            return nextPageLink != null;
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при проверке наличия следующей страницы", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Проверяет наличие следующей страницы подписчиков компании.
+    /// </summary>
+    public static bool HasNextFollowersPage(IHtmlDocument doc, int currentPage, string companyCode)
+    {
+        try
+        {
+            var nextPageSelector = string.Format(AppConfig.CompanyFollowersNextPageSelector, currentPage + 1);
+            var nextPageLink = doc.QuerySelector(nextPageSelector);
+
+            return nextPageLink != null;
+        }
+        catch (Exception ex)
+        {
+            LogError(null, "Ошибка при проверке наличия следующей страницы подписчиков", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Проверяет наличие блога компании на Хабре
+    /// </summary>
+    public static bool? HasHabrBlog(IHtmlDocument doc)
+    {
+        var allDivs = doc.QuerySelectorAll("div.title");
+        foreach (var div in allDivs)
+        {
+            var divText = div.TextContent?.Trim();
+            if (divText == AppConfig.CompanyDetailHabrBlogText)
+            {
+                return true;
+            }
+        }
+        return null;
+    }
+
 
     private static void LogError(ConsoleLogger? logger, string message, Exception? ex = null)
     {
