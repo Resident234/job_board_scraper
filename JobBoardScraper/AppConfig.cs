@@ -572,19 +572,34 @@ public static class AppConfig
         ConfigurationManager.AppSettings["Logging:OutputDirectory"] ?? "./logs";
 
     // Настройки статистики трафика
-    public static string TrafficStatsOutputFile =>
-        ConfigurationManager.AppSettings["Traffic:OutputFile"] ?? "./logs/traffic_stats.txt";
+        public static string TrafficStatsOutputFile =>
+            ConfigurationManager.AppSettings["Traffic:OutputFile"] ?? "./logs/traffic_stats.txt";
 
-    public static TimeSpan TrafficStatsSaveInterval
-    {
-        get
+        public static TimeSpan TrafficStatsSaveInterval
         {
-            var minutes = int.TryParse(ConfigurationManager.AppSettings["Traffic:SaveIntervalMinutes"], out var value)
-                ? value
-                : 5;
-            return TimeSpan.FromMinutes(minutes);
+            get
+            {
+                var minutes = int.TryParse(ConfigurationManager.AppSettings["Traffic:SaveIntervalMinutes"], out var value)
+                    ? value
+                    : 5;
+                return TimeSpan.FromMinutes(minutes);
+            }
         }
-    }
+
+        // Proxy source statistics configuration
+        public static string ProxyStatsOutputFile =>
+            ConfigurationManager.AppSettings["ProxyStats:OutputFile"] ?? "./logs/proxy_stats.txt";
+
+        public static TimeSpan ProxyStatsSaveInterval
+        {
+            get
+            {
+                var minutes = int.TryParse(ConfigurationManager.AppSettings["ProxyStats:SaveIntervalMinutes"], out var value)
+                    ? value
+                    : 10;
+                return TimeSpan.FromMinutes(minutes);
+            }
+        }
 
     // Настройки базы данных
     public static string ConnectionString => ConfigurationManager.AppSettings["Database:ConnectionString"] ??

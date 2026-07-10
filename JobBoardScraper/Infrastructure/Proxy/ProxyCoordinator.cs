@@ -1,4 +1,7 @@
 using JobBoardScraper.Infrastructure.Logging;
+using System.Threading;
+using System.IO;
+using System.Text;
 
 namespace JobBoardScraper.Infrastructure.Proxy;
 
@@ -18,6 +21,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     private ProxySource _lastProxySource;
     private bool _disposed;
     private readonly Dictionary<string, ProxySourceStatistics> _sourceStatistics = new();
+    private readonly Timer _proxyStatsTimer;
 
     public enum ProxySource
     {
@@ -36,6 +40,8 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         _generalPoolManager = generalPoolManager ?? throw new ArgumentNullException(nameof(generalPoolManager));
         _whitelistRecheckInterval = whitelistRecheckInterval ?? TimeSpan.FromMinutes(5);
         _logger = logger;
+        // Инициализация таймера для периодической записи статистики прокси
+        _proxyStatsTimer = new Timer(_ => DumpProxyStats(), null, AppConfig.ProxyStatsSaveInterval, AppConfig.ProxyStatsSaveInterval);
 
         // Подписываемся на события GeneralPoolManager
         _generalPoolManager.OnProxyVerified += OnGeneralProxyVerified;
@@ -258,6 +264,33 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     public void RegisterScraperStatistics(ProxySourceStatistics statistics)
     {
         _sourceStatistics[statistics.SourceName] = statistics;
+    }
+
+    // Dump proxy source statistics to file periodically
+    private void DumpProxyStats()
+    {
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== Proxy Statistics Dump - {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
+            foreach (var stats in _sourceStatistics.Values.OrderBy(s => s.SourceName))
+            {
+                sb.AppendLine(stats.GetDetailedStats());
+                sb.AppendLine();
+            }
+            var outputPath = AppConfig.ProxyStatsOutputFile;
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            File.WriteAllText(outputPath, sb.ToString());
+            _logger?.WriteLine($"[PROXY_STATS] Dumped to {outputPath}");
+        }
+        catch (Exception ex)
+        {
+            _logger?.WriteLine($"[PROXY_STATS] Error during dump: {ex.Message}");
+        }
     }
 
     public void Dispose()
