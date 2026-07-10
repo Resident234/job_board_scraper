@@ -1,12 +1,12 @@
 using System.Text;
 
-namespace JobBoardScraper.Infrastructure.Utils;
+namespace JobBoardScraper.Infrastructure.Http;
 
 /// <summary>
 /// Расширения для HttpResponseMessage, упрощающие декодирование тела ответа
 /// с учётом кодировки из Content-Type.
 /// </summary>
-public static class HttpResponseExtensions
+public static class HttpResponse
 {
     /// <summary>
     /// Возвращает кодировку, указанную в заголовке Content-Type (charset),

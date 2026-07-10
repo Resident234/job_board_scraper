@@ -2,6 +2,7 @@ using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using JobBoardScraper.Core;
 using JobBoardScraper.Infrastructure.Utils;
+using JobBoardScraper.Infrastructure.Http;
 using System.Text;
 
 namespace JobBoardScraper.Parsing;
