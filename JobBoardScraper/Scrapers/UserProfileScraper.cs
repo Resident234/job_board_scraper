@@ -1,4 +1,4 @@
-﻿using JobBoardScraper.Infrastructure.Logging;
+using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Http;
 using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Statistics;
@@ -178,7 +178,6 @@ public sealed class UserProfileScraper : IDisposable
                             html,
                             "UserProfileScraper",
                             _logger,
-                            "last_page.html",
                             encoding: encoding,
                             ct: ct);
                     }

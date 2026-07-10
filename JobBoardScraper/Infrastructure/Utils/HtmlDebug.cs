@@ -17,7 +17,6 @@ public static class HtmlDebug
     /// <param name="html">HTML-код для сохранения.</param>
     /// <param name="scraperName">Имя скрапера (используется в имени файла).</param>
     /// <param name="logger">Логгер, в который пишется информация о сохранении/ошибке.</param>
-    /// <param name="fileName">Имя файла (по умолчанию <c>last_page.html</c>).</param>
     /// <param name="outputDirectory">Каталог для сохранения (если не задан — берётся из <see cref="AppConfig"/>).</param>
     /// <param name="encoding">Кодировка файла (по умолчанию UTF-8).</param>
     /// <param name="ct">Токен отмены.</param>
@@ -26,7 +25,6 @@ public static class HtmlDebug
         string html,
         string scraperName,
         ConsoleLogger? logger,
-        string fileName = "last_page.html",
         string? outputDirectory = null,
         Encoding? encoding = null,
         CancellationToken ct = default)
@@ -34,7 +32,6 @@ public static class HtmlDebug
         var savedPath = await SaveHtmlAsync(
             html,
             scraperName,
-            fileName,
             outputDirectory,
             encoding,
             ct);
@@ -56,7 +53,6 @@ public static class HtmlDebug
     /// </summary>
     /// <param name="html">HTML-код для сохранения. Если пустой — возвращается <c>null</c>.</param>
     /// <param name="scraperName">Имя скрапера (используется в имени файла).</param>
-    /// <param name="fileName">Имя файла (по умолчанию <c>last_page.html</c>).</param>
     /// <param name="outputDirectory">Каталог для сохранения (если не задан — берётся из <see cref="AppConfig"/>).</param>
     /// <param name="encoding">Кодировка файла (по умолчанию UTF-8).</param>
     /// <param name="ct">Токен отмены.</param>
@@ -64,7 +60,6 @@ public static class HtmlDebug
     public static async Task<string?> SaveHtmlAsync(
         string html,
         string scraperName,
-        string fileName = "last_page.html",
         string? outputDirectory = null,
         Encoding? encoding = null,
         CancellationToken ct = default)
@@ -78,7 +73,12 @@ public static class HtmlDebug
             if (!Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
 
-            var filePath = Path.Combine(directory, $"{scraperName}_{fileName}");
+            var cleanName = scraperName.EndsWith("Scraper")
+                ? scraperName.Substring(0, scraperName.Length - "Scraper".Length)
+                : scraperName;
+
+            var fileName = $"{cleanName}_last_page.html";
+            var filePath = Path.Combine(directory, fileName);
             var enc = encoding ?? Encoding.UTF8;
 
             await File.WriteAllTextAsync(filePath, html, enc, ct);

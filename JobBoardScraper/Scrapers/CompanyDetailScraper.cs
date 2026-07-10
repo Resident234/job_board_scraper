@@ -156,7 +156,6 @@ public sealed class CompanyDetailScraper : IDisposable
                             html,
                             "CompanyDetailScraper",
                             _logger,
-                            "last_page.html",
                             encoding: encoding,
                             ct: ct);
                     }

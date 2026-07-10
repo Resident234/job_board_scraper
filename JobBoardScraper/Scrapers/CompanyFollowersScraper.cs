@@ -188,7 +188,6 @@ public sealed class CompanyFollowersScraper : IDisposable
                         html,
                         "CompanyFollowersScraper",
                         _logger,
-                        $"followers_page_{companyCode}_{page}.html",
                         encoding: encoding,
                         ct: ct);
                 }

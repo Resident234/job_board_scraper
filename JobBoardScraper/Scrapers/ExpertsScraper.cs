@@ -129,7 +129,6 @@ public sealed class ExpertsScraper : IDisposable
                             html,
                             "ExpertsScraper",
                             _logger,
-                            "last_page.html",
                             encoding: encoding,
                             ct: ct);
                     }
