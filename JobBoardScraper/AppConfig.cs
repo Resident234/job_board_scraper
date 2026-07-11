@@ -73,7 +73,7 @@ public static class AppConfig
         ConfigurationManager.AppSettings["Companies:HrefRegex"] ?? "/companies/([a-zA-Z0-9_-]+)";
 
     public static string CompaniesNextPageSelector => ConfigurationManager.AppSettings["Companies:NextPageSelector"] ??
-                                                      "a.page[href*='page={0}']";
+                                                       "a.page[href*='page={0}']";
 
     public static OutputMode CompaniesOutputMode
     {
@@ -194,7 +194,7 @@ public static class AppConfig
         ConfigurationManager.AppSettings["Experts:ExpertCardSelector"] ?? ".expert-card";
 
     public static string ExpertsTitleLinkSelector => ConfigurationManager.AppSettings["Experts:TitleLinkSelector"] ??
-                                                     "a.expert-card__title-link";
+                                                      "a.expert-card__title-link";
 
     public static string ExpertsSpanSelector => ConfigurationManager.AppSettings["Experts:SpanSelector"] ?? "span";
 
@@ -544,7 +544,7 @@ public static class AppConfig
         ConfigurationManager.AppSettings["UserProfile:PageTitleSelector"] ?? "h1.page-title__title";
 
     public static string UserProfileExpertSelector => ConfigurationManager.AppSettings["UserProfile:ExpertSelector"] ??
-                                                      ".user-page-sidebar__is-expert";
+                                                       ".user-page-sidebar__is-expert";
 
     public static string UserProfileMetaSelector =>
         ConfigurationManager.AppSettings["UserProfile:MetaSelector"] ?? ".user-page-sidebar__meta";
@@ -553,7 +553,7 @@ public static class AppConfig
         ConfigurationManager.AppSettings["UserProfile:InlineListSelector"] ?? ".inline-list";
 
     public static string UserProfileCareerSelector => ConfigurationManager.AppSettings["UserProfile:CareerSelector"] ??
-                                                      ".user-page-sidebar__career";
+                                                       ".user-page-sidebar__career";
 
     public static string UserProfileSalaryRegex =>
         ConfigurationManager.AppSettings["UserProfile:SalaryRegex"] ?? "От\\s+([\\d\\s]+)\\s*₽";
@@ -565,7 +565,7 @@ public static class AppConfig
         ConfigurationManager.AppSettings["UserProfile:WorkExperienceRegex"] ?? "Опыт работы:</span>\\s*(.+?)\\s*</div>";
 
     public static string UserProfileLastVisitRegex => ConfigurationManager.AppSettings["UserProfile:LastVisitRegex"] ??
-                                                      "Последний визит:</span>\\s*(.+?)\\s*</div>";
+                                                       "Последний визит:</span>\\s*(.+?)\\s*</div>";
 
     // Настройки логирования
     public static string LoggingOutputDirectory =>
@@ -875,6 +875,26 @@ public static class AppConfig
     public static bool ProxyScrapeEnabled =>
         bool.TryParse(ConfigurationManager.AppSettings["FreeProxy:ProxyScrapeEnabled"], out var value) && value;
 
+    /// <summary>
+    /// Включить GeoNode как источник прокси
+    /// </summary>
+    public static bool GeoNodeEnabled =>
+        bool.TryParse(ConfigurationManager.AppSettings["FreeProxy:GeoNodeEnabled"], out var value) && value;
+
+    /// <summary>
+    /// URL шаблон для GeoNode API
+    /// </summary>
+    public static string GeoNodeApiUrl =>
+        ConfigurationManager.AppSettings["FreeProxy:GeoNodeApiUrl"] 
+            ?? "https://proxylist.geonode.com/api/proxy-list?limit=200&page=1&sort_by=lastChecked&sort_type=desc";
+
+    /// <summary>
+    /// Лимит прокси за один запрос к GeoNode
+    /// </summary>
+    public static int GeoNodeProxyLimit =>
+        int.TryParse(ConfigurationManager.AppSettings["FreeProxy:GeoNodeLimit"], out var value) 
+            ? value : 200;
+
     public static int ProxyWaitTimeoutSeconds =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:WaitTimeoutSeconds"], out var value) 
             ? value : 30;
@@ -885,7 +905,7 @@ public static class AppConfig
         {
             var seconds = int.TryParse(ConfigurationManager.AppSettings["FreeProxy:RequestTimeoutSeconds"], out var value)
                 ? value
-                : 120; // По умолчанию 120 секунд для прокси (в 2 раза больше обычного)
+                : 120;
             return TimeSpan.FromSeconds(seconds);
         }
     }

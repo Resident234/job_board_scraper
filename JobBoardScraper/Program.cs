@@ -333,6 +333,7 @@ class Program
         FreeProxyPool? freeProxyPool = null;
         FreeProxyListScraper? freeProxyListScraper = null;
         ProxyScrapeScraper? proxyScrapeScraper = null;
+        GeoNodeScraper? geoNodeScraper = null;
 
         if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
         {
@@ -373,6 +374,25 @@ class Program
             {
                 Console.WriteLine("[Program] ProxyScrapeScraper: ОТКЛЮЧЕН");
             }
+
+            // Инициализация GeoNodeScraper (третий источник прокси)
+            if (AppConfig.GeoNodeEnabled)
+            {
+                Console.WriteLine("[Program] GeoNodeScraper: ВКЛЮЧЕН");
+                geoNodeScraper = new GeoNodeScraper(
+                    freeProxyPool,
+                    refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
+                    outputMode: AppConfig.UserResumeDetailOutputMode,
+                    apiUrl: AppConfig.GeoNodeApiUrl,
+                    adaptiveModeEnabled: true,
+                    adaptiveTriggerThreshold: 200);
+
+                geoNodeScraper.Start();
+            }
+            else
+            {
+                Console.WriteLine("[Program] GeoNodeScraper: ОТКЛЮЧЕН");
+            }
         }
         else if (AppConfig.UserResumeDetailEnabled)
         {
@@ -405,6 +425,10 @@ class Program
                 if (proxyScrapeScraper != null)
                 {
                     proxyCoordinator.RegisterScraperStatistics(proxyScrapeScraper.GetStatistics());
+                }
+                if (geoNodeScraper != null)
+                {
+                    proxyCoordinator.RegisterScraperStatistics(geoNodeScraper.GetStatistics());
                 }
 
                 Console.WriteLine($"[Program] UserResumeDetailScraper: ProxyCoordinator ВКЛЮЧЕН");

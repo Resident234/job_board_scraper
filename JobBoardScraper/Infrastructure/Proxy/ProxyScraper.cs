@@ -1,5 +1,6 @@
 using JobBoardScraper.Infrastructure.Logging;
 using AngleSharp;
+using System.Text.Json;
 
 namespace JobBoardScraper.Infrastructure.Proxy;
 
@@ -323,5 +324,84 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
             return false;
 
         return true;
+    }
+}
+
+/// <summary>
+/// Scraper для GeoNode API - возвращает список прокси в JSON формате.
+/// https://proxylist.geonode.com/api/proxy-list?limit=200&page=1&sort_by=lastChecked&sort_type=desc
+/// </summary>
+public sealed class GeoNodeScraper : ProxyScraper<string>
+{
+    public GeoNodeScraper(
+        FreeProxyPool proxyPool,
+        TimeSpan? refreshInterval = null,
+        OutputMode outputMode = OutputMode.ConsoleOnly,
+        string? apiUrl = null,
+        bool adaptiveModeEnabled = true,
+        int adaptiveTriggerThreshold = 100)
+        : base(proxyPool, refreshInterval, outputMode, "GeoNodeScraper", "GeoNode",
+               apiUrl ?? AppConfig.GeoNodeApiUrl, adaptiveModeEnabled, adaptiveTriggerThreshold)
+    {
+    }
+
+    protected override Task<List<string>> ParseProxiesAsync(string json, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            var proxies = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(json))
+                return proxies;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                // GeoNode API возвращает { "data": [ { "ip": "...", "port": "...", "protocols": ["http", ...] }, ... ] }
+                if (!root.TryGetProperty("data", out var data))
+                    return proxies;
+
+                foreach (var item in data.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("ip", out var ipEl) || ipEl.ValueKind != JsonValueKind.String)
+                        continue;
+                    if (!item.TryGetProperty("port", out var portEl) || portEl.ValueKind != JsonValueKind.String)
+                        continue;
+                    if (!item.TryGetProperty("protocols", out var protocolsEl) || protocolsEl.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    var ip = ipEl.GetString();
+                    var port = portEl.GetString();
+                    if (string.IsNullOrWhiteSpace(ip) || string.IsNullOrWhiteSpace(port))
+                        continue;
+
+                    // Добавляем для каждого протокола (http, https, socks4, socks5)
+                    foreach (var protoEl in protocolsEl.EnumerateArray())
+                    {
+                        var proto = protoEl.GetString()?.ToLower();
+                        if (proto == "http" || proto == "https")
+                        {
+                            proxies.Add($"{proto}://{ip}:{port}");
+                        }
+                        else if (proto == "socks4")
+                        {
+                            proxies.Add($"socks4://{ip}:{port}");
+                        }
+                        else if (proto == "socks5")
+                        {
+                            proxies.Add($"socks5://{ip}:{port}");
+                        }
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.WriteLine($"[GeoNodeScraper] JSON parse error: {ex.Message}");
+            }
+
+            return proxies;
+        });
     }
 }
