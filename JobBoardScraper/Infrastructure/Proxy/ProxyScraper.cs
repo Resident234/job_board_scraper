@@ -19,6 +19,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
     protected bool _disposed;
     protected readonly string _sourceName;
     protected readonly string _sourceNamePrefix;
+    protected readonly string _sourceUrl;
     protected bool _adaptiveModeEnabled;
     protected int _adaptiveTriggerThreshold;
     protected readonly ProxySourceStatistics _statistics;
@@ -29,6 +30,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         OutputMode outputMode,
         string sourceName,
         string sourceNamePrefix,
+        string sourceUrl,
         bool adaptiveModeEnabled,
         int adaptiveTriggerThreshold)
     {
@@ -36,6 +38,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         _refreshInterval = refreshInterval ?? TimeSpan.FromMinutes(10);
         _sourceName = sourceName ?? throw new ArgumentNullException(nameof(sourceName));
         _sourceNamePrefix = sourceNamePrefix ?? throw new ArgumentNullException(nameof(sourceNamePrefix));
+        _sourceUrl = sourceUrl ?? throw new ArgumentNullException(nameof(sourceUrl));
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _logger = new ConsoleLogger(sourceName);
         _logger.SetOutputMode(outputMode);
@@ -71,8 +74,6 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         catch (AggregateException ex) when (ex.InnerException is OperationCanceledException) { }
         _scraperTask = null;
     }
-
-    protected abstract Task RunAsync(CancellationToken ct);
 
     protected async Task RunAsync(CancellationToken ct)
     {
@@ -114,7 +115,23 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         catch (OperationCanceledException) { }
     }
 
-    protected abstract Task ScrapeProxiesAsync(CancellationToken ct);
+    protected async Task ScrapeProxiesAsync(CancellationToken ct)
+    {
+        try
+        {
+            _logger.WriteLine($"[{_sourceName}] Fetching from {_sourceUrl}");
+            var response = await _httpClient.GetStringAsync(_sourceUrl, ct);
+            var proxies = await ParseProxiesAsync(response, ct);
+            _logger.WriteLine($"[{_sourceName}] Parsed {proxies.Count} proxies");
+
+            await ProcessScrapedProxiesAsync(proxies, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"[{_sourceName}] Error: {ex.Message}");
+        }
+    }
+
     protected abstract Task<List<TProxy>> ParseProxiesAsync(string content, CancellationToken ct);
 
     protected async Task ProcessScrapedProxiesAsync(List<TProxy> proxies, CancellationToken ct)
@@ -190,9 +207,6 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
 /// </summary>
 public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
 {
-    private readonly string _proxyListUrl;
-    private bool _disposed;
-
     public FreeProxyListScraper(
         FreeProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
@@ -200,26 +214,9 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
         string? proxyListUrl = null,
         bool adaptiveModeEnabled = true,
         int adaptiveTriggerThreshold = 100)
-        : base(proxyPool, refreshInterval, outputMode, "FreeProxyListScraper", "FreeProxyList.net", adaptiveModeEnabled, adaptiveTriggerThreshold)
+        : base(proxyPool, refreshInterval, outputMode, "FreeProxyListScraper", "FreeProxyList.net",
+               proxyListUrl ?? AppConfig.FreeProxyListUrl, adaptiveModeEnabled, adaptiveTriggerThreshold)
     {
-        _proxyListUrl = proxyListUrl ?? AppConfig.FreeProxyListUrl;
-    }
-
-    protected override async Task ScrapeProxiesAsync(CancellationToken ct)
-    {
-        try
-        {
-            _logger.WriteLine($"[FreeProxyListScraper] Scraping from {_proxyListUrl}");
-            var html = await _httpClient.GetStringAsync(_proxyListUrl, ct);
-            var proxies = await ParseProxiesAsync(html, ct);
-            _logger.WriteLine($"[FreeProxyListScraper] Parsed {proxies.Count} proxies");
-
-            await ProcessScrapedProxiesAsync(proxies, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.WriteLine($"[FreeProxyListScraper] Error: {ex.Message}");
-        }
     }
 
     protected override async Task<List<ProxyInfo>> ParseProxiesAsync(string html, CancellationToken ct)
@@ -255,13 +252,6 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
                .OrderByDescending(p => p.GetQualityScore())
                .ThenByDescending(p => p.IsRecentlyChecked())
                .ToList();
-
-    protected override void Dispose(bool disposing)
-    {
-        if (_disposed) return;
-        _disposed = true;
-        base.Dispose(disposing);
-    }
 }
 
 /// <summary>
@@ -270,9 +260,6 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
 /// </summary>
 public sealed class ProxyScrapeScraper : ProxyScraper<string>
 {
-    private readonly string _apiUrl;
-    private bool _disposed;
-
     public ProxyScrapeScraper(
         FreeProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
@@ -280,26 +267,9 @@ public sealed class ProxyScrapeScraper : ProxyScraper<string>
         string? apiUrl = null,
         bool adaptiveModeEnabled = true,
         int adaptiveTriggerThreshold = 100)
-        : base(proxyPool, refreshInterval, outputMode, "ProxyScrapeScraper", "ProxyScrape API", adaptiveModeEnabled, adaptiveTriggerThreshold)
+        : base(proxyPool, refreshInterval, outputMode, "ProxyScrapeScraper", "ProxyScrape API",
+               apiUrl ?? AppConfig.ProxyScrapeApiUrl, adaptiveModeEnabled, adaptiveTriggerThreshold)
     {
-        _apiUrl = apiUrl ?? AppConfig.ProxyScrapeApiUrl;
-    }
-
-    protected override async Task ScrapeProxiesAsync(CancellationToken ct)
-    {
-        try
-        {
-            _logger.WriteLine($"[{_sourceName}] Fetching from {_apiUrl}");
-            var response = await _httpClient.GetStringAsync(_apiUrl, ct);
-            var proxies = await ParseProxiesAsync(response, ct);
-            _logger.WriteLine($"[{_sourceName}] Parsed {proxies.Count} proxies");
-
-            await ProcessScrapedProxiesAsync(proxies, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.WriteLine($"[{_sourceName}] Error: {ex.Message}");
-        }
     }
 
     protected override Task<List<string>> ParseProxiesAsync(string response, CancellationToken ct)
@@ -357,12 +327,5 @@ public sealed class ProxyScrapeScraper : ProxyScraper<string>
             return false;
 
         return true;
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (_disposed) return;
-        _disposed = true;
-        base.Dispose(disposing);
     }
 }
