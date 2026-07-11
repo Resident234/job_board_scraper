@@ -135,14 +135,13 @@ public sealed class ProxyRetryExecutor
                     var decision = EvaluateRetry(statusCode, attempt, _maxRetriesPerProxy, response);
                     if (decision.ShouldRetry)
                     {
-                        HttpClientLogger.LogThrottleRetry(
-                            _logger,
+                        _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
                             attempt,
                             attempt + 1,
                             _maxRetriesPerProxy,
                             $"прокси #{proxySwitch + 1}: {url}",
                             decision.DelayMs,
-                            $"{decision.ErrorType} {statusCode}");
+                            $"{decision.ErrorType} {statusCode}"));
                         response.Dispose();
                         response = null;
                         await Task.Delay(decision.DelayMs, ct).ConfigureAwait(false);
@@ -161,14 +160,13 @@ public sealed class ProxyRetryExecutor
 
                     // Другие неуспешные коды — повторяем
                     var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    HttpClientLogger.LogThrottleRetry(
-                        _logger,
+                    _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
                         attempt,
                         attempt + 1,
                         _maxRetriesPerProxy,
                         $"прокси #{proxySwitch + 1}: {url}",
                         delayMs,
-                        $"HTTP error {statusCode}");
+                        $"HTTP error {statusCode}"));
                     response.Dispose();
                     response = null;
                     await Task.Delay(delayMs, ct).ConfigureAwait(false);
@@ -176,21 +174,18 @@ public sealed class ProxyRetryExecutor
                 catch (Exception ex) when (attempt < _maxRetriesPerProxy)
                 {
                     var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    HttpClientLogger.LogThrottleRetry(
-                        _logger,
+                    _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
                         attempt,
                         attempt + 1,
                         _maxRetriesPerProxy,
                         $"прокси #{proxySwitch + 1}: {url}",
                         delay,
-                        $"{ex.GetType().Name}: {ex.Message}");
+                        $"{ex.GetType().Name}: {ex.Message}"));
                     await Task.Delay(delay, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    HttpClientLogger.LogError(_logger,
-                        $"Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). " +
-                        $"Исчерпаны попытки с текущим прокси", ex);
+                    _logger?.WriteLine($"✖ Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). Исчерпаны попытки с текущим прокси: {ex.Message}");
                     break;
                 }
             }
@@ -305,11 +300,11 @@ public sealed class ProxyRetryExecutor
         var newProxy = coordinator?.GetNextProxy();
         if (newProxy != null)
         {
-            HttpClientLogger.LogSkip(logger, $"Переключение на новый прокси: {newProxy}");
+            logger?.WriteLine($"⏭ Переключение на новый прокси: {newProxy}");
             return true;
         }
 
-        HttpClientLogger.LogSkip(logger, $"Нет доступных прокси, пропускаем профиль: {userLink}");
+        logger?.WriteLine($"⏭ Нет доступных прокси, пропускаем профиль: {userLink}");
         return false;
     }
 }
