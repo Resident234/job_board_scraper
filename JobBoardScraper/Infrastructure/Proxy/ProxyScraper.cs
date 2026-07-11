@@ -272,15 +272,9 @@ public sealed class ProxyScrapeScraper : ProxyScraper<string>
     {
     }
 
-    protected override Task<List<string>> ParseProxiesAsync(string response, CancellationToken ct)
-    {
-        return Task.Run(() => ParseProxyList(response));
-    }
-
-    /// <summary>
-    /// Парсит ответ API - каждая строка содержит ip:port
-    /// </summary>
-    private List<string> ParseProxyList(string response)
+protected override Task<List<string>> ParseProxiesAsync(string response, CancellationToken ct)
+{
+    return Task.Run(() =>
     {
         var proxies = new List<string>();
 
@@ -304,7 +298,9 @@ public sealed class ProxyScrapeScraper : ProxyScraper<string>
         }
 
         return proxies;
-    }
+    });
+}
+
 
     /// <summary>
     /// Проверяет формат ip:port
