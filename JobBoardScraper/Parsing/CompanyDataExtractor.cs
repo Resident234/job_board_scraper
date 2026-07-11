@@ -1,4 +1,5 @@
 using AngleSharp.Dom;
+using AngleSharp.Html.Dom;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Infrastructure.Logging;
