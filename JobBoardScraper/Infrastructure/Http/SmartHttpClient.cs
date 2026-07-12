@@ -48,6 +48,9 @@ public sealed class SmartHttpClient
         _maxDelay = maxDelay ?? TimeSpan.FromSeconds(30);
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
         _proxyRotator = proxyRotator;
+
+        // Логируем информацию о таймауте при создании
+        HttpClientLogger.LogInfo($"SmartHttpClient for '{_scraperName}': timeout={_timeout.TotalSeconds} сек");
     }
 
     /// <summary>

@@ -21,7 +21,6 @@ namespace JobBoardScraper;
 /// 8. UserProfileScraper - периодический обход профилей пользователей для извлечения детальной информации (раз в месяц)
 /// 9. UserFriendsScraper - периодический обход списков друзей пользователей для сбора ссылок (раз в месяц)
 /// 10. UserResumeDetailScraper - периодический обход резюме пользователей для извлечения "О себе" и навыков (раз в месяц)
-/// TODO через прокси или selenium https://career.habr.com/slo_omy, здесь ограничение на количество просматриваемых профилей в том числе и под инкогнито
 /// TODO поработать через api https://career.habr.com/info/api#q1.7
 /// </summary>
 class Program
@@ -42,13 +41,9 @@ class Program
             AppConfig.TrafficStatsOutputFile,
             AppConfig.TrafficStatsSaveInterval);
 
-        Console.WriteLine($"[Program] Статистика трафика будет сохраняться в: {AppConfig.TrafficStatsOutputFile}");
-        Console.WriteLine($"[Program] Интервал сохранения статистики: {AppConfig.TrafficStatsSaveInterval.TotalMinutes} минут");
-
         // Создаем логгер для DatabaseClient
         var dbLogger = new ConsoleLogger("DatabaseClient");
         dbLogger.SetOutputMode(AppConfig.DatabaseClientOutputMode);
-        Console.WriteLine($"[Program] DatabaseClient: Режим вывода логов - {AppConfig.DatabaseClientOutputMode}");
 
         var db = new DatabaseClient(AppConfig.ConnectionString, dbLogger);
         using var conn = db.ConnectionInit();
@@ -74,12 +69,6 @@ class Program
         if (AppConfig.ResumeListEnabled)
         {
             Console.WriteLine("[Program] ResumeListPageScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода ResumeListPageScraper: {AppConfig.ResumeListOutputMode}");
-            Console.WriteLine($"[Program] Перебор навыков: {(AppConfig.ResumeListSkillsEnumerationEnabled ? "ВКЛЮЧЕН" : "ОТКЛЮЧЕН")}");
-            if (AppConfig.ResumeListSkillsEnumerationEnabled)
-            {
-                Console.WriteLine($"[Program] Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
-            }
 
             var resumeListHttpClient = new SmartHttpClient(
                 httpClient,
@@ -111,8 +100,6 @@ class Program
         if (AppConfig.CompaniesEnabled)
         {
             Console.WriteLine("[Program] CompanyListScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода CompanyListScraper: {AppConfig.CompaniesOutputMode}");
-            Console.WriteLine($"[Program] Директория логов: {AppConfig.LoggingOutputDirectory}");
 
             var companyListHttpClient = new SmartHttpClient(
                 httpClient,
@@ -167,8 +154,6 @@ class Program
         if (AppConfig.CompanyFollowersEnabled)
         {
             Console.WriteLine("[Program] CompanyFollowersScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода CompanyFollowersScraper: {AppConfig.CompanyFollowersOutputMode}");
-            Console.WriteLine($"[Program] Timeout CompanyFollowersScraper: {AppConfig.CompanyFollowersTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyFollowersBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -203,8 +188,6 @@ class Program
         if (AppConfig.ExpertsEnabled)
         {
             Console.WriteLine("[Program] ExpertsScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода ExpertsScraper: {AppConfig.ExpertsOutputMode}");
-            Console.WriteLine($"[Program] Timeout ExpertsScraper: {AppConfig.ExpertsTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var expertsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -234,8 +217,6 @@ class Program
         if (AppConfig.CompanyDetailEnabled)
         {
             Console.WriteLine("[Program] CompanyDetailScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода CompanyDetailScraper: {AppConfig.CompanyDetailOutputMode}");
-            Console.WriteLine($"[Program] Timeout CompanyDetailScraper: {AppConfig.CompanyDetailTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -267,8 +248,6 @@ class Program
         if (AppConfig.UserProfileEnabled)
         {
             Console.WriteLine("[Program] UserProfileScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода UserProfileScraper: {AppConfig.UserProfileOutputMode}");
-            Console.WriteLine($"[Program] Timeout UserProfileScraper: {AppConfig.UserProfileTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var userProfileBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -300,8 +279,6 @@ class Program
         if (AppConfig.UserFriendsEnabled)
         {
             Console.WriteLine("[Program] UserFriendsScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода UserFriendsScraper: {AppConfig.UserFriendsOutputMode}");
-            Console.WriteLine($"[Program] Timeout UserFriendsScraper: {AppConfig.UserFriendsTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var userFriendsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -329,131 +306,51 @@ class Program
             Console.WriteLine("[Program] UserFriendsScraper: ОТКЛЮЧЕН");
         }
 
-        // Инициализация FreeProxyListScraper если включен
-        ProxyPool? freeProxyPool = null;
-        FreeProxyListScraper? freeProxyListScraper = null;
-        ProxyScrapeScraper? proxyScrapeScraper = null;
-        GeoNodeScraper? geoNodeScraper = null;
+        // Инициализация прокси-скрейперов
+        ProxyScraperLauncher? proxyScraperLauncher = null;
 
         if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
         {
-            Console.WriteLine("[Program] FreeProxyListScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Refresh interval: {AppConfig.ProxyRefreshIntervalMinutes} минут");
-            Console.WriteLine($"[Program] Pool max size: {AppConfig.ProxyPoolMaxSize}");
-            Console.WriteLine($"[Program] Proxy list URL: {AppConfig.FreeProxyListUrl}");
+            Console.WriteLine("[Program] Прокси-скрейперы: ВКЛЮЧЕНЫ");
 
-            freeProxyPool = new ProxyPool(
-                maxSize: AppConfig.ProxyPoolMaxSize,
-                logger: new ConsoleLogger("ProxyPool"),
-                lowWaterMark: 200);
-
-            freeProxyListScraper = new FreeProxyListScraper(
-                freeProxyPool,
-                refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
-                outputMode: AppConfig.UserResumeDetailOutputMode,
-                proxyListUrl: AppConfig.FreeProxyListUrl,
-                adaptiveModeEnabled: true,
-                adaptiveTriggerThreshold: 200);
-
-            freeProxyListScraper.Start();
-
-            // Инициализация ProxyScrapeScraper (второй источник прокси)
-            if (AppConfig.ProxyScrapeEnabled)
-            {
-                Console.WriteLine("[Program] ProxyScrapeScraper: ВКЛЮЧЕН");
-                proxyScrapeScraper = new ProxyScrapeScraper(
-                    freeProxyPool,
-                    refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
-                    outputMode: AppConfig.UserResumeDetailOutputMode,
-                    adaptiveModeEnabled: true,
-                    adaptiveTriggerThreshold: 200);
-
-                proxyScrapeScraper.Start();
-            }
-            else
-            {
-                Console.WriteLine("[Program] ProxyScrapeScraper: ОТКЛЮЧЕН");
-            }
-
-            // Инициализация GeoNodeScraper (третий источник прокси)
-            if (AppConfig.GeoNodeEnabled)
-            {
-                Console.WriteLine("[Program] GeoNodeScraper: ВКЛЮЧЕН");
-                geoNodeScraper = new GeoNodeScraper(
-                    freeProxyPool,
-                    refreshInterval: TimeSpan.FromMinutes(AppConfig.ProxyRefreshIntervalMinutes),
-                    outputMode: AppConfig.UserResumeDetailOutputMode,
-                    apiUrl: AppConfig.GeoNodeApiUrl,
-                    adaptiveModeEnabled: true,
-                    adaptiveTriggerThreshold: 200);
-
-                geoNodeScraper.Start();
-            }
-            else
-            {
-                Console.WriteLine("[Program] GeoNodeScraper: ОТКЛЮЧЕН");
-            }
+            proxyScraperLauncher = ProxyScraperLauncher.LaunchAll(
+                poolMaxSize: AppConfig.ProxyPoolMaxSize,
+                refreshIntervalMinutes: AppConfig.ProxyRefreshIntervalMinutes,
+                adaptiveTriggerThreshold: 200,
+                freeProxyListUrl: AppConfig.FreeProxyListUrl,
+                proxyScrapeApiUrl: AppConfig.ProxyScrapeApiUrl,
+                geoNodeApiUrl: AppConfig.GeoNodeApiUrl,
+                freeProxyListEnabled: AppConfig.FreeProxyListEnabled,
+                proxyScrapeEnabled: AppConfig.ProxyScrapeEnabled,
+                geoNodeEnabled: AppConfig.GeoNodeEnabled,
+                outputMode: AppConfig.UserResumeDetailOutputMode);
         }
         else if (AppConfig.UserResumeDetailEnabled)
         {
-            Console.WriteLine("[Program] FreeProxyListScraper: ОТКЛЮЧЕН (работа без прокси)");
+            Console.WriteLine("[Program] Прокси-скрейперы: ОТКЛЮЧЕНЫ (работа без прокси)");
         }
 
         // Процесс 10: Периодический обход резюме пользователей для извлечения "О себе" и навыков
         if (AppConfig.UserResumeDetailEnabled)
         {
             Console.WriteLine("[Program] UserResumeDetailScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода UserResumeDetailScraper: {AppConfig.UserResumeDetailOutputMode}");
-            Console.WriteLine($"[Program] Timeout UserResumeDetailScraper: {AppConfig.UserResumeDetailTimeout.TotalSeconds} секунд");
 
             // Инициализация ProxyCoordinator (координатор whitelist + general pool)
             ProxyCoordinator? proxyCoordinator = null;
-            if (freeProxyPool != null)
+            if (proxyScraperLauncher != null)
             {
                 var whitelistStorage = new JsonWhitelistStorage(AppConfig.ProxyWhitelistFilePath);
                 var whitelistManager = new ProxyWhitelistManager(whitelistStorage);
                 await whitelistManager.LoadStateAsync();
 
-                var generalPoolManager = new GeneralPoolManager(freeProxyPool);
+                var generalPoolManager = new GeneralPoolManager(proxyScraperLauncher.Pool);
                 proxyCoordinator = new ProxyCoordinator(whitelistManager, generalPoolManager);
 
                 // Register scraper statistics with coordinator
-                if (freeProxyListScraper != null)
-                {
-                    proxyCoordinator.RegisterScraperStatistics(freeProxyListScraper.GetStatistics());
-                }
-                if (proxyScrapeScraper != null)
-                {
-                    proxyCoordinator.RegisterScraperStatistics(proxyScrapeScraper.GetStatistics());
-                }
-                if (geoNodeScraper != null)
-                {
-                    proxyCoordinator.RegisterScraperStatistics(geoNodeScraper.GetStatistics());
-                }
+                proxyScraperLauncher.RegisterStatistics(proxyCoordinator);
 
-                Console.WriteLine($"[Program] UserResumeDetailScraper: ProxyCoordinator ВКЛЮЧЕН");
-                Console.WriteLine($"[Program]   - Whitelist: {whitelistManager.WhitelistCount} прокси");
-                Console.WriteLine($"[Program]   - General Pool: {freeProxyPool.GetCount()} прокси");
-
-                // Display initial source statistics
-                Console.WriteLine($"[Program] Source Statistics:\n{proxyCoordinator.GetSourceStatisticsSummary()}");
-
-                // Start periodic statistics reporting
-                var statsTimer = new PeriodicTimer(TimeSpan.FromMinutes(5));
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        while (await statsTimer.WaitForNextTickAsync(cts.Token))
-                        {
-                            Console.WriteLine($"[STATS] Source Statistics Update:\n{proxyCoordinator.GetSourceStatisticsSummary()}");
-                        }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Timer stopped due to cancellation
-                    }
-                }, cts.Token);
+                // Start periodic statistics reporting (5 minutes interval)
+                proxyCoordinator.StartPeriodicStatsReporting(cts.Token, TimeSpan.FromMinutes(5));
             }
             else
             {
@@ -491,8 +388,6 @@ class Program
         if (AppConfig.CompanyRatingEnabled)
         {
             Console.WriteLine("[Program] CompanyRatingScraper: ВКЛЮЧЕН");
-            Console.WriteLine($"[Program] Режим вывода CompanyRatingScraper: {AppConfig.CompanyRatingOutputMode}");
-            Console.WriteLine($"[Program] Timeout CompanyRatingScraper: {AppConfig.CompanyRatingTimeout.TotalSeconds} секунд");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyRatingBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -583,13 +478,8 @@ class Program
 
         cts.Cancel();
 
-        // Остановка FreeProxyListScraper
-        if (freeProxyListScraper != null)
-        {
-            Console.WriteLine("[Program] Остановка FreeProxyListScraper...");
-            freeProxyListScraper.Stop();
-            freeProxyListScraper.Dispose();
-        }
+        // Остановка ProxyScraperLauncher
+        proxyScraperLauncher?.Dispose();
 
         await db.StopWriterTask();
         db.ConnectionClose(conn);

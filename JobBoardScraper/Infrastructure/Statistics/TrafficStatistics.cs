@@ -57,6 +57,9 @@ public sealed class TrafficStatistics : IDisposable
         
         var interval = saveInterval ?? TimeSpan.FromMinutes(5);
         _saveTimer = new Timer(_ => SaveToFile(), null, interval, interval);
+
+        Console.WriteLine($"[TrafficStatistics] Статистика трафика будет сохраняться в: {outputFile}");
+        Console.WriteLine($"[TrafficStatistics] Интервал сохранения статистики: {interval.TotalMinutes} минут");
     }
 
     /// <summary>

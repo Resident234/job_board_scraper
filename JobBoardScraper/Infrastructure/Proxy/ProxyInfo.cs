@@ -111,4 +111,33 @@ public record ProxyInfo(
 
         return true;
     }
+
+    /// <summary>
+    /// Convert ip:port string to a proxy URL with the specified protocol.
+    /// Returns null if the format is invalid.
+    /// </summary>
+    public static string? ToProxyUrl(string ipPort, string protocol = "http")
+    {
+        if (string.IsNullOrWhiteSpace(ipPort))
+            return null;
+        if (!IsValidProxyFormat(ipPort))
+            return null;
+        return $"{protocol}://{ipPort}";
+    }
+
+    /// <summary>
+    /// Build proxy URL from ip, port and protocol
+    /// </summary>
+    public static string BuildProxyUrl(string ip, string port, string protocol = "http")
+    {
+        return $"{protocol}://{ip}:{port}";
+    }
+
+    /// <summary>
+    /// Add source prefix to proxy URL (for tracking proxy origin in the pool)
+    /// </summary>
+    public static string AddSourceToProxyUrl(string proxyUrl, string sourceNamePrefix)
+    {
+        return ProxySourceHelper.AddSourceToProxyUrl(proxyUrl, sourceNamePrefix);
+    }
 }

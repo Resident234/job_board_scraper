@@ -46,9 +46,14 @@ public sealed class ResumeListPageScraper : IDisposable
         _interval = interval ?? AppConfig.ResumeListInterval;
         _statistics = new ScraperStatistics("ResumeListPageScraper");
         
-        _logger = new ConsoleLogger("ResumeListPageScraper");
-        _logger.SetOutputMode(outputMode);
-        ScraperLogger.LogInitialization(_logger, "ResumeListPageScraper", outputMode);
+         _logger = new ConsoleLogger("ResumeListPageScraper");
+         _logger.SetOutputMode(outputMode);
+         ScraperLogger.LogInitialization(_logger, "ResumeListPageScraper", outputMode);
+         _logger.WriteLine($"[ResumeListPageScraper] Перебор навыков: {(AppConfig.ResumeListSkillsEnumerationEnabled ? "ВКЛЮЧЕН" : "ОТКЛЮЧЕН")}");
+         if (AppConfig.ResumeListSkillsEnumerationEnabled)
+         {
+             _logger.WriteLine($"[ResumeListPageScraper] Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
+         }
     }
 
     public void Dispose()

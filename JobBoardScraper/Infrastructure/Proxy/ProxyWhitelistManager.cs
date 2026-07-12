@@ -67,6 +67,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
         _whitelist = await _storage.LoadAsync();
         _whitelistIndex = 0;
         LogStats("Whitelist загружен");
+        _logger?.WriteLine($"[WHITELIST] Whitelist: {_whitelist.Count} прокси");
     }
 
     public async Task SaveStateAsync()

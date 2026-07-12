@@ -231,6 +231,28 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     }
 
     /// <summary>
+    /// Start periodic statistics reporting to console
+    /// </summary>
+    public void StartPeriodicStatsReporting(CancellationToken ct, TimeSpan interval)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var timer = new PeriodicTimer(interval);
+                while (await timer.WaitForNextTickAsync(ct))
+                {
+                    _logger?.WriteLine($"[STATS] Source Statistics Update:\n{GetSourceStatisticsSummary()}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Timer stopped due to cancellation
+            }
+        }, ct);
+    }
+
+    /// <summary>
     /// Get detailed source statistics
     /// </summary>
     public string GetDetailedSourceStatistics()

@@ -47,6 +47,14 @@ public static class HttpClientLogger
         WriteLine(logger, $"{SkipIcon} {reason}");
     }
 
+    /// <summary>
+    /// Логирует информационное сообщение.
+    /// </summary>
+    public static void LogInfo(string message)
+    {
+        Console.WriteLine(message);
+    }
+
     private static string FormatDelay(int delayMs)
     {
         return delayMs < 1000

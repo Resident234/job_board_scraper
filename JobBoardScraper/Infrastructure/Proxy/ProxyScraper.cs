@@ -148,7 +148,8 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         var added = 0;
         foreach (var proxy in proxies)
         {
-            var proxyUrlWithSource = AddSourceToProxyUrl(proxy, _sourceNamePrefix);
+            var proxyStr = proxy.ToString() ?? string.Empty;
+            var proxyUrlWithSource = ProxyInfo.AddSourceToProxyUrl(proxyStr, _sourceNamePrefix);
             if (_proxyPool.AddProxy(proxyUrlWithSource))
                 added++;
         }
@@ -196,11 +197,6 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         GC.SuppressFinalize(this);
     }
 
-    private string AddSourceToProxyUrl(TProxy proxy, string sourceNamePrefix)
-    {
-        var proxyStr = proxy.ToString();
-        return ProxySourceHelper.AddSourceToProxyUrl(proxyStr, sourceNamePrefix);
-    }
 }
 
 /// <summary>
@@ -286,10 +282,10 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
                 continue;
 
             // Формат: ip:port
-            if (ProxyInfo.IsValidProxyFormat(trimmed))
+            var proxyUrl = ProxyInfo.ToProxyUrl(trimmed);
+            if (proxyUrl != null)
             {
-                // Добавляем http:// префикс
-                proxies.Add($"http://{trimmed}");
+                proxies.Add(proxyUrl);
             }
         }
 
@@ -354,17 +350,9 @@ public sealed class GeoNodeScraper : ProxyScraper<string>
                     foreach (var protoEl in protocolsEl.EnumerateArray())
                     {
                         var proto = protoEl.GetString()?.ToLower();
-                        if (proto == "http" || proto == "https")
+                        if (proto == "http" || proto == "https" || proto == "socks4" || proto == "socks5")
                         {
-                            proxies.Add($"{proto}://{ip}:{port}");
-                        }
-                        else if (proto == "socks4")
-                        {
-                            proxies.Add($"socks4://{ip}:{port}");
-                        }
-                        else if (proto == "socks5")
-                        {
-                            proxies.Add($"socks5://{ip}:{port}");
+                            proxies.Add(ProxyInfo.BuildProxyUrl(ip, port, proto));
                         }
                     }
                 }
@@ -376,5 +364,128 @@ public sealed class GeoNodeScraper : ProxyScraper<string>
 
             return proxies;
         });
+    }
+}
+
+/// <summary>
+/// Запускает все прокси-скрейперы и управляет их жизненным циклом.
+/// </summary>
+public sealed class ProxyScraperLauncher : IDisposable
+{
+    private readonly ProxyPool _proxyPool;
+    private readonly FreeProxyListScraper? _freeProxyListScraper;
+    private readonly ProxyScrapeScraper? _proxyScrapeScraper;
+    private readonly GeoNodeScraper? _geoNodeScraper;
+    private bool _disposed;
+
+    private ProxyScraperLauncher(
+        ProxyPool pool,
+        FreeProxyListScraper? free,
+        ProxyScrapeScraper? scrape,
+        GeoNodeScraper? geoNode)
+    {
+        _proxyPool = pool;
+        _freeProxyListScraper = free;
+        _proxyScrapeScraper = scrape;
+        _geoNodeScraper = geoNode;
+    }
+
+    /// <summary>
+    /// Создать и запустить все скрейперы.
+    /// </summary>
+    public static ProxyScraperLauncher LaunchAll(
+        int poolMaxSize,
+        int refreshIntervalMinutes,
+        int adaptiveTriggerThreshold,
+        string freeProxyListUrl,
+        string proxyScrapeApiUrl,
+        string geoNodeApiUrl,
+        bool freeProxyListEnabled,
+        bool proxyScrapeEnabled,
+        bool geoNodeEnabled,
+        OutputMode outputMode)
+    {
+        Console.WriteLine($"[ProxyScraperLauncher] Refresh interval: {refreshIntervalMinutes} минут");
+        Console.WriteLine($"[ProxyScraperLauncher] Pool max size: {poolMaxSize}");
+        Console.WriteLine($"[ProxyScraperLauncher] Proxy list URL: {freeProxyListUrl}");
+
+        var pool = new ProxyPool(
+            maxSize: poolMaxSize,
+            logger: new ConsoleLogger("ProxyPool"),
+            lowWaterMark: 200);
+
+        FreeProxyListScraper? freeScraper = null;
+        if (freeProxyListEnabled)
+        {
+            freeScraper = new FreeProxyListScraper(
+                pool,
+                refreshInterval: TimeSpan.FromMinutes(refreshIntervalMinutes),
+                outputMode: outputMode,
+                proxyListUrl: freeProxyListUrl,
+                adaptiveModeEnabled: true,
+                adaptiveTriggerThreshold: adaptiveTriggerThreshold);
+            freeScraper.Start();
+        }
+
+        ProxyScrapeScraper? scrapeScraper = null;
+        if (proxyScrapeEnabled)
+        {
+            scrapeScraper = new ProxyScrapeScraper(
+                pool,
+                refreshInterval: TimeSpan.FromMinutes(refreshIntervalMinutes),
+                outputMode: outputMode,
+                apiUrl: proxyScrapeApiUrl,
+                adaptiveModeEnabled: true,
+                adaptiveTriggerThreshold: adaptiveTriggerThreshold);
+            scrapeScraper.Start();
+        }
+
+        GeoNodeScraper? geoScraper = null;
+        if (geoNodeEnabled)
+        {
+            geoScraper = new GeoNodeScraper(
+                pool,
+                refreshInterval: TimeSpan.FromMinutes(refreshIntervalMinutes),
+                outputMode: outputMode,
+                apiUrl: geoNodeApiUrl,
+                adaptiveModeEnabled: true,
+                adaptiveTriggerThreshold: adaptiveTriggerThreshold);
+            geoScraper.Start();
+        }
+
+        Console.WriteLine($"[ProxyScraperLauncher] General Pool: {pool.GetCount()} прокси");
+
+        return new ProxyScraperLauncher(pool, freeScraper, scrapeScraper, geoScraper);
+    }
+
+    /// <summary>
+    /// Пул прокси.
+    /// </summary>
+    public ProxyPool Pool => _proxyPool;
+
+    /// <summary>
+    /// Зарегистрировать статистику скрейперов в координаторе.
+    /// </summary>
+    public void RegisterStatistics(ProxyCoordinator coordinator)
+    {
+        if (_freeProxyListScraper != null)
+            coordinator.RegisterScraperStatistics(_freeProxyListScraper.GetStatistics());
+        if (_proxyScrapeScraper != null)
+            coordinator.RegisterScraperStatistics(_proxyScrapeScraper.GetStatistics());
+        if (_geoNodeScraper != null)
+            coordinator.RegisterScraperStatistics(_geoNodeScraper.GetStatistics());
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _freeProxyListScraper?.Stop();
+        _freeProxyListScraper?.Dispose();
+        _proxyScrapeScraper?.Stop();
+        _proxyScrapeScraper?.Dispose();
+        _geoNodeScraper?.Stop();
+        _geoNodeScraper?.Dispose();
     }
 }
