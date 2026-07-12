@@ -60,7 +60,7 @@ public static class ScraperParallelLogger
         int activeCount)
     {
         var messageBody = $"HTTP {url}: {elapsedSeconds:F3} сек. " +
-                         $"Код: {statusCode}. Прогресс: {progress}. Параллельных: {activeCount}.";
+                         $"Код: {statusCode}. Прогресс: {progress}. Параллельных процессов: {activeCount}.";
         
         if (logger != null)
             logger.WriteLine(messageBody);
@@ -77,7 +77,7 @@ public static class ScraperParallelLogger
         ProgressTracker progress)
     {
         var messageBody = $"{url}: {elapsedSeconds:F3} сек. " +
-                         $"Код: {statusCode}. Прогресс: {progress}. Параллельных: {statistics.ActiveRequests}.";
+                         $"Код: {statusCode}. Прогресс: {progress}. Параллельных процессов: {statistics.ActiveRequests}.";
 
         if (logger != null)
             logger.WriteLine(messageBody);
