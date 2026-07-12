@@ -4,6 +4,7 @@ using JobBoardScraper.Infrastructure.Utils;
 using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
+using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Parsing;
 
 namespace JobBoardScraper.Scrapers;

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
-using JobBoardScraper.Data;
+using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Infrastructure.Statistics;
 
 namespace JobBoardScraper.Infrastructure.Logging;

@@ -1,7 +1,7 @@
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using JobBoardScraper.Core;
-using JobBoardScraper.Data;
+using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Infrastructure.Logging;
 using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Infrastructure.Utils;
