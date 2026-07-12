@@ -424,7 +424,30 @@ foreach (var (statusCode, description) in testCases)
 
 ---
 
-## 🏗️ Архитектура `ProxyRetryExecutor` — почему часть методов `static`, а часть вызывается через `_retryExecutor`
+## 🏗️ Архитектура `ProxyRetryExecutor` и `ProxyHttpClientFactory` — почему часть методов `static`, а часть вызывается через `_retryExecutor`
+
+### Где используется `ProxyHttpClientFactory`
+
+Класс `ProxyHttpClientFactory` (`JobBoardScraper/Infrastructure/Proxy/ProxyHttpClientFactory.cs`) используется в двух местах проекта:
+
+1. **`ProxyRetryExecutor`** — принимает экземпляр через конструктор и хранит в поле `_clientFactory`:
+   ```csharp
+   private readonly ProxyHttpClientFactory _clientFactory;
+
+   public ProxyRetryExecutor(
+       ProxyHttpClientFactory clientFactory,
+       ConsoleLogger? logger = null, ...)
+   ```
+
+2. **`UserResumeDetailScraper`** — создаёт экземпляр и передаёт в `ProxyRetryExecutor`:
+   ```csharp
+   var clientFactory = new ProxyHttpClientFactory(logger: _logger);
+   _retryExecutor = new ProxyRetryExecutor(clientFactory, logger: _logger);
+   ```
+
+Больше нигде в проекте `ProxyHttpClientFactory` не используется.
+
+### Архитектура `ProxyRetryExecutor`
 
 Класс `ProxyRetryExecutor` (`JobBoardScraper/Infrastructure/Proxy/ProxyRetryExecutor.cs`) намеренно совмещает две роли. Это не дублирование, а разделение ответственности по наличию/отсутствию внутреннего состояния.
 
