@@ -180,6 +180,21 @@ public static class UrlManager
         return uri.AbsolutePath;
     }
 
+    /// <summary>
+    /// Возвращает последний сегмент пути URL (например, <c>username</c> из <c>/username</c> или полного URL профиля).
+    /// </summary>
+    /// <param name="url">Абсолютный или относительный URL.</param>
+    /// <returns>Последний сегмент пути или пустая строка.</returns>
+    public static string GetLastPathSegment(string? url)
+    {
+        var path = GetAbsolutePath(url);
+        if (string.IsNullOrWhiteSpace(path))
+            return string.Empty;
+
+        var segments = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length > 0 ? segments[^1] : string.Empty;
+    }
+
     #endregion
 
     #region With* методы

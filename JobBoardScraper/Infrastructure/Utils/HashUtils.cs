@@ -11,7 +11,7 @@ public static class HashUtils
     /// <summary>
     /// Вычисляет SHA256 хеш для текста
     /// </summary>
-    public static string ComputeTextHash(string text)
+    public static string ComputeHash(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;

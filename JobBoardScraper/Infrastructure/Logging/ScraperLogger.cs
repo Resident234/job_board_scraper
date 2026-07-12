@@ -247,6 +247,31 @@ public static class ScraperLogger
     }
 
     /// <summary>
+    /// Перегрузка LogEnqueue, принимающая CompanyRecord целиком.
+    /// </summary>
+    public static void LogEnqueue(ConsoleLogger? logger, CompanyRecord company)
+    {
+        LogEnqueue(
+            logger,
+            "Company",
+            company.CompanyCode,
+            ("Url", company.CompanyUrl),
+            ("Title", company.CompanyTitle),
+            ("ID", company.CompanyId),
+            ("Rating", company.Rating),
+            ("Habr", company.Habr),
+            ("Skills", company.Skills?.Count));
+    }
+
+    /// <summary>
+    /// Логирует информационное сообщение без специальной иконки.
+    /// </summary>
+    public static void LogInfo(ConsoleLogger? logger, string message)
+    {
+        WriteLine(logger, message);
+    }
+
+    /// <summary>
     /// Логирует пропуск записи.
     /// Пример: "⏭ Пропуск: {reason}"
     /// </summary>

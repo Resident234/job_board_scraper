@@ -3,6 +3,7 @@ using AngleSharp.Html.Dom;
 using JobBoardScraper.Core;
 using JobBoardScraper.Data;
 using JobBoardScraper.Infrastructure.Logging;
+using JobBoardScraper.Infrastructure.Url;
 using JobBoardScraper.Infrastructure.Utils;
 using System.Text.RegularExpressions;
 
@@ -324,7 +325,7 @@ public static class CompanyDataExtractor
                     continue;
 
                 var companyUrl = UrlManager.Combine(AppConfig.CompaniesBaseUrl, companyCode);
-                companies.Add(new CompanyRecord(companyCode, companyUrl, companyId));
+                companies.Add(new CompanyRecord(companyCode, companyUrl, CompanyId: companyId));
             }
             catch (Exception ex)
             {
@@ -638,7 +639,7 @@ public static class CompanyDataExtractor
                         // Формируем полную ссылку
                         var companyUrl = UrlManager.Combine(AppConfig.CompanyDetailCompanyBaseUrl, companyCode);
 
-                        relatedCompanies.Add(new CompanyRecord(companyCode, companyUrl, companyTitle: companyName));
+                        relatedCompanies.Add(new CompanyRecord(companyCode, companyUrl, CompanyTitle: companyName));
                     }
                     catch (Exception ex)
                     {

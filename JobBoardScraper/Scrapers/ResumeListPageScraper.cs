@@ -229,7 +229,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
+        progressLogger.LogCompletion(totalProfiles, 0, _statistics);
     }
 
     private async Task ScrapeExperiencesAsync(CancellationToken ct)
@@ -313,7 +313,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
+        progressLogger.LogCompletion(totalProfiles, 0, _statistics);
     }
 
     private async Task ScrapeQidsAsync(CancellationToken ct)
@@ -398,7 +398,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(_statistics.TotalItemsCollected, $"{_statistics}");
+        progressLogger.LogCompletion(_statistics.TotalItemsCollected, 0, _statistics);
     }
 
     private async Task ScrapeCompanyIdsAsync(CancellationToken ct)
@@ -509,7 +509,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
+        progressLogger.LogCompletion(totalProfiles, 0, _statistics);
     }
 
     private async Task ScrapeUniversityIdsAsync(CancellationToken ct)
@@ -600,7 +600,7 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(totalProfiles, $"{_statistics}");
+        progressLogger.LogCompletion(totalProfiles, 0, _statistics);
     }
 
     private async Task ScrapeAndEnqueueAsync(CancellationToken ct)
@@ -754,7 +754,8 @@ public sealed class ResumeListPageScraper : IDisposable
             }
         }
         
-        progressLogger.LogCompletion(totalProfiles, $"Найдено навыков: {skillsFound}, Не найдено: {skillsNotFound}. {_statistics}");
+        progressLogger.LogInfo($"Найдено навыков: {skillsFound}, Не найдено: {skillsNotFound}.");
+        progressLogger.LogCompletion(totalProfiles, 0, _statistics);
     }
 
 }

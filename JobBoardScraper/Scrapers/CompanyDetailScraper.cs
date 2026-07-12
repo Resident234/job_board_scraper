@@ -162,53 +162,7 @@ public sealed class CompanyDetailScraper : IDisposable
 
                     var doc = await HtmlParser.ParseDocumentAsync(html, ct);
 
-                    // Создаем объект CompanyRecord для хранения данных компании
-                    var companyRecord = new CompanyRecord(
-                        CompanyCode: code,
-                        CompanyUrl: url,
-                        CompanyId: null,
-                        CompanyTitle: null,
-                        About: null,
-                        Description: null,
-                        Site: null,
-                        Rating: null,
-                        CurrentEmployees: null,
-                        PastEmployees: null,
-                        Followers: null,
-                        WantWork: null,
-                        EmployeesCount: null,
-                        HasHabrBlog: null,
-                        Skills: null
-                    );
-
-                    // Извлекаем название компании
-                    companyRecord.CompanyTitle = CompanyDataExtractor.ExtractCompanyTitle(doc);
-
-                    // Извлекаем краткое описание компании
-                    companyRecord.About = CompanyDataExtractor.ExtractCompanyAbout(doc);
-
-                    // Извлекаем детальное описание компании
-                    companyRecord.Description = CompanyDataExtractor.ExtractCompanyDescription(doc);
-
-                    // Извлекаем ссылку на сайт компании
-                    companyRecord.Site = CompanyDataExtractor.ExtractCompanySite(doc);
-
-                    // Извлекаем рейтинг компании
-                    companyRecord.Rating = CompanyDataExtractor.ExtractCompanyRating(doc);
-
-                    // Извлекаем количество сотрудников
-                    var (currentEmp, pastEmp) = CompanyDataExtractor.ExtractEmployeesCount(doc);
-                    companyRecord.CurrentEmployees = currentEmp;
-                    companyRecord.PastEmployees = pastEmp;
-
-                    // Извлекаем количество подписчиков и желающих работать
-                    var (follower, want) = CompanyDataExtractor.ExtractFollowersCount(doc);
-                    companyRecord.Followers = follower;
-                    companyRecord.WantWork = want;
-
-                    // Извлекаем company_id
                     var (id, success) = CompanyDataExtractor.ExtractCompanyId(doc, code, _logger);
-                    companyRecord.CompanyId = id;
                     if (!success)
                     {
                         ScraperLogger.LogSkip(
@@ -218,14 +172,32 @@ public sealed class CompanyDetailScraper : IDisposable
                         return;
                     }
 
-                    // Извлекаем размер компании
-                    companyRecord.EmployeesCount = CompanyDataExtractor.ExtractCompanySize(doc);
+                    var skills = CompanyDataExtractor.ExtractCompanySkills(doc);
+                    var (currentEmp, pastEmp) = CompanyDataExtractor.ExtractEmployeesCount(doc);
+                    var (followers, wantWork) = CompanyDataExtractor.ExtractFollowersCount(doc);
+                    var companyRecord = new CompanyRecord(
+                        CompanyCode: code,
+                        CompanyUrl: url,
+                        CompanyTitle: CompanyDataExtractor.ExtractCompanyTitle(doc),
+                        CompanyId: id,
+                        About: CompanyDataExtractor.ExtractCompanyAbout(doc),
+                        Description: CompanyDataExtractor.ExtractCompanyDescription(doc),
+                        Site: CompanyDataExtractor.ExtractCompanySite(doc),
+                        Rating: CompanyDataExtractor.ExtractCompanyRating(doc),
+                        CurrentEmployees: currentEmp,
+                        PastEmployees: pastEmp,
+                        Followers: followers,
+                        WantWork: wantWork,
+                        EmployeesCount: CompanyDataExtractor.ExtractCompanySize(doc),
+                        Habr: CompanyDataExtractor.HasHabrBlog(doc),
+                        Skills: skills.Count > 0 ? skills : null
+                    );
 
                     // Извлекаем связанные компании
                     var relatedCompanies = CompanyDataExtractor.ExtractRelatedCompanies(doc);
                     foreach (var relatedCompany in relatedCompanies)
                     {
-                        _db.EnqueueCompany(relatedCompany.CompanyCode, relatedCompany.CompanyUrl, relatedCompany.CompanyTitle);
+                        _db.EnqueueCompany(relatedCompany.CompanyCode, relatedCompany.CompanyUrl, companyTitle: relatedCompany.CompanyTitle);
                         ScraperLogger.LogEnqueue(_logger, "RelatedCompany", relatedCompany.CompanyCode, ("Url", relatedCompany.CompanyUrl), ("Title", relatedCompany.CompanyTitle));
                     }
 
@@ -254,13 +226,6 @@ public sealed class CompanyDetailScraper : IDisposable
                         );
                         ScraperLogger.LogEnqueue(_logger, "ContactPerson", member.Link, ("Code", member.UserName), ("Link", member.Link), ("Title", member.UserName));
                     }
-
-                    // Извлекаем навыки компании
-                    var skills = CompanyDataExtractor.ExtractCompanySkills(doc);
-                    companyRecord.Skills = skills.Count > 0 ? skills : null;
-
-                    // Проверка на наличие блога на Хабре
-                    companyRecord.HasHabrBlog = CompanyDataExtractor.HasHabrBlog(doc);
 
                     // Сохраняем данные компании в БД
                     _db.EnqueueCompany(companyRecord);

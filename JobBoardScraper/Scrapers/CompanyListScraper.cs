@@ -148,7 +148,7 @@ public sealed class CompanyListScraper : IDisposable
             ScraperLogger.LogFilter(_logger, $"Filter {sizeFilters.ToList().IndexOf(sz) + 1}/{sizeFilters.Length}: Size", sz, null, null);
             await ScrapeWithFiltersAsync(sz, null, null, ct);
             _progressLogger.Increment();
-            LogCompanyProgress(totalCompaniesOnSite, $"Фильтр sz={sz ?? "None"}");
+            LogCompanyProgress(totalCompaniesOnSite, $"Фильтр sz={sz?.ToString() ?? "None"}");
         }
 
         // Обходим по категориям
@@ -321,7 +321,7 @@ public sealed class CompanyListScraper : IDisposable
                 hasMorePages = CompanyDataExtractor.HasNextPage(doc, page);
                 if (!hasMorePages)
                 {
-                    ScraperLogger.LogPage(_logger, page);
+                    ScraperLogger.LogPage(_logger, page, url);
                 }
 
                 page++;
