@@ -79,4 +79,36 @@ public record ProxyInfo(
         if (IsTransparent()) return 1;
         return 0;
     }
+
+    /// <summary>
+    /// Filter proxies, removing transparent and invalid ones, sorted by quality
+    /// </summary>
+    public static List<ProxyInfo> FilterProxies(List<ProxyInfo> proxies) =>
+        proxies.Where(p => !p.IsTransparent() && p.IsValidIp() && (p.IsElite() || p.IsAnonymous()))
+               .OrderByDescending(p => p.GetQualityScore())
+               .ThenByDescending(p => p.IsRecentlyChecked())
+               .ToList();
+
+    /// <summary>
+    /// Check if a string is in valid ip:port format
+    /// </summary>
+    public static bool IsValidProxyFormat(string proxy)
+    {
+        var parts = proxy.Split(':');
+        if (parts.Length != 2)
+            return false;
+
+        var ip = parts[0];
+        var portStr = parts[1];
+
+        // Проверка IP
+        if (string.IsNullOrWhiteSpace(ip) || ip == "0.0.0.0" || ip.StartsWith("127."))
+            return false;
+
+        // Проверка порта
+        if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
+            return false;
+
+        return true;
+    }
 }

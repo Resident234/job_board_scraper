@@ -249,10 +249,7 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
     }
 
     public List<ProxyInfo> FilterProxies(List<ProxyInfo> proxies) =>
-        proxies.Where(p => !p.IsTransparent() && p.IsValidIp() && (p.IsElite() || p.IsAnonymous()))
-               .OrderByDescending(p => p.GetQualityScore())
-               .ThenByDescending(p => p.IsRecentlyChecked())
-               .ToList();
+        ProxyInfo.FilterProxies(proxies);
 }
 
 /// <summary>
@@ -306,25 +303,8 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
     /// <summary>
     /// Проверяет формат ip:port
     /// </summary>
-    private bool IsValidProxyFormat(string proxy)
-    {
-        var parts = proxy.Split(':');
-        if (parts.Length != 2)
-            return false;
-
-        var ip = parts[0];
-        var portStr = parts[1];
-
-        // Проверка IP
-        if (string.IsNullOrWhiteSpace(ip) || ip == "0.0.0.0" || ip.StartsWith("127."))
-            return false;
-
-        // Проверка порта
-        if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
-            return false;
-
-        return true;
-    }
+    private static bool IsValidProxyFormat(string proxy) =>
+        ProxyInfo.IsValidProxyFormat(proxy);
 }
 
 /// <summary>
