@@ -248,8 +248,6 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
         return proxies;
     }
 
-    public List<ProxyInfo> FilterProxies(List<ProxyInfo> proxies) =>
-        ProxyInfo.FilterProxies(proxies);
 }
 
 /// <summary>
@@ -288,7 +286,7 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
                 continue;
 
             // Формат: ip:port
-            if (IsValidProxyFormat(trimmed))
+            if (ProxyInfo.IsValidProxyFormat(trimmed))
             {
                 // Добавляем http:// префикс
                 proxies.Add($"http://{trimmed}");
@@ -300,11 +298,6 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
 }
 
 
-    /// <summary>
-    /// Проверяет формат ip:port
-    /// </summary>
-    private static bool IsValidProxyFormat(string proxy) =>
-        ProxyInfo.IsValidProxyFormat(proxy);
 }
 
 /// <summary>
