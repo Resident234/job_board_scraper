@@ -426,6 +426,30 @@ foreach (var (statusCode, description) in testCases)
 
 ## 🏗️ Архитектура `ProxyRetryExecutor` и `ProxyHttpClientFactory` — почему часть методов `static`, а часть вызывается через `_retryExecutor`
 
+### Где используется интерфейс `IProxyManager`
+
+Интерфейс `IProxyManager` (`JobBoardScraper/Infrastructure/Proxy/IProxyManager.cs`) — общий контракт для всех менеджеров прокси. Определяет методы получения прокси, отчётов об успехе/ошибке/лимите.
+
+#### Реализации (3 класса)
+
+| Файл | Класс | Назначение |
+|------|-------|------------|
+| `ProxyCoordinator.cs` | `ProxyCoordinator : IProxyManager, IDisposable` | Центральный координатор — управляет списком прокси, ротацией и health-мониторингом |
+| `GeneralPoolManager.cs` | `GeneralPoolManager : IProxyManager` | Менеджер общего пула прокси из `FreeProxyPool` |
+| `ProxyWhitelistManager.cs` | `ProxyWhitelistManager : IProxyManager, IDisposable` | Менеджер белого списка — приоритетные прокси из JSON/БД |
+
+#### Использование как параметр (2 файла)
+
+| Файл | Метод |
+|------|-------|
+| `ProxyHttpClientFactory.cs` | `WaitForProxyAsync(IProxyManager? coordinator, CancellationToken ct)` |
+| `ProxyRetryExecutor.cs` | `ExecuteAsync(..., IProxyManager? coordinator, ...)` |
+| `ProxyRetryExecutor.cs` | `ReportSuccessSafe(IProxyManager? coordinator, string? proxyUrl)` — статический |
+| `ProxyRetryExecutor.cs` | `ReportDailyLimitSafe(IProxyManager? coordinator, ...)` — статический |
+| `ProxyRetryExecutor.cs` | `HandleDailyLimit(IProxyManager? coordinator, ...)` — статический |
+
+В тестах (`JobBoardScraper.Tests`) интерфейс **не используется**.
+
 ### Где используется `ProxyHttpClientFactory`
 
 Класс `ProxyHttpClientFactory` (`JobBoardScraper/Infrastructure/Proxy/ProxyHttpClientFactory.cs`) используется в двух местах проекта:
