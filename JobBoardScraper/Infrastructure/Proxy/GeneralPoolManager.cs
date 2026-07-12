@@ -7,7 +7,7 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 /// </summary>
 public class GeneralPoolManager : IProxyManager
 {
-    private readonly FreeProxyPool _pool;
+    private readonly ProxyPool _pool;
     private readonly ConsoleLogger? _logger;
     private readonly int _maxFailures;
     private readonly Dictionary<string, int> _failureCounts = new();
@@ -26,7 +26,7 @@ public class GeneralPoolManager : IProxyManager
     public event Action<string>? OnProxyBlacklisted;
 
     public GeneralPoolManager(
-        FreeProxyPool pool,
+        ProxyPool pool,
         int maxFailures = 3,
         ConsoleLogger? logger = null)
     {

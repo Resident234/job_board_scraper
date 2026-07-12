@@ -330,7 +330,7 @@ class Program
         }
 
         // Инициализация FreeProxyListScraper если включен
-        FreeProxyPool? freeProxyPool = null;
+        ProxyPool? freeProxyPool = null;
         FreeProxyListScraper? freeProxyListScraper = null;
         ProxyScrapeScraper? proxyScrapeScraper = null;
         GeoNodeScraper? geoNodeScraper = null;
@@ -342,9 +342,9 @@ class Program
             Console.WriteLine($"[Program] Pool max size: {AppConfig.ProxyPoolMaxSize}");
             Console.WriteLine($"[Program] Proxy list URL: {AppConfig.FreeProxyListUrl}");
 
-            freeProxyPool = new FreeProxyPool(
+            freeProxyPool = new ProxyPool(
                 maxSize: AppConfig.ProxyPoolMaxSize,
-                logger: new ConsoleLogger("FreeProxyPool"),
+                logger: new ConsoleLogger("ProxyPool"),
                 lowWaterMark: 200);
 
             freeProxyListScraper = new FreeProxyListScraper(

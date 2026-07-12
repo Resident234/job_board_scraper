@@ -76,7 +76,7 @@ classDiagram
 ```mermaid
 graph TB
     subgraph "Free Proxy Management"
-        FPL[FreeProxyListScraper] -->|Scrapes every 10 min| FPP[FreeProxyPool]
+        FPL[FreeProxyListScraper] -->|Scrapes every 10 min| FPP[ProxyPool]
         FPP -->|Provides proxies| URDS[UserResumeDetailScraper]
         URDS -->|Consumes proxies| FPP
     end
@@ -117,7 +117,7 @@ graph TB
     subgraph "Proxy Management"
         PWM[ProxyWhitelistManager]
         WL[Whitelist Storage]
-        FPP[FreeProxyPool]
+        FPP[ProxyPool]
     end
 
     subgraph "Scraper"

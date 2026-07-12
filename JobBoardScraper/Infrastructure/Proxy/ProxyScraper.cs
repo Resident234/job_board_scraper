@@ -6,12 +6,12 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 
 /// <summary>
 /// Базовый класс для скрейперов прокси. Определяет общий интерфейс и логику
-/// для всех скрейперов, работающих с FreeProxyPool.
+/// для всех скрейперов, работающих с ProxyPool.
 /// </summary>
 /// <typeparam name="TProxy">Тип прокси, который парсится конкретным скрейпером</typeparam>
 public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
 {
-    protected readonly FreeProxyPool _proxyPool;
+    protected readonly ProxyPool _proxyPool;
     protected readonly HttpClient _httpClient;
     protected readonly TimeSpan _refreshInterval;
     protected readonly ConsoleLogger _logger;
@@ -26,7 +26,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
     protected readonly ProxySourceStatistics _statistics;
 
     protected ProxyScraper(
-        FreeProxyPool proxyPool,
+        ProxyPool proxyPool,
         TimeSpan? refreshInterval,
         OutputMode outputMode,
         string sourceName,
@@ -209,7 +209,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
 public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
 {
     public FreeProxyListScraper(
-        FreeProxyPool proxyPool,
+        ProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly,
         string? proxyListUrl = null,
@@ -257,7 +257,7 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
 public sealed class ProxyScrapeScraper : ProxyScraper<string>
 {
     public ProxyScrapeScraper(
-        FreeProxyPool proxyPool,
+        ProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly,
         string? apiUrl = null,
@@ -307,7 +307,7 @@ protected override Task<List<string>> ParseProxiesAsync(string response, Cancell
 public sealed class GeoNodeScraper : ProxyScraper<string>
 {
     public GeoNodeScraper(
-        FreeProxyPool proxyPool,
+        ProxyPool proxyPool,
         TimeSpan? refreshInterval = null,
         OutputMode outputMode = OutputMode.ConsoleOnly,
         string? apiUrl = null,

@@ -5,7 +5,7 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 /// <summary>
 /// Thread-safe pool for managing free proxy servers with adaptive monitoring
 /// </summary>
-public sealed class FreeProxyPool
+public sealed class ProxyPool
 {
     private readonly Queue<string> _proxies;
     private readonly object _lock;
@@ -16,7 +16,7 @@ public sealed class FreeProxyPool
     // Event for notifying when pool level drops below threshold
     public event Action<int>? OnPoolLow;
 
-    public FreeProxyPool(int maxSize = 1000, ConsoleLogger? logger = null, int lowWaterMark = 100)
+    public ProxyPool(int maxSize = 1000, ConsoleLogger? logger = null, int lowWaterMark = 100)
     {
         if (maxSize <= 0)
             throw new ArgumentException("Max size must be positive", nameof(maxSize));
