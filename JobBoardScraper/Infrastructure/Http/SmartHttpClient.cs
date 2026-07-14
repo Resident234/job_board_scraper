@@ -18,6 +18,7 @@ public sealed class SmartHttpClient
     private readonly HttpClient _httpClient;
     private readonly TrafficStatistics? _trafficStats;
     private readonly string _scraperName;
+    private readonly ConsoleLogger _logger;
     private readonly bool _enableRetry;
     private readonly bool _enableTrafficMeasuring;
     private readonly int _maxRetries;
@@ -40,6 +41,7 @@ public sealed class SmartHttpClient
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _scraperName = scraperName ?? throw new ArgumentNullException(nameof(scraperName));
+        _logger = new ConsoleLogger(scraperName);
         _trafficStats = trafficStats;
         _enableRetry = enableRetry;
         _enableTrafficMeasuring = enableTrafficMeasuring && trafficStats != null;
@@ -50,7 +52,7 @@ public sealed class SmartHttpClient
         _proxyRotator = proxyRotator;
 
         // Логируем информацию о таймауте при создании
-        HttpClientLogger.LogInfo($"SmartHttpClient for '{_scraperName}': timeout={_timeout.TotalSeconds} сек");
+        HttpClientLogger.LogInfo(_logger, $"SmartHttpClient for '{_scraperName}': timeout={_timeout.TotalSeconds} сек");
     }
 
     /// <summary>
@@ -287,7 +289,7 @@ public sealed class SmartHttpClient
                 var reason = $"код {(int)response.StatusCode}" +
                              (retryAfter.HasValue ? " (учтен Retry-After)" : "");
                 HttpClientLogger.LogThrottleRetry(
-                    null,
+                    _logger,
                     attempt,
                     attempt + 1,
                     _maxRetries,
@@ -309,7 +311,7 @@ public sealed class SmartHttpClient
 
                 var delay = ComputeBackoff(attempt);
                 HttpClientLogger.LogThrottleRetry(
-                    null,
+                    _logger,
                     attempt,
                     attempt + 1,
                     _maxRetries,

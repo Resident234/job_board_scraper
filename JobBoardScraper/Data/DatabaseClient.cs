@@ -18,7 +18,7 @@ public sealed class DatabaseClient
     private Task? _dbWriterTask;
     private CancellationTokenSource? _writerCts;
     private ConcurrentQueue<DbRecord>? _saveQueue;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
 
     private const string DbInsertIcon = "✅";
     private const string DbUpdateIcon = "↻";
@@ -31,7 +31,7 @@ public sealed class DatabaseClient
     public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger("DatabaseClient");
         _statistics.InitializeAllTables();
     }
     
@@ -66,14 +66,7 @@ public sealed class DatabaseClient
 
     private void Log(string message)
     {
-        if (_logger != null)
-        {
-            _logger.WriteLine(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-        }
+        _logger.WriteLine(message);
     }
 
     private void LogError(string entity, string entityName, string errorText)

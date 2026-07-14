@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 using JobBoardScraper.Domain.Models;
 using JobBoardScraper.Infrastructure.Statistics;
@@ -30,7 +30,7 @@ public static class ScraperLogger
     /// Логирует начало цикла обхода/сбора.
     /// Пример: "▶ Начало обхода списка компаний..."
     /// </summary>
-    public static void LogStart(ConsoleLogger? logger, string description)
+    public static void LogStart(ConsoleLogger logger, string description)
     {
         WriteLine(logger, $"{StartIcon} {description}");
     }
@@ -39,7 +39,7 @@ public static class ScraperLogger
     /// Логирует начало обхода конкретной страницы/URL.
     /// Пример: "↓ Загрузка страницы: {url}"
     /// </summary>
-    public static void LogPage(ConsoleLogger? logger, string url)
+    public static void LogPage(ConsoleLogger logger, string url)
     {
         WriteLine(logger, $"{PageIcon} Загрузка страницы: {url}");
     }
@@ -48,7 +48,7 @@ public static class ScraperLogger
     /// Логирует начало обхода конкретной страницы по её номеру.
     /// Пример: "↓ Обработка страницы 5: {url}"
     /// </summary>
-    public static void LogPage(ConsoleLogger? logger, int page, string url)
+    public static void LogPage(ConsoleLogger logger, int page, string url)
     {
         WriteLine(logger, $"{PageIcon} Обработка страницы {page}: {url}");
     }
@@ -57,7 +57,7 @@ public static class ScraperLogger
     /// Логирует завершение цикла обхода/сбора с произвольной причиной.
     /// Пример: "■ Сбор завершён."
     /// </summary>
-    public static void LogEnd(ConsoleLogger? logger, string reason)
+    public static void LogEnd(ConsoleLogger logger, string reason)
     {
         WriteLine(logger, $"{EndIcon} {reason}");
     }
@@ -66,7 +66,7 @@ public static class ScraperLogger
     /// Логирует завершение цикла обхода/сбора с финальной статистикой.
     /// Пример: "■ Обход завершён. {statistics}"
     /// </summary>
-    public static void LogEnd(ConsoleLogger? logger, object statistics)
+    public static void LogEnd(ConsoleLogger logger, object statistics)
     {
         WriteLine(logger, $"{EndIcon} Обход завершён. {statistics}");
     }
@@ -75,7 +75,7 @@ public static class ScraperLogger
     /// Логирует завершение сбора компаний с указанием количества собранных компаний и процентом выполнения.
     /// Пример: "■ Собрано 1234 из 5678 компаний (21.7%). {statistics}"
     /// </summary>
-    public static void LogCompletion(ConsoleLogger? logger, int totalCollected, int totalOnSite, ScraperStatistics statistics)
+    public static void LogCompletion(ConsoleLogger logger, int totalCollected, int totalOnSite, ScraperStatistics statistics)
     {
         if (totalOnSite > 0)
         {
@@ -92,7 +92,7 @@ public static class ScraperLogger
     /// Логирует завершение, вызванное неуспешным HTTP-кодом.
     /// Пример: "■ Страница вернула код 404. Завершение."
     /// </summary>
-    public static void LogEnd(ConsoleLogger? logger, int statusCode, string? suffix = null)
+    public static void LogEnd(ConsoleLogger logger, int statusCode, string? suffix = null)
     {
         var msg = $"{EndIcon} Страница вернула код {statusCode}. Завершение.";
         if (!string.IsNullOrEmpty(suffix))
@@ -104,7 +104,7 @@ public static class ScraperLogger
     /// Логирует ошибку — текстовое описание без исключения.
     /// Пример: "✖ Не найден элемент select#category_root_id"
     /// </summary>
-    public static void LogError(ConsoleLogger? logger, string description)
+    public static void LogError(ConsoleLogger logger, string description)
     {
         WriteLine(logger, $"{ErrorIcon} {description}");
     }
@@ -113,7 +113,7 @@ public static class ScraperLogger
     /// Логирует ошибку с контекстом и исключением.
     /// Пример: "✖ Ошибка при сборе category_root_id: {ex.Message}"
     /// </summary>
-    public static void LogError(ConsoleLogger? logger, string context, Exception ex)
+    public static void LogError(ConsoleLogger logger, string context, Exception ex)
     {
         WriteLine(logger, $"{ErrorIcon} {context}: {ex.Message}");
     }
@@ -122,7 +122,7 @@ public static class ScraperLogger
     /// Логирует простое исключение без контекста.
     /// Пример: "✖ {ex.Message}"
     /// </summary>
-    public static void LogError(ConsoleLogger? logger, Exception ex)
+    public static void LogError(ConsoleLogger logger, Exception ex)
     {
         WriteLine(logger, $"{ErrorIcon} {ex.Message}");
     }
@@ -131,12 +131,12 @@ public static class ScraperLogger
     /// Логирует предупреждение (не критическая ситуация).
     /// Пример: "⚠ Достигнута последняя страница (5)."
     /// </summary>
-    public static void LogWarning(ConsoleLogger? logger, string description)
+    public static void LogWarning(ConsoleLogger logger, string description)
     {
         WriteLine(logger, $"{WarnIcon} {description}");
     }
 
-    public static void LogOperationCanceled(ConsoleLogger? logger, string context)
+    public static void LogOperationCanceled(ConsoleLogger logger, string context)
     {
         WriteLine(logger, $"{WarnIcon} Операция отменена: {context}");
     }
@@ -145,7 +145,7 @@ public static class ScraperLogger
     /// Логирует попытку повтора (ретрай).
     /// Пример: "↻ Повторная попытка 2/3 для страницы 5: {url}"
     /// </summary>
-    public static void LogRetry(ConsoleLogger? logger, int attempt, int maxAttempts, string context)
+    public static void LogRetry(ConsoleLogger logger, int attempt, int maxAttempts, string context)
     {
         WriteLine(logger, $"{RetryIcon} Повторная попытка {attempt}/{maxAttempts}: {context}");
     }
@@ -155,7 +155,7 @@ public static class ScraperLogger
     /// Пример: "↻ Ошибка на попытке 1/3: timeout. Повторная попытка 2/3 через 2.0с: для страницы 5: {url}"
     /// </summary>
     public static void LogThrottleRetry(
-        ConsoleLogger? logger,
+        ConsoleLogger logger,
         int failedAttempt,
         int nextAttempt,
         int maxAttempts,
@@ -191,7 +191,7 @@ public static class ScraperLogger
     /// Логирует постановку записи в очередь (enqueue) с произвольной строкой extra.
     /// Пример: "⇪ В очередь: {key} -> {url}"
     /// </summary>
-    public static void LogEnqueue(ConsoleLogger? logger, string key, string url, string? extra = null)
+    public static void LogEnqueue(ConsoleLogger logger, string key, string url, string? extra = null)
     {
         var msg = $"{EnqueueIcon} В очередь: {key} -> {url}";
         if (!string.IsNullOrEmpty(extra))
@@ -207,12 +207,12 @@ public static class ScraperLogger
     /// Пример:
     /// "⇪ В очередь: Resume[userLink] { Name = 'Иван', Level = 'Senior', Skills = '12 шт.', Experience = '3 записей', ... }"
     /// </summary>
-    /// <param name="logger">Логгер (может быть null — тогда пишется в Console).</param>
+    /// <param name="logger">Логгер.</param>
     /// <param name="entityType">Название сущности (например, "Resume", "Company", "UserProfile").</param>
     /// <param name="entityId">Идентификатор сущности (например, userLink, companyCode).</param>
     /// <param name="fields">Пары (имя, значение) для каждого поля, добавленного в очередь.</param>
     public static void LogEnqueue(
-        ConsoleLogger? logger,
+        ConsoleLogger logger,
         string entityType,
         string entityId,
         params (string Name, object? Value)[] fields)
@@ -228,7 +228,7 @@ public static class ScraperLogger
     /// Внутри вызывает обобщённую перегрузку с типом сущности "Resume" и набором значимых полей.
     /// Пример: "⇪ В очередь: Resume[username] { Name = 'Иван', Level = 'Senior', Skills = '12 шт.' }"
     /// </summary>
-    public static void LogEnqueue(ConsoleLogger? logger, ResumeRecord profile)
+    public static void LogEnqueue(ConsoleLogger logger, ResumeRecord profile)
     {
         if (profile == null)
             return;
@@ -249,7 +249,7 @@ public static class ScraperLogger
     /// <summary>
     /// Перегрузка LogEnqueue, принимающая CompanyRecord целиком.
     /// </summary>
-    public static void LogEnqueue(ConsoleLogger? logger, CompanyRecord company)
+    public static void LogEnqueue(ConsoleLogger logger, CompanyRecord company)
     {
         LogEnqueue(
             logger,
@@ -266,7 +266,7 @@ public static class ScraperLogger
     /// <summary>
     /// Логирует информационное сообщение без специальной иконки.
     /// </summary>
-    public static void LogInfo(ConsoleLogger? logger, string message)
+    public static void LogInfo(ConsoleLogger logger, string message)
     {
         WriteLine(logger, message);
     }
@@ -275,7 +275,7 @@ public static class ScraperLogger
     /// Логирует пропуск записи.
     /// Пример: "⏭ Пропуск: {reason}"
     /// </summary>
-    public static void LogSkip(ConsoleLogger? logger, string reason)
+    public static void LogSkip(ConsoleLogger logger, string reason)
     {
         WriteLine(logger, $"{SkipIcon} {reason}");
     }
@@ -284,7 +284,7 @@ public static class ScraperLogger
     /// Логирует сохранение HTML-файла для отладки.
     /// Пример: "💾 HTML сохранён: {path} (кодировка: utf-8)"
     /// </summary>
-    public static void LogHtmlSaved(ConsoleLogger? logger, string path, string? encodingName = null)
+    public static void LogHtmlSaved(ConsoleLogger logger, string path, string? encodingName = null)
     {
         var msg = $"{HtmlIcon} HTML сохранён: {path}";
         if (!string.IsNullOrEmpty(encodingName))
@@ -296,7 +296,7 @@ public static class ScraperLogger
     /// Логирует счётчик загруженных/обработанных элементов.
     /// Пример: "Σ Загружено 42 пользователей из БД."
     /// </summary>
-    public static void LogCount(ConsoleLogger? logger, string action, int count, string entity, string? suffix = null)
+    public static void LogCount(ConsoleLogger logger, string action, int count, string entity, string? suffix = null)
     {
         var msg = $"{CountIcon} {action} {count} {entity}";
         if (!string.IsNullOrEmpty(suffix))
@@ -308,7 +308,7 @@ public static class ScraperLogger
     /// Логирует количество вариантов фильтров.
     /// Пример: "Σ Варианты фильтров: (Size, 6), (Category, 10), (Additional, 4)"
     /// </summary>
-    public static void LogCount(ConsoleLogger? logger, string action, params (string Name, int Value)[] filterOptions)
+    public static void LogCount(ConsoleLogger logger, string action, params (string Name, int Value)[] filterOptions)
     {
         var fields = new List<(string Name, string Value)>();
         foreach (var option in filterOptions)
@@ -324,7 +324,7 @@ public static class ScraperLogger
     /// Логирует фильтр или комбинацию фильтров с параметрами.
     /// Пример: "🔍 Combination 1/10: (Size, 5), (Category, 123)"
     /// </summary>
-    public static void LogFilter(ConsoleLogger? logger, string description, int? size, string? categoryId, KeyValuePair<string, string>? additionalFilter)
+    public static void LogFilter(ConsoleLogger logger, string description, int? size, string? categoryId, KeyValuePair<string, string>? additionalFilter)
     {
         var fields = new List<(string Name, string Value)>();
 
@@ -347,7 +347,7 @@ public static class ScraperLogger
     /// Логирует фильтр или комбинацию фильтров с заданными полями.
     /// Пример: "🔍 Combination 1/10: (Size, 5), (Category, 123)"
     /// </summary>
-    public static void LogFilter(ConsoleLogger? logger, string description, params (string Name, string Value)[] fields)
+    public static void LogFilter(ConsoleLogger logger, string description, params (string Name, string Value)[] fields)
     {
         var header = $"{FilterIcon} {description}";
         var body = FormatFields(fields);
@@ -359,7 +359,7 @@ public static class ScraperLogger
     /// Логирует фильтр или комбинацию фильтров без дополнительных параметров.
     /// Пример: "🔍 Combination 1/10: No filters"
     /// </summary>
-    public static void LogFilter(ConsoleLogger? logger, string description)
+    public static void LogFilter(ConsoleLogger logger, string description)
     {
         WriteLine(logger, $"{FilterIcon} {description}");
     }
@@ -443,20 +443,13 @@ public static class ScraperLogger
     /// Логирует инициализацию скрапера с указанием его имени и режима вывода.
     /// Пример: "📝 Инициализация CompanyRatingScraper с режимом вывода: ConsoleOnly"
     /// </summary>
-    public static void LogInitialization(ConsoleLogger? logger, string scraperName, OutputMode outputMode)
+    public static void LogInitialization(ConsoleLogger logger, string scraperName, OutputMode outputMode)
     {
         WriteLine(logger, $"📝 Инициализация {scraperName} с режимом вывода: {outputMode}");
     }
 
-    private static void WriteLine(ConsoleLogger? logger, string message)
+    private static void WriteLine(ConsoleLogger logger, string message)
     {
-        if (logger != null)
-        {
-            logger.WriteLine(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-        }
+        logger.WriteLine(message);
     }
 }

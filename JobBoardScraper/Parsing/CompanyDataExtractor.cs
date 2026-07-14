@@ -14,6 +14,8 @@ namespace JobBoardScraper.Parsing;
 /// </summary>
 public static class CompanyDataExtractor
 {
+    private static readonly ConsoleLogger DefaultLogger = new("CompanyDataExtractor");
+
     private static readonly Regex _companyHrefRegex = new Regex(AppConfig.CompaniesHrefRegex, RegexOptions.Compiled);
     private static readonly Regex _companyIdRegex = new Regex(AppConfig.CompanyDetailCompanyIdRegex, RegexOptions.Compiled);
     private static readonly Regex _alternativeLinkRegex = new Regex(AppConfig.CompanyDetailAlternativeLinkRegex, RegexOptions.Compiled);
@@ -912,32 +914,15 @@ public static class CompanyDataExtractor
 
     private static void LogError(ConsoleLogger? logger, string message, Exception? ex = null)
     {
-        if (logger != null)
-        {
-            if (ex != null)
-            {
-                logger.WriteLine($"{message}: {ex.Message}");
-            }
-            else
-            {
-                logger.WriteLine(message);
-            }
-        }
+        var target = logger ?? DefaultLogger;
+        if (ex != null)
+            target.WriteLine($"{message}: {ex.Message}");
         else
-        {
-            Console.WriteLine(ex != null ? $"{message}: {ex.Message}" : message);
-        }
+            target.WriteLine(message);
     }
 
     private static void LogInfo(ConsoleLogger? logger, string message)
     {
-        if (logger != null)
-        {
-            logger.WriteLine(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-        }
+        (logger ?? DefaultLogger).WriteLine(message);
     }
 }

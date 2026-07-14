@@ -11,6 +11,8 @@ namespace JobBoardScraper.Parsing;
 /// </summary>
 public static class UserDataExtractor
 {
+    private static readonly ConsoleLogger DefaultLogger = new("UserDataExtractor");
+
     #region Константы для кириллических строк
 
     private const string PrivacyRestrictedText = "Доступ ограничен настройками приватности";
@@ -1669,16 +1671,13 @@ public static class UserDataExtractor
 
 
     /// <summary>
-    /// Записывает сообщение об ошибке парсинга профиля в логгер или в консоль.
+    /// Записывает сообщение об ошибке парсинга профиля в логгер или в fallback ConsoleLogger.
     /// </summary>
-    /// <param name="logger">Опциональный логгер; если null, вывод идёт в Console.WriteLine.</param>
+    /// <param name="logger">Опциональный логгер; если null, используется DefaultLogger.</param>
     /// <param name="ex">Перехваченное исключение.</param>
     private static void LogProfileParsingError(ConsoleLogger? logger, Exception ex)
     {
         var message = $"{ProfileParsingErrorText} {ex.Message}";
-        if (logger != null)
-            logger.WriteLine(message);
-        else
-            Console.WriteLine(message);
+        (logger ?? DefaultLogger).WriteLine(message);
     }
 }

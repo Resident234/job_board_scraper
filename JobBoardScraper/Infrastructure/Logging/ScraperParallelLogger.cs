@@ -23,11 +23,8 @@ public static class ScraperParallelLogger
                          $"Код ответа {statusCode}. " +
                          $"Обработано: {completed}/{total} ({percent:F2}%). " +
                          $"Параллельных процессов: {activeCount}.";
-        
-        if (logger != null)
-            logger.WriteLine(messageBody);
-        else
-            Console.WriteLine($"[{scraperName}] {messageBody}");
+
+        WriteLine(logger, scraperName, messageBody);
     }
     
     public static void LogProgress(
@@ -43,11 +40,8 @@ public static class ScraperParallelLogger
                          $"Код ответа {statusCode}. " +
                          $"Обработано: {statistics.TotalProcessed}/{total} ({percent:F2}%). " +
                          $"Параллельных процессов: {statistics.ActiveRequests}.";
-        
-        if (logger != null)
-            logger.WriteLine(messageBody);
-        else
-            Console.WriteLine($"[{statistics.ScraperName}] {messageBody}");
+
+        WriteLine(logger, statistics.ScraperName, messageBody);
     }
     
     public static void LogProgress(
@@ -61,11 +55,8 @@ public static class ScraperParallelLogger
     {
         var messageBody = $"HTTP {url}: {elapsedSeconds:F3} сек. " +
                          $"Код: {statusCode}. Прогресс: {progress}. Параллельных процессов: {activeCount}.";
-        
-        if (logger != null)
-            logger.WriteLine(messageBody);
-        else
-            Console.WriteLine($"[{scraperName}] {messageBody}");
+
+        WriteLine(logger, scraperName, messageBody);
     }
     
     public static void LogProgress(
@@ -79,10 +70,7 @@ public static class ScraperParallelLogger
         var messageBody = $"{url}: {elapsedSeconds:F3} сек. " +
                          $"Код: {statusCode}. Прогресс: {progress}. Параллельных процессов: {statistics.ActiveRequests}.";
 
-        if (logger != null)
-            logger.WriteLine(messageBody);
-        else
-            Console.WriteLine($"[{statistics.ScraperName}] {messageBody}");
+        WriteLine(logger, statistics.ScraperName, messageBody);
     }
 
     /// <summary>
@@ -100,9 +88,11 @@ public static class ScraperParallelLogger
     {
         var messageBody = $"HTTP запрос {url} (страница {page}): {elapsedSeconds:F3} сек. Код ответа {statusCode}.";
 
-        if (logger != null)
-            logger.WriteLine(messageBody);
-        else
-            Console.WriteLine($"[{scraperName}] {messageBody}");
+        WriteLine(logger, scraperName, messageBody);
+    }
+
+    private static void WriteLine(ConsoleLogger? logger, string scraperName, string messageBody)
+    {
+        (logger ?? new ConsoleLogger(scraperName)).WriteLine(messageBody);
     }
 }

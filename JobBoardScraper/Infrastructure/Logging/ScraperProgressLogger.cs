@@ -9,7 +9,7 @@ namespace JobBoardScraper.Infrastructure.Logging;
 public sealed class ScraperProgressLogger
 {
     private readonly ProgressTracker _progress;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private readonly string _scraperName;
     private int _activeRequests;
 
@@ -23,7 +23,7 @@ public sealed class ScraperProgressLogger
     {
         _progress = new ProgressTracker(total, taskName ?? scraperName);
         _scraperName = scraperName;
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(scraperName);
         _activeRequests = 0;
     }
 
@@ -102,9 +102,6 @@ public sealed class ScraperProgressLogger
 
     private void WriteMessage(string message)
     {
-        if (_logger != null)
-            _logger.WriteLine(message);
-        else
-            Console.WriteLine(message);
+        _logger.WriteLine(message);
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using JobBoardScraper.Infrastructure.Logging;
 
 namespace JobBoardScraper.Infrastructure.Statistics;
 
@@ -49,17 +50,19 @@ public sealed class TrafficStatistics : IDisposable
     private readonly ConcurrentDictionary<string, ScraperTrafficStats> _scraperStats = new();
     private readonly string _outputFile;
     private readonly Timer _saveTimer;
+    private readonly ConsoleLogger _logger;
     private bool _disposed;
 
     public TrafficStatistics(string outputFile, TimeSpan? saveInterval = null)
     {
         _outputFile = outputFile ?? throw new ArgumentNullException(nameof(outputFile));
-        
+        _logger = new ConsoleLogger("TrafficStatistics");
+
         var interval = saveInterval ?? TimeSpan.FromMinutes(5);
         _saveTimer = new Timer(_ => SaveToFile(), null, interval, interval);
 
-        Console.WriteLine($"[TrafficStatistics] Статистика трафика будет сохраняться в: {outputFile}");
-        Console.WriteLine($"[TrafficStatistics] Интервал сохранения статистики: {interval.TotalMinutes} минут");
+        _logger.WriteLine($"Статистика трафика будет сохраняться в: {outputFile}");
+        _logger.WriteLine($"Интервал сохранения статистики: {interval.TotalMinutes} минут");
     }
 
     /// <summary>
@@ -151,11 +154,11 @@ public sealed class TrafficStatistics : IDisposable
             }
 
             File.WriteAllText(_outputFile, sb.ToString());
-            System.Console.WriteLine($"[TrafficStats] Статистика сохранена в {_outputFile}");
+            _logger.WriteLine($"Статистика сохранена в {_outputFile}");
         }
         catch (Exception ex)
         {
-            System.Console.WriteLine($"[TrafficStats] Ошибка при сохранении статистики: {ex.Message}");
+            _logger.WriteLine($"Ошибка при сохранении статистики: {ex.Message}");
         }
     }
 
@@ -165,6 +168,7 @@ public sealed class TrafficStatistics : IDisposable
 
         _saveTimer?.Dispose();
         SaveToFile(); // Финальное сохранение
+        _logger.Dispose();
         _disposed = true;
     }
 }

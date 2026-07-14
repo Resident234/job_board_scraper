@@ -151,7 +151,6 @@ public sealed class BruteForceUsernameScraper
                     finally
                     {
                         _activeRequests.TryRemove(link, out _);
-                        Console.Out.Flush();
                     }
                 },
                 controller: _adaptiveConcurrencyController,

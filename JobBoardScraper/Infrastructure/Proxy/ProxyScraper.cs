@@ -373,6 +373,7 @@ public sealed class GeoNodeScraper : ProxyScraper<string>
 public sealed class ProxyScraperLauncher : IDisposable
 {
     private readonly ProxyPool _proxyPool;
+    private readonly ConsoleLogger _logger;
     private readonly FreeProxyListScraper? _freeProxyListScraper;
     private readonly ProxyScrapeScraper? _proxyScrapeScraper;
     private readonly GeoNodeScraper? _geoNodeScraper;
@@ -380,11 +381,13 @@ public sealed class ProxyScraperLauncher : IDisposable
 
     private ProxyScraperLauncher(
         ProxyPool pool,
+        ConsoleLogger logger,
         FreeProxyListScraper? free,
         ProxyScrapeScraper? scrape,
         GeoNodeScraper? geoNode)
     {
         _proxyPool = pool;
+        _logger = logger;
         _freeProxyListScraper = free;
         _proxyScrapeScraper = scrape;
         _geoNodeScraper = geoNode;
@@ -405,9 +408,12 @@ public sealed class ProxyScraperLauncher : IDisposable
         bool geoNodeEnabled,
         OutputMode outputMode)
     {
-        Console.WriteLine($"[ProxyScraperLauncher] Refresh interval: {refreshIntervalMinutes} минут");
-        Console.WriteLine($"[ProxyScraperLauncher] Pool max size: {poolMaxSize}");
-        Console.WriteLine($"[ProxyScraperLauncher] Proxy list URL: {freeProxyListUrl}");
+        var logger = new ConsoleLogger("ProxyScraperLauncher");
+        logger.SetOutputMode(outputMode);
+
+        logger.WriteLine($"[ProxyScraperLauncher] Refresh interval: {refreshIntervalMinutes} минут");
+        logger.WriteLine($"[ProxyScraperLauncher] Pool max size: {poolMaxSize}");
+        logger.WriteLine($"[ProxyScraperLauncher] Proxy list URL: {freeProxyListUrl}");
 
         var pool = new ProxyPool(
             maxSize: poolMaxSize,
@@ -453,9 +459,9 @@ public sealed class ProxyScraperLauncher : IDisposable
             geoScraper.Start();
         }
 
-        Console.WriteLine($"[ProxyScraperLauncher] General Pool: {pool.GetCount()} прокси");
+        logger.WriteLine($"[ProxyScraperLauncher] General Pool: {pool.GetCount()} прокси");
 
-        return new ProxyScraperLauncher(pool, freeScraper, scrapeScraper, geoScraper);
+        return new ProxyScraperLauncher(pool, logger, freeScraper, scrapeScraper, geoScraper);
     }
 
     /// <summary>
@@ -487,5 +493,6 @@ public sealed class ProxyScraperLauncher : IDisposable
         _proxyScrapeScraper?.Dispose();
         _geoNodeScraper?.Stop();
         _geoNodeScraper?.Dispose();
+        _logger.Dispose();
     }
 }

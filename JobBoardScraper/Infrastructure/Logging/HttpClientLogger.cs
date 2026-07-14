@@ -10,7 +10,7 @@ public static class HttpClientLogger
     private const string SkipIcon = "⏭";
 
     public static void LogThrottleRetry(
-        ConsoleLogger? logger,
+        ConsoleLogger logger,
         int failedAttempt,
         int nextAttempt,
         int maxAttempts,
@@ -18,7 +18,7 @@ public static class HttpClientLogger
         int delayMs,
         string? reason = null)
     {
-        WriteLine(logger, FormatThrottleRetry(failedAttempt, nextAttempt, maxAttempts, context, delayMs, reason));
+        logger.WriteLine(FormatThrottleRetry(failedAttempt, nextAttempt, maxAttempts, context, delayMs, reason));
     }
 
     public static string FormatThrottleRetry(
@@ -37,22 +37,22 @@ public static class HttpClientLogger
         return message;
     }
 
-    public static void LogError(ConsoleLogger? logger, string context, Exception ex)
+    public static void LogError(ConsoleLogger logger, string context, Exception ex)
     {
-        WriteLine(logger, $"{ErrorIcon} {context}: {ex.Message}");
+        logger.WriteLine($"{ErrorIcon} {context}: {ex.Message}");
     }
 
-    public static void LogSkip(ConsoleLogger? logger, string reason)
+    public static void LogSkip(ConsoleLogger logger, string reason)
     {
-        WriteLine(logger, $"{SkipIcon} {reason}");
+        logger.WriteLine($"{SkipIcon} {reason}");
     }
 
     /// <summary>
     /// Логирует информационное сообщение.
     /// </summary>
-    public static void LogInfo(string message)
+    public static void LogInfo(ConsoleLogger logger, string message)
     {
-        Console.WriteLine(message);
+        logger.WriteLine(message);
     }
 
     private static string FormatDelay(int delayMs)
@@ -60,17 +60,5 @@ public static class HttpClientLogger
         return delayMs < 1000
             ? $"{delayMs}мс"
             : $"{delayMs / 1000.0:F1}с";
-    }
-
-    private static void WriteLine(ConsoleLogger? logger, string message)
-    {
-        if (logger != null)
-        {
-            logger.WriteLine(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-        }
     }
 }
