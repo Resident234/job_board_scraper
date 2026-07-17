@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -18,20 +17,12 @@ public sealed class DatabaseClient
     private Task? _dbWriterTask;
     private CancellationTokenSource? _writerCts;
     private ConcurrentQueue<DbRecord>? _saveQueue;
-    private readonly ConsoleLogger _logger;
+    private readonly DatabaseLogger _dbLogger;
 
-    private const string DbInsertIcon = "✅";
-    private const string DbUpdateIcon = "↻";
-    private const string DbErrorIcon = "❌";
-    private const string DbSkipIcon = "⏭";
-    private const string DbInfoIcon = "ℹ";
-    private const string DbDeleteIcon = "🗑";
-
-    
     public DatabaseClient(string connectionString, ConsoleLogger? logger = null)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _logger = logger ?? new ConsoleLogger("DatabaseClient");
+        _dbLogger = new DatabaseLogger(logger ?? new ConsoleLogger("DatabaseClient"));
         _statistics.InitializeAllTables();
     }
     
@@ -53,271 +44,9 @@ public sealed class DatabaseClient
     {
         if (DateTime.Now - _lastStatsDump >= _statsDumpInterval)
         {
-            Log(_statistics.GetSummary());
+            _dbLogger.Log(_statistics.GetSummary());
             _lastStatsDump = DateTime.Now;
         }
-    }
-
-    #endregion
-    
-    #region Logging
-    
-    private const int MaxRecordLogDepth = 3;
-
-    private void Log(string message)
-    {
-        _logger.WriteLine(message);
-    }
-
-    private void LogError(string entity, string entityName, string errorText)
-    {
-        if (string.IsNullOrEmpty(entityName))
-            Log($"[DB] {entity}: {DbErrorIcon} ERROR - {errorText}");
-        else
-            Log($"[DB] {entity} {entityName}: {DbErrorIcon} ERROR - {errorText}");
-    }
-
-    private void LogInsert(string entity, string entityName, string id)
-    {
-        if (string.IsNullOrEmpty(entityName))
-            Log($"[DB] {entity}: {DbInsertIcon} INSERT (id={id})");
-        else
-            Log($"[DB] {entity} {entityName}: {DbInsertIcon} INSERT (id={id})");
-    }
-
-    private void LogUpdate(string entity, string entityName, string id)
-    {
-        if (string.IsNullOrEmpty(entityName))
-            Log($"[DB] {entity}: {DbUpdateIcon} UPDATE (id={id})");
-        else
-            Log($"[DB] {entity} {entityName}: {DbUpdateIcon} UPDATE (id={id})");
-    }
-
-    private void LogEnqueue(string recordType, object? record)
-    {
-        Log($"[DB Queue] {recordType}: {FormatRecord(record)}");
-    }
-
-    /// <summary>
-    /// Логирует факт удаления записей в едином формате с иконкой 🗑.
-    /// Все формирование сообщения (entityLabel, сущность, описание удалённого и количество)
-    /// выполняется внутри обёртки. Снаружи передаётся заголовок сущности,
-    /// текстовое описание того, что удалено, и количество удалённых записей.
-    /// </summary>
-    /// <param name="entityLabel">Текст после префикса "[DB] " и до двоеточия, например "UserSkills habr_user" или "Дополнительное образование".</param>
-    /// <param name="deletedDescription">Краткое описание того, что удалено (например "старых связей", "старых записей", "записей").</param>
-    /// <param name="count">Количество удалённых записей.</param>
-    /// <param name="fields">Пары (имя поля, значение). Поля со значением null пропускаются.</param>
-    private void LogDelete(string entityLabel, string deletedDescription, int count, params (string Name, object? Value)[] fields)
-    {
-        var parts = new List<string> { $"[DB] {entityLabel}: {DbDeleteIcon} удалено {deletedDescription}={count}" };
-
-        foreach (var (name, value) in fields)
-        {
-            if (value is null)
-                continue;
-
-            parts.Add(FormatLogField(name, value));
-        }
-
-        Log(string.Join(" | ", parts));
-    }
-
-    /// <summary>
-    /// Логирует количественный результат загрузки/обработки в едином формате.
-    /// Например: "Загружено N company_id из БД" или "Пропущено N связей ...".
-    /// </summary>
-    /// <param name="action">Действие в прошедшем времени (например, "Загружено", "Пропущено", "Добавлено").</param>
-    /// <param name="count">Количество элементов.</param>
-    /// <param name="entityLabel">Описание того, что считается (например, "company_id", "компаний").</param>
-    /// <param name="suffix">Опциональный суффикс сообщения (например, " из БД", " пользователей").</param>
-    private void LogCount(string action, int count, string entityLabel, string suffix = "")
-    {
-        Log($"[DB] {action} {count} {entityLabel}{suffix}");
-    }
-
-    /// <summary>
-    /// Логирует события фоновой задачи записи в БД в едином формате с иконкой ℹ.
-    /// </summary>
-    private void LogWriter(string eventName, string description, params (string Name, object? Value)[] fields)
-    {
-        var parts = new List<string> { $"[DB Writer] {eventName}: {DbInfoIcon} {description}" };
-
-        foreach (var (name, value) in fields)
-        {
-            if (value is null)
-                continue;
-
-            parts.Add(FormatLogField(name, value));
-        }
-
-        Log(string.Join(" | ", parts));
-    }
-
-    /// <summary>
-    /// Логирует SKIP-операцию (пропуск записи) с подробным списком непустых полей.
-    /// Все проверки на null и форматирование значений выполняются внутри обёртки.
-    /// Снаружи передаётся только заголовок сущности, причина пропуска и пары (имя поля, значение).
-    /// </summary>
-    /// <param name="entityLabel">Текст после префикса "[DB] " и до двоеточия, например "Resume habr_user".</param>
-    /// <param name="reason">Краткое описание причины пропуска (например "404 страница", "уже существует").</param>
-    /// <param name="fields">Пары (имя поля, значение). Поля со значением null пропускаются.</param>
-    private void LogSkip(string entityLabel, string reason, params (string Name, object? Value)[] fields)
-    {
-        var parts = new List<string> { $"[DB] {entityLabel}: {DbSkipIcon} SKIP ({reason})" };
-
-        foreach (var (name, value) in fields)
-        {
-            if (value is null)
-                continue;
-
-            parts.Add(FormatLogField(name, value));
-        }
-
-        Log(string.Join(" | ", parts));
-    }
-
-    /// <summary>
-    /// Логирует INSERT/UPDATE операцию с подробным списком непустых полей.
-    /// Все проверки на null, форматирование значений и выбор иконки INSERT/UPDATE
-    /// выполняются внутри обёртки. Снаружи передаётся только заголовок сущности,
-    /// флаг isInsert и пары (имя поля, значение).
-    /// </summary>
-    /// <param name="entityLabel">Текст после префикса "[DB] " и до двоеточия, например "Компания habr_company".</param>
-    /// <param name="isInsert">true для INSERT (иконка ✅), false для UPDATE (иконка ↻).</param>
-    /// <param name="fields">Пары (имя поля, значение). Поля со значением null пропускаются.</param>
-    private void LogParts(string entityLabel, bool isInsert, params (string Name, object? Value)[] fields)
-    {
-        var parts = new List<string> { $"[DB] {entityLabel}:" };
-
-        foreach (var (name, value) in fields)
-        {
-            if (value is null)
-                continue;
-
-            parts.Add(FormatLogField(name, value));
-        }
-
-        parts.Add(isInsert ? $"{DbInsertIcon} INSERT" : $"{DbUpdateIcon} UPDATE");
-
-        Log(string.Join(" | ", parts));
-    }
-
-    /// <summary>
-    /// Форматирует одно поле для логирования. Ожидается, что value уже не null.
-    /// Поддерживает: ICollection (логируется количество элементов),
-    /// decimal/double/float (формат F2), string (с обрезкой до 50 символов),
-    /// остальные типы — через ToString().
-    /// </summary>
-    private static string FormatLogField(string name, object value)
-    {
-        if (value is System.Collections.ICollection collection)
-            return $"{name}={collection.Count}";
-
-        if (value is decimal d)
-            return $"{name}={d.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}";
-
-        if (value is double db)
-            return $"{name}={db.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}";
-
-        if (value is float f)
-            return $"{name}={f.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}";
-
-        if (value is string s)
-        {
-            var preview = s.Length > 50 ? s.Substring(0, 50) + "..." : s;
-            return $"{name}={preview}";
-        }
-
-        return $"{name}={value}";
-    }
-
-    private static string FormatRecord(object? record)
-    {
-        if (record is null)
-            return "null";
-
-        return FormatValue(record, depth: 0);
-    }
-
-    private static string FormatValue(object? value, int depth)
-    {
-        if (value == null)
-            return "<null>";
-
-        if (depth > MaxRecordLogDepth)
-            return value.ToString() ?? "<value>";
-
-        var type = value.GetType();
-
-        if (type.IsEnum)
-            return value.ToString() ?? "<enum>";
-
-        if (type == typeof(string))
-            return string.IsNullOrWhiteSpace((string)value) ? "<empty>" : EscapeLogValue((string)value);
-
-        if (IsScalarType(type))
-            return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "<value>";
-
-        if (value is System.Collections.IEnumerable enumerable && type != typeof(string))
-            return FormatEnumerable(enumerable, depth);
-
-        return FormatObjectProperties(value, depth);
-    }
-
-    private static string FormatObjectProperties(object value, int depth)
-        {
-        var properties = value.GetType()
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(property => property.GetIndexParameters().Length == 0)
-            .OrderBy(property => property.MetadataToken)
-            .Select(property =>
-            {
-                try
-                {
-                    return $"{property.Name}={FormatValue(property.GetValue(value), depth + 1)}";
-                }
-        catch (Exception ex)
-                {
-                    return $"{property.Name}=<error reading property: {EscapeLogValue(ex.Message)}>";
-                }
-            });
-
-        return "{" + string.Join(", ", properties) + "}";
-    }
-
-    private static string FormatEnumerable(System.Collections.IEnumerable enumerable, int depth)
-    {
-        var items = new List<string>();
-
-        foreach (var item in enumerable)
-        {
-            items.Add(FormatValue(item, depth + 1));
-        }
-
-        return items.Count == 0 ? "[]" : "[" + string.Join("; ", items) + "]";
-    }
-
-    private static bool IsScalarType(Type type)
-    {
-        type = Nullable.GetUnderlyingType(type) ?? type;
-
-        return type.IsPrimitive
-            || type == typeof(string)
-            || type == typeof(decimal)
-            || type == typeof(DateTime)
-            || type == typeof(DateTimeOffset)
-            || type == typeof(TimeSpan)
-            || type == typeof(Guid);
-    }
-
-    private static string EscapeLogValue(string value)
-    {
-        return value
-            .Replace("\\", "\\\\")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("\t", "\\t");
     }
 
     #endregion
@@ -373,7 +102,7 @@ public sealed class DatabaseClient
 
         _dbWriterTask = Task.Run(async () =>
         {
-            LogWriter("запущена", "Фоновая задача записи в БД запущена");
+            _dbLogger.LogWriter("запущена", "Фоновая задача записи в БД запущена");
             var lastQueueSizeLog = DateTime.MinValue;
             try
             {
@@ -384,7 +113,7 @@ public sealed class DatabaseClient
                     // Логируем размер очереди каждые 30 секунд
                     if ((DateTime.Now - lastQueueSizeLog).TotalSeconds >= 30)
                     {
-                        LogWriter("очередь", $"Размер очереди: {queueSize}");
+                        _dbLogger.LogWriter("очередь", $"Размер очереди: {queueSize}");
                         lastQueueSizeLog = DateTime.Now;
                     }
 
@@ -500,7 +229,7 @@ public sealed class DatabaseClient
                                             }
                                             else
                                             {
-                                                LogSkip($"Отзывы для компании {company.CompanyCode}", "компания не найдена в БД");
+                                                _dbLogger.LogSkip($"Отзывы для компании {company.CompanyCode}", "компания не найдена в БД");
                                             }
                                         }
 
@@ -557,7 +286,7 @@ public sealed class DatabaseClient
                         }
                         catch (Exception ex)
                         {
-                            LogWriter("ошибка обработки", ex.Message, ("RecordType", record.Type.ToString()), ("StackTrace", ex.StackTrace));
+                            _dbLogger.LogWriter("ошибка обработки", ex.Message, ("RecordType", record.Type.ToString()), ("StackTrace", ex.StackTrace));
                             // Продолжаем обработку следующих записей
                         }
                     }
@@ -567,15 +296,15 @@ public sealed class DatabaseClient
             }
             catch (OperationCanceledException)
             {
-                LogWriter("остановлена", "Фоновая задача записи в БД остановлена по запросу");
+                _dbLogger.LogWriter("остановлена", "Фоновая задача записи в БД остановлена по запросу");
             }
             catch (Exception ex)
             {
-                LogWriter("критическая ошибка", ex.Message, ("StackTrace", ex.StackTrace));
+                _dbLogger.LogWriter("критическая ошибка", ex.Message, ("StackTrace", ex.StackTrace));
             }
             finally
             {
-                LogWriter("завершена", "Фоновая задача записи в БД завершена");
+                _dbLogger.LogWriter("завершена", "Фоновая задача записи в БД завершена");
             }
         }, linkedToken);
     }
@@ -605,7 +334,7 @@ public sealed class DatabaseClient
                 }
                 catch (Exception ex)
                 {
-                    LogWriter("ошибка остановки", ex.Message, ("StackTrace", ex.StackTrace));
+                    _dbLogger.LogWriter("ошибка остановки", ex.Message, ("StackTrace", ex.StackTrace));
                 }
                 finally
                 {
@@ -630,7 +359,7 @@ public sealed class DatabaseClient
 
         if (_dbWriterTask.IsFaulted)
         {
-            LogWriter("ошибка задачи", _dbWriterTask.Exception?.Message ?? "неизвестная ошибка", ("StackTrace", _dbWriterTask.Exception?.StackTrace));
+            _dbLogger.LogWriter("ошибка задачи", _dbWriterTask.Exception?.Message ?? "неизвестная ошибка", ("StackTrace", _dbWriterTask.Exception?.StackTrace));
         }
 
         return isRunning;
@@ -716,7 +445,7 @@ public sealed class DatabaseClient
             Resume: resumeRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("Resume", resumeRecord);
+        _dbLogger.LogEnqueue("Resume", resumeRecord);
 
         return true;
     }
@@ -735,7 +464,7 @@ public sealed class DatabaseClient
             Resume: resumeRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("Resume", resumeRecord);
+        _dbLogger.LogEnqueue("Resume", resumeRecord);
 
         return true;
     }
@@ -793,7 +522,7 @@ public sealed class DatabaseClient
             Company: companyRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("Company", companyRecord);
+        _dbLogger.LogEnqueue("Company", companyRecord);
 
         return true;
     }
@@ -811,7 +540,7 @@ public sealed class DatabaseClient
             Company: companyRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("Company", companyRecord);
+        _dbLogger.LogEnqueue("Company", companyRecord);
 
         return true;
     }
@@ -833,7 +562,7 @@ public sealed class DatabaseClient
             CategoryRootId: categoryRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("CategoryRootId", categoryRecord);
+        _dbLogger.LogEnqueue("CategoryRootId", categoryRecord);
 
         return true;
     }
@@ -867,7 +596,7 @@ public sealed class DatabaseClient
             UserExperience: experienceRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("UserExperience", experienceRecord);
+        _dbLogger.LogEnqueue("UserExperience", experienceRecord);
 
         return true;
     }
@@ -889,7 +618,7 @@ public sealed class DatabaseClient
             Skills: skillRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("Skills", skillRecord);
+        _dbLogger.LogEnqueue("Skills", skillRecord);
 
         return true;
     }
@@ -912,7 +641,7 @@ public sealed class DatabaseClient
             University: universityRecord
         );
         _saveQueue.Enqueue(record);
-        LogEnqueue("University", universityRecord);
+        _dbLogger.LogEnqueue("University", universityRecord);
     }
 
     #endregion
@@ -940,7 +669,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("Level", levelTitle, "запрос не вернул результат");
+                _dbLogger.LogError("Level", levelTitle, "запрос не вернул результат");
                 _statistics.RecordError("habr_levels", levelTitle);
                 return null;
             }
@@ -952,12 +681,12 @@ public sealed class DatabaseClient
             if (isInsert)
             {
                 _statistics.RecordInsert("habr_levels", $"{levelId}:{levelTitle}");
-                LogInsert("Level", levelTitle, levelId.ToString());
+                _dbLogger.LogInsert("Level", levelTitle, levelId.ToString());
             }
             else
             {
                 _statistics.RecordUpdate("habr_levels", $"{levelId}:{levelTitle}");
-                LogUpdate("Level", levelTitle, levelId.ToString());
+                _dbLogger.LogUpdate("Level", levelTitle, levelId.ToString());
             }
 
             TryDumpStatistics();
@@ -965,13 +694,13 @@ public sealed class DatabaseClient
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("LevelsInsert", levelTitle, dbEx.Message);
+            _dbLogger.LogError("LevelsInsert", levelTitle, dbEx.Message);
             _statistics.RecordError("habr_levels", levelTitle);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("LevelsInsert", levelTitle, ex.Message);
+            _dbLogger.LogError("LevelsInsert", levelTitle, ex.Message);
             _statistics.RecordError("habr_levels", levelTitle);
             TryDumpStatistics();
         }
@@ -1048,7 +777,7 @@ public sealed class DatabaseClient
                 var inserted = cmd.ExecuteScalar();
                 if (inserted == null)
                 {
-                    LogSkip($"Resume {link}", "уже существует");
+                    _dbLogger.LogSkip($"Resume {link}", "уже существует");
                     _statistics.RecordSkipped("habr_resumes", link);
                     return;
                 }
@@ -1056,7 +785,7 @@ public sealed class DatabaseClient
                 _statistics.RecordInsert("habr_resumes", link);
 
                 // Подробное логирование: вся сборка частей, проверка на null и форматирование — внутри LogParts.
-                LogParts(
+                _dbLogger.LogParts(
                     $"Resume {link}",
                     isInsert: true,
                     ("Title", title),
@@ -1139,7 +868,7 @@ public sealed class DatabaseClient
                     _statistics.RecordUpdate("habr_resumes", link);
 
                 // Подробное логирование: вся сборка частей, проверка на null и форматирование — внутри LogParts.
-                LogParts(
+                _dbLogger.LogParts(
                     $"Resume {link}",
                     isInsert,
                     ("Title", title),
@@ -1165,19 +894,19 @@ public sealed class DatabaseClient
         catch (PostgresException pgEx) when
             (pgEx.SqlState == "23505") // На случай гонки: уникальное ограничение нарушено
         {
-            LogSkip($"Resume {link}", "уникальное ограничение");
+            _dbLogger.LogSkip($"Resume {link}", "уникальное ограничение");
             _statistics.RecordSkipped("habr_resumes", link);
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("Resume", link, dbEx.Message);
+            _dbLogger.LogError("Resume", link, dbEx.Message);
             _statistics.RecordError("habr_resumes", link);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("Resume", link, ex.Message);
+            _dbLogger.LogError("Resume", link, ex.Message);
             _statistics.RecordError("habr_resumes", link);
             TryDumpStatistics();
         }
@@ -1210,11 +939,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            LogCount("Загружено", userCodes.Count, "кодов пользователей", " из БД");
+            _dbLogger.LogCount("Загружено", userCodes.Count, "кодов пользователей", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("ResumesGetAllUserCodes", "", ex.Message);
+            _dbLogger.LogError("ResumesGetAllUserCodes", "", ex.Message);
         }
 
         return userCodes;
@@ -1253,11 +982,11 @@ public sealed class DatabaseClient
             }
 
             var filterText = onlyPublic ? " (только публичные)" : "";
-            LogCount("Загружено", userLinks.Count, "ссылок пользователей", $" из БД{filterText}");
+            _dbLogger.LogCount("Загружено", userLinks.Count, "ссылок пользователей", $" из БД{filterText}");
         }
         catch (Exception ex)
         {
-            LogError("ResumesGetAllUserLinks", "", ex.Message);
+            _dbLogger.LogError("ResumesGetAllUserLinks", "", ex.Message);
         }
 
         return userLinks;
@@ -1313,11 +1042,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            LogCount("Загружено", userLinks.Count, "ссылок пользователей без данных", " из БД");
+            _dbLogger.LogCount("Загружено", userLinks.Count, "ссылок пользователей без данных", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("ResumesGetUserLinksWithoutData", "", ex.Message);
+            _dbLogger.LogError("ResumesGetUserLinksWithoutData", "", ex.Message);
         }
 
         return userLinks;
@@ -1466,7 +1195,7 @@ public sealed class DatabaseClient
                 ? $"{followers?.ToString() ?? "?"}/{wantWork?.ToString() ?? "?"}"
                 : null;
 
-            LogParts(
+            _dbLogger.LogParts(
                 $"Компания {companyCode}",
                 isInsert,
                 ("URL", companyUrl),
@@ -1491,14 +1220,14 @@ public sealed class DatabaseClient
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("Компания", companyCode, dbEx.Message);
+            _dbLogger.LogError("Компания", companyCode, dbEx.Message);
             _statistics.RecordError("habr_companies", companyCode);
             TryDumpStatistics();
             return null;
         }
         catch (Exception ex)
         {
-            LogError("Компания", companyCode, ex.Message);
+            _dbLogger.LogError("Компания", companyCode, ex.Message);
             _statistics.RecordError("habr_companies", companyCode);
             TryDumpStatistics();
             return null;
@@ -1537,25 +1266,25 @@ public sealed class DatabaseClient
             if (isInsert)
             {
                 _statistics.RecordInsert("habr_category_root_ids", categoryId);
-                LogInsert("Category", categoryEntity, categoryId);
+                _dbLogger.LogInsert("Category", categoryEntity, categoryId);
             }
             else
             {
                 _statistics.RecordUpdate("habr_category_root_ids", categoryId);
-                LogUpdate("Category", categoryEntity, categoryId);
+                _dbLogger.LogUpdate("Category", categoryEntity, categoryId);
             }
 
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("Category", categoryId, dbEx.Message);
+            _dbLogger.LogError("Category", categoryId, dbEx.Message);
             _statistics.RecordError("habr_category_root_ids", categoryId);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("Category", categoryId, ex.Message);
+            _dbLogger.LogError("Category", categoryId, ex.Message);
             _statistics.RecordError("habr_category_root_ids", categoryId);
             TryDumpStatistics();
         }
@@ -1582,11 +1311,11 @@ public sealed class DatabaseClient
                 companyIds.Add(companyId);
             }
 
-            LogCount("Загружено", companyIds.Count, "company_id", " из БД");
+            _dbLogger.LogCount("Загружено", companyIds.Count, "company_id", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("CompaniesGetAllIds", "", ex.Message);
+            _dbLogger.LogError("CompaniesGetAllIds", "", ex.Message);
         }
 
         return companyIds;
@@ -1613,11 +1342,11 @@ public sealed class DatabaseClient
                 universityIds.Add(universityId);
             }
 
-            LogCount("Загружено", universityIds.Count, "university_id", " из БД");
+            _dbLogger.LogCount("Загружено", universityIds.Count, "university_id", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("UniversitiesGetAllIds", "", ex.Message);
+            _dbLogger.LogError("UniversitiesGetAllIds", "", ex.Message);
         }
 
         return universityIds;
@@ -1649,11 +1378,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            LogCount("Загружено", categoryIds.Count, "категорий", " из БД");
+            _dbLogger.LogCount("Загружено", categoryIds.Count, "категорий", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("CategoryGetAllIds", "", ex.Message);
+            _dbLogger.LogError("CategoryGetAllIds", "", ex.Message);
         }
 
         return categoryIds;
@@ -1685,11 +1414,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            LogCount("Загружено", companyCodes.Count, "компаний", " из БД");
+            _dbLogger.LogCount("Загружено", companyCodes.Count, "компаний", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("CompaniesGetAllCodes", "", ex.Message);
+            _dbLogger.LogError("CompaniesGetAllCodes", "", ex.Message);
         }
 
         return companyCodes;
@@ -1723,11 +1452,11 @@ public sealed class DatabaseClient
                 }
             }
 
-            LogCount("Загружено", companies.Count, "компаний с URL", " из БД");
+            _dbLogger.LogCount("Загружено", companies.Count, "компаний с URL", " из БД");
         }
         catch (Exception ex)
         {
-            LogError("CompaniesGetAll", "", ex.Message);
+            _dbLogger.LogError("CompaniesGetAll", "", ex.Message);
         }
 
         return companies;
@@ -1822,7 +1551,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("CompanySkills", companyCode, "запрос не вернул результат");
+                _dbLogger.LogError("CompanySkills", companyCode, "запрос не вернул результат");
                 _statistics.RecordError("habr_company_skills", companyCode);
                 TryDumpStatistics();
                 return;
@@ -1839,7 +1568,7 @@ public sealed class DatabaseClient
 
             if (!companyId.HasValue)
             {
-                LogSkip($"CompanySkills {companyCode}", "компания не найдена в БД");
+                _dbLogger.LogSkip($"CompanySkills {companyCode}", "компания не найдена в БД");
                 _statistics.RecordSkipped("habr_company_skills", companyCode);
                 TryDumpStatistics();
                 return;
@@ -1848,44 +1577,44 @@ public sealed class DatabaseClient
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_company_skills", $"{companyId}-{deletedCount}");
-                LogDelete($"CompanySkills {companyCode}", "старых связей", deletedCount, ("CompanyID", companyId));
+                _dbLogger.LogDelete($"CompanySkills {companyCode}", "старых связей", deletedCount, ("CompanyID", companyId));
             }
 
             if (insertedSkillsCount > 0)
             {
                 _statistics.RecordInsert("habr_skills", $"{insertedSkillsCount} навыков для компании {companyCode}");
-                LogInsert($"CompanySkills {companyCode} → habr_skills", "навыков", $"{insertedSkillsCount} (title=...)");
+                _dbLogger.LogInsert($"CompanySkills {companyCode} → habr_skills", "навыков", $"{insertedSkillsCount} (title=...)");
             }
 
             if (updatedSkillsCount > 0)
             {
                 _statistics.RecordUpdate("habr_skills", $"{updatedSkillsCount} навыков для компании {companyCode}");
-                LogUpdate($"CompanySkills {companyCode} → habr_skills", "навыков", $"{updatedSkillsCount} (title=...)");
+                _dbLogger.LogUpdate($"CompanySkills {companyCode} → habr_skills", "навыков", $"{updatedSkillsCount} (title=...)");
             }
 
             if (linkedInsertedCount > 0)
             {
                 _statistics.RecordInsert("habr_company_skills", companyCode);
-                LogInsert($"CompanySkills {companyCode}", "связей", $"{linkedInsertedCount} (company_id={companyId})");
+                _dbLogger.LogInsert($"CompanySkills {companyCode}", "связей", $"{linkedInsertedCount} (company_id={companyId})");
             }
 
             if (linkedUpdatedCount > 0)
             {
                 _statistics.RecordUpdate("habr_company_skills", companyCode);
-                LogUpdate($"CompanySkills {companyCode}", "связей", $"{linkedUpdatedCount} (company_id={companyId})");
+                _dbLogger.LogUpdate($"CompanySkills {companyCode}", "связей", $"{linkedUpdatedCount} (company_id={companyId})");
             }
 
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("CompanySkills", companyCode, dbEx.Message);
+            _dbLogger.LogError("CompanySkills", companyCode, dbEx.Message);
             _statistics.RecordError("habr_company_skills", companyCode);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("CompanySkills", companyCode, ex.Message);
+            _dbLogger.LogError("CompanySkills", companyCode, ex.Message);
             _statistics.RecordError("habr_company_skills", companyCode);
             TryDumpStatistics();
         }
@@ -1980,7 +1709,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("UserSkills", userLink, "запрос не вернул результат");
+                _dbLogger.LogError("UserSkills", userLink, "запрос не вернул результат");
                 _statistics.RecordError("habr_user_skills", userLink);
                 TryDumpStatistics();
                 return;
@@ -1997,7 +1726,7 @@ public sealed class DatabaseClient
 
             if (!userId.HasValue)
             {
-                LogSkip($"UserSkills {userLink}", "пользователь не найден в БД");
+                _dbLogger.LogSkip($"UserSkills {userLink}", "пользователь не найден в БД");
                 _statistics.RecordSkipped("habr_user_skills", userLink);
                 TryDumpStatistics();
                 return;
@@ -2006,44 +1735,44 @@ public sealed class DatabaseClient
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_user_skills", $"{userId}-{deletedCount}");
-                LogDelete($"UserSkills {userLink}", "старых связей", deletedCount, ("UserID", userId));
+                _dbLogger.LogDelete($"UserSkills {userLink}", "старых связей", deletedCount, ("UserID", userId));
             }
 
             if (insertedSkillsCount > 0)
             {
                 _statistics.RecordInsert("habr_skills", $"{insertedSkillsCount} навыков для {userLink}");
-                LogInsert($"UserSkills {userLink} → habr_skills", "навыков", $"{insertedSkillsCount} (title=...)");
+                _dbLogger.LogInsert($"UserSkills {userLink} → habr_skills", "навыков", $"{insertedSkillsCount} (title=...)");
             }
 
             if (updatedSkillsCount > 0)
             {
                 _statistics.RecordUpdate("habr_skills", $"{updatedSkillsCount} навыков для {userLink}");
-                LogUpdate($"UserSkills {userLink} → habr_skills", "навыков", $"{updatedSkillsCount} (title=...)");
+                _dbLogger.LogUpdate($"UserSkills {userLink} → habr_skills", "навыков", $"{updatedSkillsCount} (title=...)");
             }
 
             if (linkedInsertedCount > 0)
             {
                 _statistics.RecordInsert("habr_user_skills", $"{userId}-{userLink}");
-                LogInsert($"UserSkills {userLink}", "связей", $"{linkedInsertedCount} (user_id={userId})");
+                _dbLogger.LogInsert($"UserSkills {userLink}", "связей", $"{linkedInsertedCount} (user_id={userId})");
             }
 
             if (linkedUpdatedCount > 0)
             {
                 _statistics.RecordUpdate("habr_user_skills", $"{userId}-{userLink}");
-                LogUpdate($"UserSkills {userLink}", "связей", $"{linkedUpdatedCount} (user_id={userId})");
+                _dbLogger.LogUpdate($"UserSkills {userLink}", "связей", $"{linkedUpdatedCount} (user_id={userId})");
             }
 
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("UserSkills", userLink, dbEx.Message);
+            _dbLogger.LogError("UserSkills", userLink, dbEx.Message);
             _statistics.RecordError("habr_user_skills", userLink);
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("UserSkills", userLink, ex.Message);
+            _dbLogger.LogError("UserSkills", userLink, ex.Message);
             _statistics.RecordError("habr_user_skills", userLink);
             TryDumpStatistics();
         }
@@ -2143,7 +1872,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("ExperienceSkills", "", "запрос не вернул результат");
+                _dbLogger.LogError("ExperienceSkills", "", "запрос не вернул результат");
                 _statistics.RecordError("habr_user_experience_skills", "query");
                 TryDumpStatistics();
                 return;
@@ -2157,32 +1886,32 @@ public sealed class DatabaseClient
             if (linkedInsertedCount > 0)
             {
                 _statistics.RecordInsert("habr_user_experience_skills", $"{linkedInsertedCount}");
-                LogInsert("ExperienceSkills", "связей", $"{linkedInsertedCount}");
+                _dbLogger.LogInsert("ExperienceSkills", "связей", $"{linkedInsertedCount}");
             }
 
             if (linkedUpdatedCount > 0)
             {
                 _statistics.RecordUpdate("habr_user_experience_skills", $"{linkedUpdatedCount}");
-                LogUpdate("ExperienceSkills", "связей", $"{linkedUpdatedCount}");
+                _dbLogger.LogUpdate("ExperienceSkills", "связей", $"{linkedUpdatedCount}");
             }
 
             if (insertedSkillsCount > 0)
             {
                 _statistics.RecordInsert("habr_skills", $"{insertedSkillsCount}");
-                LogInsert("ExperienceSkills → habr_skills", "навыков", $"{insertedSkillsCount}");
+                _dbLogger.LogInsert("ExperienceSkills → habr_skills", "навыков", $"{insertedSkillsCount}");
             }
 
             if (updatedSkillsCount > 0)
             {
                 _statistics.RecordUpdate("habr_skills", $"{updatedSkillsCount}");
-                LogUpdate("ExperienceSkills → habr_skills", "навыков", $"{updatedSkillsCount}");
+                _dbLogger.LogUpdate("ExperienceSkills → habr_skills", "навыков", $"{updatedSkillsCount}");
             }
 
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("ExperienceSkills", "exception", ex.Message);
+            _dbLogger.LogError("ExperienceSkills", "exception", ex.Message);
             _statistics.RecordError("habr_user_experience_skills", "exception");
             TryDumpStatistics();
         }
@@ -2248,7 +1977,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("SkillsInsert", skillId.ToString(), "запрос не вернул результат");
+                _dbLogger.LogError("SkillsInsert", skillId.ToString(), "запрос не вернул результат");
                 _statistics.RecordError("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
@@ -2260,7 +1989,7 @@ public sealed class DatabaseClient
 
             if (existingBySkillId.HasValue)
             {
-                LogSkip($"SkillsInsert {skillId}", "навык уже существует", ("SkillID", skillId));
+                _dbLogger.LogSkip($"SkillsInsert {skillId}", "навык уже существует", ("SkillID", skillId));
                 _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
@@ -2268,7 +1997,7 @@ public sealed class DatabaseClient
 
             if (updatedByTitle.HasValue)
             {
-                LogParts($"SkillsInsert {skillId}", isInsert: false, ("Title", normalizedTitle), ("DBID", updatedByTitle), ("SkillID", skillId));
+                _dbLogger.LogParts($"SkillsInsert {skillId}", isInsert: false, ("Title", normalizedTitle), ("DBID", updatedByTitle), ("SkillID", skillId));
                 _statistics.RecordUpdate("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
@@ -2276,25 +2005,25 @@ public sealed class DatabaseClient
 
             if (insertedId.HasValue)
             {
-                LogParts($"SkillsInsert {skillId}", isInsert: true, ("Title", normalizedTitle), ("DBID", insertedId), ("SkillID", skillId));
+                _dbLogger.LogParts($"SkillsInsert {skillId}", isInsert: true, ("Title", normalizedTitle), ("DBID", insertedId), ("SkillID", skillId));
                 _statistics.RecordInsert("habr_skills", $"skill_id={skillId}");
                 TryDumpStatistics();
                 return;
             }
 
-            LogSkip($"SkillsInsert {skillId}", "навык не обработан", ("SkillID", skillId));
+            _dbLogger.LogSkip($"SkillsInsert {skillId}", "навык не обработан", ("SkillID", skillId));
             _statistics.RecordSkipped("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("SkillsInsert", skillId.ToString(), dbEx.Message);
+            _dbLogger.LogError("SkillsInsert", skillId.ToString(), dbEx.Message);
             _statistics.RecordError("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("SkillsInsert", skillId.ToString(), ex.Message);
+            _dbLogger.LogError("SkillsInsert", skillId.ToString(), ex.Message);
             _statistics.RecordError("habr_skills", $"skill_id={skillId}");
             TryDumpStatistics();
         }
@@ -2420,26 +2149,26 @@ public sealed class DatabaseClient
                 if (insertedCount > 0)
                 {
                     _statistics.RecordInsert("habr_user_experience", $"{insertedCount}");
-                    LogInsert("UserExperiences", "опыт работы", $"{insertedCount} записей");
+                    _dbLogger.LogInsert("UserExperiences", "опыт работы", $"{insertedCount} записей");
                 }
 
                 if (deletedCount > 0)
                 {
                     _statistics.RecordDelete("habr_user_experience", $"{deletedCount}");
-                    LogDelete("UserExperiences", "старых записей опыта", deletedCount);
+                    _dbLogger.LogDelete("UserExperiences", "старых записей опыта", deletedCount);
                 }
 
                 if (upsertedCompaniesCount > 0)
                 {
                     _statistics.RecordInsert("habr_companies", $"{upsertedCompaniesCount}");
-                    LogInsert("UserExperiences → habr_companies", "компаний", $"{upsertedCompaniesCount}");
+                    _dbLogger.LogInsert("UserExperiences → habr_companies", "компаний", $"{upsertedCompaniesCount}");
                 }
             }
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("UserExperiences", "exception", ex.Message);
+            _dbLogger.LogError("UserExperiences", "exception", ex.Message);
             _statistics.RecordError("habr_user_experience", "exception");
             TryDumpStatistics();
         }
@@ -2527,7 +2256,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("CompanyReviews", companyId.ToString(), "запрос не вернул результат");
+                _dbLogger.LogError("CompanyReviews", companyId.ToString(), "запрос не вернул результат");
                 _statistics.RecordError("habr_company_reviews", companyId.ToString());
                 TryDumpStatistics();
                 return;
@@ -2540,18 +2269,18 @@ public sealed class DatabaseClient
             if (insertedCount > 0)
             {
                 _statistics.RecordInsert("habr_company_reviews", $"{companyId}:{insertedCount}");
-                LogCount("Добавлено", insertedCount, "новых отзывов", $" для компании ID={companyId}");
+                _dbLogger.LogCount("Добавлено", insertedCount, "новых отзывов", $" для компании ID={companyId}");
             }
 
             if (existingCount > 0)
             {
                 _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:{existingCount}");
-                LogSkip($"CompanyReviews {companyId}", "существующие отзывы", ("ExistingCount", existingCount));
+                _dbLogger.LogSkip($"CompanyReviews {companyId}", "существующие отзывы", ("ExistingCount", existingCount));
             }
 
             if (totalCount == 0)
             {
-                LogParts($"CompanyReviews {companyId}", isInsert: false, ("Info", "отзывов для обработки не найдено"));
+                _dbLogger.LogParts($"CompanyReviews {companyId}", isInsert: false, ("Info", "отзывов для обработки не найдено"));
                 _statistics.RecordSkipped("habr_company_reviews", $"{companyId}:0");
             }
 
@@ -2559,7 +2288,7 @@ public sealed class DatabaseClient
         }
         catch (Exception ex)
         {
-            LogError("CompanyReviews", companyId.ToString(), ex.Message);
+            _dbLogger.LogError("CompanyReviews", companyId.ToString(), ex.Message);
             _statistics.RecordError("habr_company_reviews", companyId.ToString());
             TryDumpStatistics();
         }
@@ -2593,7 +2322,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("Университет", $"{name} (ID={habrId})", "запрос не вернул результат");
+                _dbLogger.LogError("Университет", $"{name} (ID={habrId})", "запрос не вернул результат");
                 _statistics.RecordError("habr_universities", habrId.ToString());
                 return;
             }
@@ -2605,25 +2334,25 @@ public sealed class DatabaseClient
             if (isInsert)
             {
                 _statistics.RecordInsert("habr_universities", $"{habrId}:{name}");
-                LogParts($"Университет {name}", isInsert: true, ("HabrID", habrId), ("DBID", universityId));
+                _dbLogger.LogParts($"Университет {name}", isInsert: true, ("HabrID", habrId), ("DBID", universityId));
             }
             else
             {
                 _statistics.RecordUpdate("habr_universities", $"{habrId}:{name}");
-                LogParts($"Университет {name}", isInsert: false, ("HabrID", habrId), ("DBID", universityId));
+                _dbLogger.LogParts($"Университет {name}", isInsert: false, ("HabrID", habrId), ("DBID", universityId));
             }
 
             TryDumpStatistics();
         }
         catch (NpgsqlException dbEx)
         {
-            LogError("UniversitiesInsert", $"{name} (ID={habrId})", dbEx.Message);
+            _dbLogger.LogError("UniversitiesInsert", $"{name} (ID={habrId})", dbEx.Message);
             _statistics.RecordError("habr_universities", habrId.ToString());
             TryDumpStatistics();
         }
         catch (Exception ex)
         {
-            LogError("UniversitiesInsert", $"{name} (ID={habrId})", ex.Message);
+            _dbLogger.LogError("UniversitiesInsert", $"{name} (ID={habrId})", ex.Message);
             _statistics.RecordError("habr_universities", habrId.ToString());
             TryDumpStatistics();
         }
@@ -2761,7 +2490,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("ResumesUniversities", "", "запрос не вернул результат");
+                _dbLogger.LogError("ResumesUniversities", "", "запрос не вернул результат");
                 _statistics.RecordError("habr_resumes_universities", "query");
                 TryDumpStatistics();
                 return;
@@ -2792,10 +2521,10 @@ public sealed class DatabaseClient
             if (missingUsersCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_universities", $"missing_users:{missingUsersCount}");
-                LogSkip("ResumesUniversities", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
+                _dbLogger.LogSkip("ResumesUniversities", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
             }
 
-            LogParts("ResumesUniversities summary", isInsert: false,
+            _dbLogger.LogParts("ResumesUniversities summary", isInsert: false,
                 ("Input", inputCount),
                 ("Upserted", upsertedCount),
                 ("Inserted", insertedCount),
@@ -2806,7 +2535,7 @@ public sealed class DatabaseClient
         }
         catch (Exception ex)
         {
-            LogError("ResumesUniversities", "", ex.Message);
+            _dbLogger.LogError("ResumesUniversities", "", ex.Message);
             _statistics.RecordError("habr_resumes_universities", "exception");
             TryDumpStatistics();
         }
@@ -2904,7 +2633,7 @@ public sealed class DatabaseClient
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
             {
-                LogError("Дополнительное образование", "", "запрос не вернул результат");
+                _dbLogger.LogError("Дополнительное образование", "", "запрос не вернул результат");
                 _statistics.RecordError("habr_resumes_educations", "query");
                 TryDumpStatistics();
                 return;
@@ -2921,29 +2650,29 @@ public sealed class DatabaseClient
             if (missingUsersCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_educations", $"missing_users:{missingUsersCount}");
-                LogSkip("ResumesEducations", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
+                _dbLogger.LogSkip("ResumesEducations", "не найдены пользователи", ("MissingUsersCount", missingUsersCount));
             }
 
             if (deletedCount > 0)
             {
                 _statistics.RecordDelete("habr_resumes_educations", $"{deletedCount}");
-                LogDelete("Дополнительное образование", "старых записей", deletedCount);
+                _dbLogger.LogDelete("Дополнительное образование", "старых записей", deletedCount);
             }
 
             if (insertedCount > 0)
             {
                 _statistics.RecordInsert("habr_resumes_educations", $"{insertedCount}");
-                LogInsert("ResumesEducations", "курсов", $"{insertedCount} записей");
+                _dbLogger.LogInsert("ResumesEducations", "курсов", $"{insertedCount} записей");
             }
 
             var skippedCount = dedupedCount - insertedCount;
             if (skippedCount > 0)
             {
                 _statistics.RecordSkipped("habr_resumes_educations", $"already_exists:{skippedCount}");
-                LogSkip($"Дополнительное образование", "записи уже существуют", ("SkippedCount", skippedCount));
+                _dbLogger.LogSkip($"Дополнительное образование", "записи уже существуют", ("SkippedCount", skippedCount));
             }
 
-            LogParts(
+            _dbLogger.LogParts(
                 "ResumesEducations summary",
                 isInsert: false,
                 ("Input", inputUserCount),
@@ -2958,7 +2687,7 @@ public sealed class DatabaseClient
         }
         catch (Exception ex)
         {
-            LogError("ResumesEducations", "", ex.Message);
+            _dbLogger.LogError("ResumesEducations", "", ex.Message);
             _statistics.RecordError("habr_resumes_educations", "exception");
             TryDumpStatistics();
         }
@@ -2987,13 +2716,13 @@ public sealed class DatabaseClient
                 _statistics.RecordDelete("habr_resumes", $"404:{deleted}");
             }
 
-            LogDelete("Очистка 404", "записей", deleted);
+            _dbLogger.LogDelete("Очистка 404", "записей", deleted);
             TryDumpStatistics();
             return deleted;
         }
         catch (Exception ex)
         {
-            LogError("ResumesCleanup404Pages", "", ex.Message);
+            _dbLogger.LogError("ResumesCleanup404Pages", "", ex.Message);
             _statistics.RecordError("habr_resumes", "404_cleanup");
             TryDumpStatistics();
             return 0;
