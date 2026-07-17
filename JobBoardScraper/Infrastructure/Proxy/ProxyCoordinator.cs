@@ -12,7 +12,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
 {
     private readonly ProxyWhitelistManager _whitelistManager;
     private readonly GeneralPoolManager _generalPoolManager;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private readonly TimeSpan _whitelistRecheckInterval;
 
     private bool _usingWhitelist = true;
@@ -39,7 +39,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         _whitelistManager = whitelistManager ?? throw new ArgumentNullException(nameof(whitelistManager));
         _generalPoolManager = generalPoolManager ?? throw new ArgumentNullException(nameof(generalPoolManager));
         _whitelistRecheckInterval = whitelistRecheckInterval ?? TimeSpan.FromMinutes(5);
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(ProxyCoordinator));
         // Инициализация таймера для периодической записи статистики прокси
         _proxyStatsTimer = new Timer(_ => DumpProxyStats(), null, AppConfig.ProxyStatsSaveInterval, AppConfig.ProxyStatsSaveInterval);
 
@@ -60,7 +60,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         if (!_usingWhitelist && DateTime.UtcNow - _switchedToGeneralAt > _whitelistRecheckInterval)
         {
             _usingWhitelist = true;
-            _logger?.WriteLine("Возврат к whitelist");
+            _logger.WriteLine("Возврат к whitelist");
         }
 
         string? proxy = null;
@@ -73,14 +73,14 @@ public class ProxyCoordinator : IProxyManager, IDisposable
             {
                 _lastUsedProxy = proxy;
                 _lastProxySource = ProxySource.Whitelist;
-                _logger?.WriteLine($"Whitelist → {proxy}");
+                _logger.WriteLine($"Whitelist → {proxy}");
                 return proxy;
             }
 
             // Whitelist исчерпан — переключаемся на general pool
             _usingWhitelist = false;
             _switchedToGeneralAt = DateTime.UtcNow;
-            _logger?.WriteLine("Whitelist исчерпан → General Pool");
+            _logger.WriteLine("Whitelist исчерпан → General Pool");
         }
 
         // Пробуем general pool
@@ -89,13 +89,13 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         {
             _lastUsedProxy = proxy;
             _lastProxySource = ProxySource.GeneralPool;
-            _logger?.WriteLine($"General Pool → {proxy}");
+            _logger.WriteLine($"General Pool → {proxy}");
             return proxy;
         }
 
         _lastUsedProxy = null;
         _lastProxySource = ProxySource.None;
-        _logger?.WriteLine("⚠ Нет доступных прокси!");
+        _logger.WriteLine("⚠ Нет доступных прокси!");
         return null;
     }
 
@@ -176,7 +176,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     /// </summary>
     private void OnGeneralProxyVerified(string proxyUrl)
     {
-        _logger?.WriteLine($"★ Прокси верифицирован, добавляем в whitelist: {proxyUrl}");
+        _logger.WriteLine($"★ Прокси верифицирован, добавляем в whitelist: {proxyUrl}");
         _whitelistManager.ReportDailyLimitReached(proxyUrl); // Это добавит в whitelist
     }
 
@@ -185,7 +185,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     /// </summary>
     private void OnGeneralProxyBlacklisted(string proxyUrl)
     {
-        _logger?.WriteLine($"✗ Прокси забанен в general pool: {proxyUrl}");
+        _logger.WriteLine($"✗ Прокси забанен в general pool: {proxyUrl}");
         // Можно добавить логику удаления из whitelist, если он там есть
     }
 
@@ -196,7 +196,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     {
         _usingWhitelist = false;
         _switchedToGeneralAt = DateTime.UtcNow;
-        _logger?.WriteLine("Принудительное переключение на General Pool");
+        _logger.WriteLine("Принудительное переключение на General Pool");
     }
 
     /// <summary>
@@ -205,7 +205,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
     public void ForceUseWhitelist()
     {
         _usingWhitelist = true;
-        _logger?.WriteLine("Принудительное переключение на Whitelist");
+        _logger.WriteLine("Принудительное переключение на Whitelist");
     }
 
     public string GetStatus()
@@ -242,7 +242,7 @@ public class ProxyCoordinator : IProxyManager, IDisposable
                 using var timer = new PeriodicTimer(interval);
                 while (await timer.WaitForNextTickAsync(ct))
                 {
-                    _logger?.WriteLine($"Source Statistics Update:\n{GetSourceStatisticsSummary()}");
+                    _logger.WriteLine($"Source Statistics Update:\n{GetSourceStatisticsSummary()}");
                 }
             }
             catch (OperationCanceledException)
@@ -307,11 +307,11 @@ public class ProxyCoordinator : IProxyManager, IDisposable
                 Directory.CreateDirectory(directory);
             }
             File.WriteAllText(outputPath, sb.ToString());
-            _logger?.WriteLine($"Dumped to {outputPath}");
+            _logger.WriteLine($"Dumped to {outputPath}");
         }
         catch (Exception ex)
         {
-            _logger?.WriteLine($"Error during dump: {ex.Message}");
+            _logger.WriteLine($"Error during dump: {ex.Message}");
         }
     }
 
@@ -324,6 +324,6 @@ public class ProxyCoordinator : IProxyManager, IDisposable
         _generalPoolManager.OnProxyBlacklisted -= OnGeneralProxyBlacklisted;
 
         _whitelistManager.Dispose();
-        _logger?.WriteLine("Disposed");
+        _logger.WriteLine("Disposed");
     }
 }

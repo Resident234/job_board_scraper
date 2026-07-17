@@ -10,14 +10,14 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 public class JsonWhitelistStorage : IWhitelistStorage
 {
     private readonly string _filePath;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private readonly object _lock = new();
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public JsonWhitelistStorage(string filePath, ConsoleLogger? logger = null)
     {
         _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(JsonWhitelistStorage));
         EnsureDirectoryExists();
     }
 
@@ -27,7 +27,7 @@ public class JsonWhitelistStorage : IWhitelistStorage
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
         {
             Directory.CreateDirectory(directory);
-            _logger?.WriteLine($"Created directory: {directory}");
+            _logger.WriteLine($"Created directory: {directory}");
         }
     }
 
@@ -37,18 +37,18 @@ public class JsonWhitelistStorage : IWhitelistStorage
         {
             if (!File.Exists(_filePath))
             {
-                _logger?.WriteLine($"Whitelist file not found: {_filePath}");
+                _logger.WriteLine($"Whitelist file not found: {_filePath}");
                 return new List<WhitelistProxyEntry>();
             }
             var json = await File.ReadAllTextAsync(_filePath);
             var data = JsonSerializer.Deserialize<WhitelistData>(json);
             if (data?.Entries == null) return new List<WhitelistProxyEntry>();
-            _logger?.WriteLine($"Loaded {data.Entries.Count} proxies from whitelist");
+            _logger.WriteLine($"Loaded {data.Entries.Count} proxies from whitelist");
             return data.Entries;
         }
         catch (Exception ex)
         {
-            _logger?.WriteLine($"Error loading whitelist: {ex.Message}");
+            _logger.WriteLine($"Error loading whitelist: {ex.Message}");
             return new List<WhitelistProxyEntry>();
         }
     }
@@ -65,11 +65,11 @@ public class JsonWhitelistStorage : IWhitelistStorage
             };
             var json = JsonSerializer.Serialize(data, JsonOptions);
             lock (_lock) { File.WriteAllText(_filePath, json); }
-            _logger?.WriteLine($"Saved {entries?.Count ?? 0} proxies to whitelist");
+            _logger.WriteLine($"Saved {entries?.Count ?? 0} proxies to whitelist");
         }
         catch (Exception ex)
         {
-            _logger?.WriteLine($"Error saving whitelist: {ex.Message}");
+            _logger.WriteLine($"Error saving whitelist: {ex.Message}");
         }
     }
 
@@ -97,7 +97,7 @@ public class JsonWhitelistStorage : IWhitelistStorage
         if (removed > 0)
         {
             await SaveAsync(entries);
-            _logger?.WriteLine($"Removed proxy from whitelist: {proxyUrl}");
+            _logger.WriteLine($"Removed proxy from whitelist: {proxyUrl}");
         }
     }
 }

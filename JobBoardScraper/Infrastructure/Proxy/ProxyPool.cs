@@ -10,7 +10,7 @@ public sealed class ProxyPool
     private readonly Queue<string> _proxies;
     private readonly object _lock;
     private readonly int _maxSize;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private int _lowWaterMark;
 
     // Event for notifying when pool level drops below threshold
@@ -26,7 +26,7 @@ public sealed class ProxyPool
         _proxies = new Queue<string>();
         _lock = new object();
         _maxSize = maxSize;
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(ProxyPool));
         _lowWaterMark = lowWaterMark;
     }
 
@@ -36,11 +36,11 @@ public sealed class ProxyPool
         {
             if (_proxies.Count == 0)
             {
-                _logger?.WriteLine("Pool empty, no proxy available");
+                _logger.WriteLine("Pool empty, no proxy available");
                 return null;
             }
             var proxy = _proxies.Dequeue();
-            _logger?.WriteLine($"Retrieved proxy: {proxy} (remaining: {_proxies.Count})");
+            _logger.WriteLine($"Retrieved proxy: {proxy} (remaining: {_proxies.Count})");
             return proxy;
         }
     }
@@ -53,16 +53,16 @@ public sealed class ProxyPool
         {
             if (_proxies.Count >= _maxSize)
             {
-                _logger?.WriteLine($"Pool at max size ({_maxSize}), cannot add proxy");
+                _logger.WriteLine($"Pool at max size ({_maxSize}), cannot add proxy");
                 return false;
             }
             if (_proxies.Contains(proxyUrl))
             {
-                _logger?.WriteLine($"Proxy already in pool: {proxyUrl}");
+                _logger.WriteLine($"Proxy already in pool: {proxyUrl}");
                 return false;
             }
             _proxies.Enqueue(proxyUrl);
-            _logger?.WriteLine($"Added proxy: {proxyUrl} (total: {_proxies.Count})");
+            _logger.WriteLine($"Added proxy: {proxyUrl} (total: {_proxies.Count})");
             return true;
         }
     }
@@ -83,7 +83,7 @@ public sealed class ProxyPool
         {
             var count = _proxies.Count;
             _proxies.Clear();
-            _logger?.WriteLine($"Cleared {count} proxies from pool");
+            _logger.WriteLine($"Cleared {count} proxies from pool");
         }
     }
 
@@ -99,7 +99,7 @@ public sealed class ProxyPool
                 removed++;
             }
             if (removed > 0)
-                _logger?.WriteLine($"Removed {removed} oldest proxies (remaining: {_proxies.Count})");
+                _logger.WriteLine($"Removed {removed} oldest proxies (remaining: {_proxies.Count})");
             return removed;
         }
     }
@@ -118,7 +118,7 @@ public sealed class ProxyPool
         {
             if (_proxies.Count < _lowWaterMark)
             {
-                _logger?.WriteLine($"⚠ Low pool level: {_proxies.Count}/{_maxSize} (threshold: {_lowWaterMark})");
+                _logger.WriteLine($"⚠ Low pool level: {_proxies.Count}/{_maxSize} (threshold: {_lowWaterMark})");
                 OnPoolLow?.Invoke(_proxies.Count);
             }
         }
@@ -140,7 +140,7 @@ public sealed class ProxyPool
         lock (_lock)
         {
             _lowWaterMark = newThreshold;
-            _logger?.WriteLine($"Low water mark updated to: {_lowWaterMark}");
+            _logger.WriteLine($"Low water mark updated to: {_lowWaterMark}");
         }
     }
 }

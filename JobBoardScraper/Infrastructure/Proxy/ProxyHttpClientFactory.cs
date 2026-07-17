@@ -11,7 +11,7 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 public sealed class ProxyHttpClientFactory : IDisposable
 {
     private readonly TimeSpan _proxyWaitTimeout;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
 
     /// <summary>
     /// Создаёт фабрику.
@@ -21,7 +21,7 @@ public sealed class ProxyHttpClientFactory : IDisposable
     public ProxyHttpClientFactory(TimeSpan? proxyWaitTimeout = null, ConsoleLogger? logger = null)
     {
         _proxyWaitTimeout = proxyWaitTimeout ?? TimeSpan.FromSeconds(AppConfig.ProxyWaitTimeoutSeconds);
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(ProxyHttpClientFactory));
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class ProxyHttpClientFactory : IDisposable
         if (proxy != null)
             return proxy;
 
-        _logger?.WriteLine($"No proxy available, waiting up to {_proxyWaitTimeout.TotalSeconds} seconds...");
+        _logger.WriteLine($"No proxy available, waiting up to {_proxyWaitTimeout.TotalSeconds} seconds...");
 
         var startTime = DateTime.UtcNow;
         while ((DateTime.UtcNow - startTime) < _proxyWaitTimeout && !ct.IsCancellationRequested)
@@ -74,12 +74,12 @@ public sealed class ProxyHttpClientFactory : IDisposable
             proxy = coordinator.GetNextProxy();
             if (proxy != null)
             {
-                _logger?.WriteLine("Proxy became available after waiting");
+                _logger.WriteLine("Proxy became available after waiting");
                 return proxy;
             }
         }
 
-        _logger?.WriteLine("Timeout waiting for proxy");
+        _logger.WriteLine("Timeout waiting for proxy");
         return null;
     }
 

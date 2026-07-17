@@ -8,7 +8,7 @@ namespace JobBoardScraper.Infrastructure.Proxy;
 public class GeneralPoolManager : IProxyManager
 {
     private readonly ProxyPool _pool;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private readonly int _maxFailures;
     private readonly Dictionary<string, int> _failureCounts = new();
     private readonly HashSet<string> _blacklist = new();
@@ -32,7 +32,7 @@ public class GeneralPoolManager : IProxyManager
     {
         _pool = pool ?? throw new ArgumentNullException(nameof(pool));
         _maxFailures = maxFailures;
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(GeneralPoolManager));
     }
 
     public int Count => _pool.GetCount();
@@ -60,12 +60,12 @@ public class GeneralPoolManager : IProxyManager
                     continue;
 
                 _currentProxy = proxy;
-                _logger?.WriteLine($"→ Прокси: {proxy}");
+                _logger.WriteLine($"→ Прокси: {proxy}");
                 return proxy;
             }
 
              // Логируем только когда прокси закончились
-            _logger?.WriteLine("⚠ Нет доступных прокси в пуле");
+            _logger.WriteLine("⚠ Нет доступных прокси в пуле");
 
             // Check if we need to trigger adaptive proxy fetching
             _pool.CheckPoolLevel();
@@ -82,7 +82,7 @@ public class GeneralPoolManager : IProxyManager
             // Сбрасываем счётчик ошибок
             _failureCounts.Remove(proxyUrl);
             _currentProxy = proxyUrl;
-            _logger?.WriteLine($"✓ Прокси OK: {proxyUrl}");
+            _logger.WriteLine($"✓ Прокси OK: {proxyUrl}");
         }
     }
 
@@ -98,14 +98,14 @@ public class GeneralPoolManager : IProxyManager
             _failureCounts[proxyUrl]++;
             var failures = _failureCounts[proxyUrl];
 
-            _logger?.WriteLine($"⚠ Ошибка #{failures}/{_maxFailures}: {proxyUrl}");
+            _logger.WriteLine($"⚠ Ошибка #{failures}/{_maxFailures}: {proxyUrl}");
 
             // Если превысили лимит ошибок — в blacklist
             if (failures >= _maxFailures)
             {
                 _blacklist.Add(proxyUrl);
                 _failureCounts.Remove(proxyUrl);
-                _logger?.WriteLine($"✗ В blacklist: {proxyUrl}");
+                _logger.WriteLine($"✗ В blacklist: {proxyUrl}");
                 OnProxyBlacklisted?.Invoke(proxyUrl);
             }
 
@@ -121,7 +121,7 @@ public class GeneralPoolManager : IProxyManager
 
         lock (_lock)
         {
-            _logger?.WriteLine($"★ Прокси достиг лимита (работает!): {proxyUrl}");
+            _logger.WriteLine($"★ Прокси достиг лимита (работает!): {proxyUrl}");
             
             // Прокси работает — уведомляем координатор для добавления в whitelist
             OnProxyVerified?.Invoke(proxyUrl);
@@ -154,7 +154,7 @@ public class GeneralPoolManager : IProxyManager
         lock (_lock)
         {
             _blacklist.Clear();
-            _logger?.WriteLine("Blacklist очищен");
+            _logger.WriteLine("Blacklist очищен");
         }
     }
 

@@ -187,7 +187,7 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         Stop();
         _cts?.Dispose();
         _httpClient?.Dispose();
-        _logger?.Dispose();
+        _logger.Dispose();
         _disposed = true;
     }
 

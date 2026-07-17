@@ -28,7 +28,7 @@ public readonly record struct ProxyRequestResult(string? ProxyUrl, HttpResponseM
 public sealed class ProxyRetryExecutor
 {
     private readonly ProxyHttpClientFactory _clientFactory;
-    private readonly ConsoleLogger? _logger;
+    private readonly ConsoleLogger _logger;
     private readonly int _maxRetriesPerProxy;
     private readonly int _maxProxySwitches;
 
@@ -42,7 +42,7 @@ public sealed class ProxyRetryExecutor
         int? maxProxySwitches = null)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
-        _logger = logger;
+        _logger = logger ?? new ConsoleLogger(nameof(ProxyRetryExecutor));
         _maxRetriesPerProxy = maxRetriesPerProxy ?? AppConfig.ProxyMaxRetries;
         _maxProxySwitches = maxProxySwitches ?? AppConfig.ProxyMaxSwitches;
     }
@@ -75,7 +75,7 @@ public sealed class ProxyRetryExecutor
         // Если прокси не настроены — выполняем простой запрос без ретраев.
         if (coordinator == null)
         {
-            _logger?.WriteLine($"Обработка: {url}");
+            _logger.WriteLine($"Обработка: {url}");
             var resp = await fallbackSend().ConfigureAwait(false);
             return new ProxyRequestResult(null, resp);
         }
@@ -93,12 +93,12 @@ public sealed class ProxyRetryExecutor
             proxyUrl = await _clientFactory.WaitForProxyAsync(coordinator, ct).ConfigureAwait(false);
             if (proxyUrl != null)
             {
-                _logger?.WriteLine($"Обработка: {url} | Прокси #{proxySwitch + 1}: {proxyUrl}");
+                _logger.WriteLine($"Обработка: {url} | Прокси #{proxySwitch + 1}: {proxyUrl}");
                 proxyHttpClient = _clientFactory.CreateClient(proxyUrl);
             }
             else
             {
-                _logger?.WriteLine($"Обработка: {url} | Нет доступных прокси");
+                _logger.WriteLine($"Обработка: {url} | Нет доступных прокси");
             }
 
             // Внутренний цикл: retry с тем же прокси
@@ -125,7 +125,7 @@ public sealed class ProxyRetryExecutor
                     // 403 — IP заблокирован, сразу меняем прокси
                     if (statusCode == 403)
                     {
-                        _logger?.WriteLine("Forbidden 403 - IP заблокирован, переключаем прокси");
+                        _logger.WriteLine("Forbidden 403 - IP заблокирован, переключаем прокси");
                         response.Dispose();
                         response = null;
                         break;
@@ -135,7 +135,7 @@ public sealed class ProxyRetryExecutor
                     var decision = EvaluateRetry(statusCode, attempt, _maxRetriesPerProxy, response);
                     if (decision.ShouldRetry)
                     {
-                        _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
+                        _logger.WriteLine(HttpClientLogger.FormatThrottleRetry(
                             attempt,
                             attempt + 1,
                             _maxRetriesPerProxy,
@@ -151,7 +151,7 @@ public sealed class ProxyRetryExecutor
                     // Исчерпаны попытки с текущим прокси
                     if (attempt >= _maxRetriesPerProxy)
                     {
-                        _logger?.WriteLine(
+                        _logger.WriteLine(
                             $"{decision.ErrorType} {statusCode} - исчерпаны попытки с текущим прокси");
                         response.Dispose();
                         response = null;
@@ -160,7 +160,7 @@ public sealed class ProxyRetryExecutor
 
                     // Другие неуспешные коды — повторяем
                     var delayMs = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
+                    _logger.WriteLine(HttpClientLogger.FormatThrottleRetry(
                         attempt,
                         attempt + 1,
                         _maxRetriesPerProxy,
@@ -174,7 +174,7 @@ public sealed class ProxyRetryExecutor
                 catch (Exception ex) when (attempt < _maxRetriesPerProxy)
                 {
                     var delay = ExponentialBackoff.CalculateProxyErrorDelay(attempt);
-                    _logger?.WriteLine(HttpClientLogger.FormatThrottleRetry(
+                    _logger.WriteLine(HttpClientLogger.FormatThrottleRetry(
                         attempt,
                         attempt + 1,
                         _maxRetriesPerProxy,
@@ -185,7 +185,7 @@ public sealed class ProxyRetryExecutor
                 }
                 catch (Exception ex)
                 {
-                    _logger?.WriteLine($"✖ Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). Исчерпаны попытки с текущим прокси: {ex.Message}");
+                    _logger.WriteLine($"✖ Ошибка (попытка {attempt}/{_maxRetriesPerProxy}). Исчерпаны попытки с текущим прокси: {ex.Message}");
                     break;
                 }
             }
@@ -203,13 +203,13 @@ public sealed class ProxyRetryExecutor
             proxySwitch++;
             if (proxySwitch <= _maxProxySwitches)
             {
-                _logger?.WriteLine($"Переключение на следующий прокси (смена #{proxySwitch}/{_maxProxySwitches})...");
+                _logger.WriteLine($"Переключение на следующий прокси (смена #{proxySwitch}/{_maxProxySwitches})...");
             }
         }
 
         if (!success)
         {
-            _logger?.WriteLine(
+            _logger.WriteLine(
                 $"Не удалось получить ответ после {_maxProxySwitches + 1} прокси × {_maxRetriesPerProxy} попыток");
             return new ProxyRequestResult(proxyUrl, null);
         }
@@ -277,9 +277,11 @@ public sealed class ProxyRetryExecutor
     /// </summary>
     public static void ReportDailyLimitSafe(IProxyManager? coordinator, string? proxyUrl, ConsoleLogger? logger = null)
     {
+        logger ??= new ConsoleLogger(nameof(ProxyRetryExecutor));
+
         if (coordinator != null && !string.IsNullOrEmpty(proxyUrl))
         {
-            logger?.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
+            logger.WriteLine($"Обнаружен суточный лимит для прокси: {proxyUrl}");
             coordinator.ReportDailyLimitReached(proxyUrl);
         }
     }
@@ -295,16 +297,17 @@ public sealed class ProxyRetryExecutor
         string userLink,
         ConsoleLogger? logger = null)
     {
+        logger ??= new ConsoleLogger(nameof(ProxyRetryExecutor));
         ReportDailyLimitSafe(coordinator, proxyUrl, logger);
 
         var newProxy = coordinator?.GetNextProxy();
         if (newProxy != null)
         {
-            logger?.WriteLine($"⏭ Переключение на новый прокси: {newProxy}");
+            logger.WriteLine($"⏭ Переключение на новый прокси: {newProxy}");
             return true;
         }
 
-        logger?.WriteLine($"⏭ Нет доступных прокси, пропускаем профиль: {userLink}");
+        logger.WriteLine($"⏭ Нет доступных прокси, пропускаем профиль: {userLink}");
         return false;
     }
 }
