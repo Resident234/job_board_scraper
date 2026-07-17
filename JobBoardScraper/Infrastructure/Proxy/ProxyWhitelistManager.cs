@@ -54,7 +54,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
             _lastAutosave = DateTime.UtcNow;
             LogStats("Автосохранение");
         }
-        catch (Exception ex) { _logger?.WriteLine($"[WHITELIST] Autosave error: {ex.Message}"); }
+        catch (Exception ex) { _logger?.WriteLine($"Autosave error: {ex.Message}"); }
     }
 
     public string? CurrentProxy => _currentProxy;
@@ -67,18 +67,18 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
         _whitelist = await _storage.LoadAsync();
         _whitelistIndex = 0;
         LogStats("Whitelist загружен");
-        _logger?.WriteLine($"[WHITELIST] Whitelist: {_whitelist.Count} прокси");
+        _logger?.WriteLine($"Whitelist: {_whitelist.Count} прокси");
     }
 
     public async Task SaveStateAsync()
     {
         await _storage.SaveAsync(_whitelist);
-        _logger?.WriteLine($"[WHITELIST] Дамп в JSON ({_whitelist.Count} прокси)");
+        _logger?.WriteLine($"Дамп в JSON ({_whitelist.Count} прокси)");
     }
 
     private void LogStats(string context)
     {
-        _logger?.WriteLine($"[WHITELIST] {context} | Count: {_whitelist.Count}");
+        _logger?.WriteLine($"{context} | Count: {_whitelist.Count}");
     }
 
     public void ReportSuccess(string proxyUrl)
@@ -94,13 +94,13 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
                 entry.RetryCount = 0;
                 entry.FailedSince = null;
                 entry.LastUsed = DateTime.UtcNow;
-                _logger?.WriteLine($"[WHITELIST] ✓ Прокси OK: {proxyUrl}");
+                _logger?.WriteLine($"✓ Прокси OK: {proxyUrl}");
             }
             else
             {
                 // Добавляем новый прокси в whitelist после первого успешного использования
                 _whitelist.Add(new WhitelistProxyEntry { ProxyUrl = proxyUrl, LastUsed = DateTime.UtcNow });
-                _logger?.WriteLine($"[WHITELIST] ★ Добавлен в whitelist после успешного использования: {proxyUrl}");
+                _logger?.WriteLine($"★ Добавлен в whitelist после успешного использования: {proxyUrl}");
                 LogStats("После добавления");
             }
             _currentProxy = proxyUrl;
@@ -122,11 +122,11 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
                 if (entry.RetryCount >= _maxRetryAttempts)
                 {
                     _whitelist.Remove(entry);
-                    _logger?.WriteLine($"[WHITELIST] ✗ Удалён после {_maxRetryAttempts} попыток: {proxyUrl}");
+                    _logger?.WriteLine($"✗ Удалён после {_maxRetryAttempts} попыток: {proxyUrl}");
                     LogStats("После удаления");
                 }
                 else
-                    _logger?.WriteLine($"[WHITELIST] ⚠ Ошибка #{entry.RetryCount}/{_maxRetryAttempts}: {proxyUrl}");
+                    _logger?.WriteLine($"⚠ Ошибка #{entry.RetryCount}/{_maxRetryAttempts}: {proxyUrl}");
             }
             
             if (_currentProxy == proxyUrl)
@@ -144,13 +144,13 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
             if (entry != null)
             {
                 entry.LastUsed = DateTime.UtcNow;
-                _logger?.WriteLine($"[WHITELIST] Лимит для прокси: {proxyUrl}");
+                _logger?.WriteLine($"Лимит для прокси: {proxyUrl}");
             }
             else
             {
                 // Добавляем новый прокси в whitelist (он подтверждён как рабочий)
                 _whitelist.Add(new WhitelistProxyEntry { ProxyUrl = proxyUrl, LastUsed = DateTime.UtcNow });
-                _logger?.WriteLine($"[WHITELIST] ★ Добавлен в whitelist: {proxyUrl}");
+                _logger?.WriteLine($"★ Добавлен в whitelist: {proxyUrl}");
                 LogStats("После добавления");
             }
             
@@ -171,7 +171,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
                 return;
                 
             _whitelist.Add(new WhitelistProxyEntry { ProxyUrl = proxyUrl });
-            _logger?.WriteLine($"[WHITELIST] + Добавлен: {proxyUrl}");
+            _logger?.WriteLine($"+ Добавлен: {proxyUrl}");
         }
     }
 
@@ -190,7 +190,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
                 return proxy;
             }
 
-            _logger?.WriteLine("[WHITELIST] ⚠ Нет доступных прокси в whitelist");
+            _logger?.WriteLine("⚠ Нет доступных прокси в whitelist");
             return null;
         }
     }
@@ -205,7 +205,7 @@ public class ProxyWhitelistManager : IProxyManager, IDisposable
             checkedCount++;
             if (IsProxyAvailable(entry))
             {
-                _logger?.WriteLine($"[WHITELIST] → Прокси: {entry.ProxyUrl}");
+                _logger?.WriteLine($"→ Прокси: {entry.ProxyUrl}");
                 return entry.ProxyUrl;
             }
         }

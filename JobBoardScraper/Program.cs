@@ -70,7 +70,7 @@ class Program
         // Процесс 2: Периодический обход страницы со списком резюме
         if (AppConfig.ResumeListEnabled)
         {
-            programLogger.WriteLine("[Program] ResumeListPageScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("ResumeListPageScraper: ВКЛЮЧЕН");
 
             var resumeListHttpClient = new SmartHttpClient(
                 httpClient,
@@ -95,13 +95,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] ResumeListPageScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("ResumeListPageScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 3: Периодический обход списка компаний
         if (AppConfig.CompaniesEnabled)
         {
-            programLogger.WriteLine("[Program] CompanyListScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("CompanyListScraper: ВКЛЮЧЕН");
 
             var companyListHttpClient = new SmartHttpClient(
                 httpClient,
@@ -123,13 +123,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] CompanyListScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("CompanyListScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 4: Периодический сбор category_root_id
         if (AppConfig.CategoryEnabled)
         {
-            programLogger.WriteLine("[Program] CategoryScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("CategoryScraper: ВКЛЮЧЕН");
             var categoryHttpClient = new SmartHttpClient(
                 httpClient,
                 "CategoryScraper",
@@ -149,13 +149,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] CategoryScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("CategoryScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 5: Периодический обход подписчиков компаний
         if (AppConfig.CompanyFollowersEnabled)
         {
-            programLogger.WriteLine("[Program] CompanyFollowersScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("CompanyFollowersScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyFollowersBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -183,13 +183,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] CompanyFollowersScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("CompanyFollowersScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 6: Периодический обход экспертов
         if (AppConfig.ExpertsEnabled)
         {
-            programLogger.WriteLine("[Program] ExpertsScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("ExpertsScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var expertsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -212,13 +212,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] ExpertsScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("ExpertsScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 7: Периодический обход детальных страниц компаний
         if (AppConfig.CompanyDetailEnabled)
         {
-            programLogger.WriteLine("[Program] CompanyDetailScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("CompanyDetailScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyDetailBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -243,13 +243,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] CompanyDetailScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("CompanyDetailScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 8: Периодический обход профилей пользователей
         if (AppConfig.UserProfileEnabled)
         {
-            programLogger.WriteLine("[Program] UserProfileScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("UserProfileScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var userProfileBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -274,13 +274,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] UserProfileScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("UserProfileScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 9: Периодический обход списков друзей пользователей
         if (AppConfig.UserFriendsEnabled)
         {
-            programLogger.WriteLine("[Program] UserFriendsScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("UserFriendsScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var userFriendsBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -305,7 +305,7 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] UserFriendsScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("UserFriendsScraper: ОТКЛЮЧЕН");
         }
 
         // Инициализация прокси-скрейперов
@@ -313,7 +313,7 @@ class Program
 
         if (AppConfig.UserResumeDetailEnabled && AppConfig.EnableFreeProxyRotation)
         {
-            programLogger.WriteLine("[Program] Прокси-скрейперы: ВКЛЮЧЕНЫ");
+            programLogger.WriteLine("Прокси-скрейперы: ВКЛЮЧЕНЫ");
 
             proxyScraperLauncher = ProxyScraperLauncher.LaunchAll(
                 poolMaxSize: AppConfig.ProxyPoolMaxSize,
@@ -329,13 +329,13 @@ class Program
         }
         else if (AppConfig.UserResumeDetailEnabled)
         {
-            programLogger.WriteLine("[Program] Прокси-скрейперы: ОТКЛЮЧЕНЫ (работа без прокси)");
+            programLogger.WriteLine("Прокси-скрейперы: ОТКЛЮЧЕНЫ (работа без прокси)");
         }
 
         // Процесс 10: Периодический обход резюме пользователей для извлечения "О себе" и навыков
         if (AppConfig.UserResumeDetailEnabled)
         {
-            programLogger.WriteLine("[Program] UserResumeDetailScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("UserResumeDetailScraper: ВКЛЮЧЕН");
 
             // Инициализация ProxyCoordinator (координатор whitelist + general pool)
             ProxyCoordinator? proxyCoordinator = null;
@@ -356,7 +356,7 @@ class Program
             }
             else
             {
-                programLogger.WriteLine("[Program] UserResumeDetailScraper: Прокси ОТКЛЮЧЕНЫ (работа без прокси)");
+                programLogger.WriteLine("UserResumeDetailScraper: Прокси ОТКЛЮЧЕНЫ (работа без прокси)");
             }
 
             // Создаём отдельный HttpClient БЕЗ прокси (прокси будут применяться динамически)
@@ -383,13 +383,13 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] UserResumeDetailScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("UserResumeDetailScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 11: Периодический обход страниц рейтингов компаний
         if (AppConfig.CompanyRatingEnabled)
         {
-            programLogger.WriteLine("[Program] CompanyRatingScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("CompanyRatingScraper: ВКЛЮЧЕН");
 
             // Создаём отдельный HttpClient с нужным timeout
             var companyRatingBaseHttpClient = HttpClientFactory.CreateDefaultClient(
@@ -413,14 +413,14 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] CompanyRatingScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("CompanyRatingScraper: ОТКЛЮЧЕН");
         }
 
         // Процесс 1: Перебор всех возможных имен пользователей
         Task? bruteForceScraperTask = null;
         if (AppConfig.BruteForceEnabled)
         {
-            programLogger.WriteLine("[Program] BruteForceUsernameScraper: ВКЛЮЧЕН");
+            programLogger.WriteLine("BruteForceUsernameScraper: ВКЛЮЧЕН");
             var bruteForceHttpClient = new SmartHttpClient(
                 httpClient,
                 "BruteForceUsernameScraper",
@@ -442,7 +442,7 @@ class Program
         }
         else
         {
-            programLogger.WriteLine("[Program] BruteForceUsernameScraper: ОТКЛЮЧЕН");
+            programLogger.WriteLine("BruteForceUsernameScraper: ОТКЛЮЧЕН");
         }
 
         if (bruteForceScraperTask != null)

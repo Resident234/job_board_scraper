@@ -60,12 +60,12 @@ public class GeneralPoolManager : IProxyManager
                     continue;
 
                 _currentProxy = proxy;
-                _logger?.WriteLine($"[GENERAL] → Прокси: {proxy}");
+                _logger?.WriteLine($"→ Прокси: {proxy}");
                 return proxy;
             }
 
              // Логируем только когда прокси закончились
-            _logger?.WriteLine("[GENERAL] ⚠ Нет доступных прокси в пуле");
+            _logger?.WriteLine("⚠ Нет доступных прокси в пуле");
 
             // Check if we need to trigger adaptive proxy fetching
             _pool.CheckPoolLevel();
@@ -82,7 +82,7 @@ public class GeneralPoolManager : IProxyManager
             // Сбрасываем счётчик ошибок
             _failureCounts.Remove(proxyUrl);
             _currentProxy = proxyUrl;
-            _logger?.WriteLine($"[GENERAL] ✓ Прокси OK: {proxyUrl}");
+            _logger?.WriteLine($"✓ Прокси OK: {proxyUrl}");
         }
     }
 
@@ -98,14 +98,14 @@ public class GeneralPoolManager : IProxyManager
             _failureCounts[proxyUrl]++;
             var failures = _failureCounts[proxyUrl];
 
-            _logger?.WriteLine($"[GENERAL] ⚠ Ошибка #{failures}/{_maxFailures}: {proxyUrl}");
+            _logger?.WriteLine($"⚠ Ошибка #{failures}/{_maxFailures}: {proxyUrl}");
 
             // Если превысили лимит ошибок — в blacklist
             if (failures >= _maxFailures)
             {
                 _blacklist.Add(proxyUrl);
                 _failureCounts.Remove(proxyUrl);
-                _logger?.WriteLine($"[GENERAL] ✗ В blacklist: {proxyUrl}");
+                _logger?.WriteLine($"✗ В blacklist: {proxyUrl}");
                 OnProxyBlacklisted?.Invoke(proxyUrl);
             }
 
@@ -121,7 +121,7 @@ public class GeneralPoolManager : IProxyManager
 
         lock (_lock)
         {
-            _logger?.WriteLine($"[GENERAL] ★ Прокси достиг лимита (работает!): {proxyUrl}");
+            _logger?.WriteLine($"★ Прокси достиг лимита (работает!): {proxyUrl}");
             
             // Прокси работает — уведомляем координатор для добавления в whitelist
             OnProxyVerified?.Invoke(proxyUrl);
@@ -154,7 +154,7 @@ public class GeneralPoolManager : IProxyManager
         lock (_lock)
         {
             _blacklist.Clear();
-            _logger?.WriteLine("[GENERAL] Blacklist очищен");
+            _logger?.WriteLine("Blacklist очищен");
         }
     }
 

@@ -51,25 +51,25 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
         if (_adaptiveModeEnabled)
         {
             _proxyPool.OnPoolLow += HandlePoolLowEvent;
-            _logger.WriteLine($"[{_sourceName}] Initialized with ADAPTIVE mode (threshold: {_adaptiveTriggerThreshold}), refresh interval: {_refreshInterval}");
+            _logger.WriteLine($"Initialized with ADAPTIVE mode (threshold: {_adaptiveTriggerThreshold}), refresh interval: {_refreshInterval}");
         }
         else
         {
-            _logger.WriteLine($"[{_sourceName}] Initialized with FIXED interval mode: {_refreshInterval}");
+            _logger.WriteLine($"Initialized with FIXED interval mode: {_refreshInterval}");
         }
     }
 
     public void Start()
     {
         if (_scraperTask != null) return;
-        _logger.WriteLine($"[{_sourceName}] Starting background scraper");
+        _logger.WriteLine("Starting background scraper");
         _scraperTask = Task.Run(() => RunAsync(_cts.Token), _cts.Token);
     }
 
     public void Stop()
     {
         if (_scraperTask == null) return;
-        _logger.WriteLine($"[{_sourceName}] Stopping background scraper");
+        _logger.WriteLine("Stopping background scraper");
         _cts.Cancel();
         try { _scraperTask.Wait(TimeSpan.FromSeconds(5)); }
         catch (AggregateException ex) when (ex.InnerException is OperationCanceledException) { }
@@ -120,16 +120,16 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
     {
         try
         {
-            _logger.WriteLine($"[{_sourceName}] Fetching from {_sourceUrl}");
+            _logger.WriteLine($"Fetching from {_sourceUrl}");
             var response = await _httpClient.GetStringAsync(_sourceUrl, ct);
             var proxies = await ParseProxiesAsync(response, ct);
-            _logger.WriteLine($"[{_sourceName}] Parsed {proxies.Count} proxies");
+            _logger.WriteLine($"Parsed {proxies.Count} proxies");
 
             await ProcessScrapedProxiesAsync(proxies, ct);
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"[{_sourceName}] Error: {ex.Message}");
+            _logger.WriteLine($"Error: {ex.Message}");
         }
     }
 
@@ -153,22 +153,22 @@ public abstract class ProxyScraper<TProxy> : IDisposable where TProxy : notnull
             if (_proxyPool.AddProxy(proxyUrlWithSource))
                 added++;
         }
-        _logger.WriteLine($"[{_sourceName}] Added {added} proxies (total: {_proxyPool.GetCount()})");
+        _logger.WriteLine($"Added {added} proxies (total: {_proxyPool.GetCount()})");
 
         // Log statistics
-        _logger.WriteLine($"[{_sourceName}] Stats: {_statistics.GetSummary()}");
+        _logger.WriteLine($"Stats: {_statistics.GetSummary()}");
     }
 
     private async void HandlePoolLowEvent(int currentCount)
     {
         try
         {
-            _logger.WriteLine($"[{_sourceName}] 🚨 Pool low event triggered! Current: {currentCount}, threshold: {_adaptiveTriggerThreshold}");
+            _logger.WriteLine($"🚨 Pool low event triggered! Current: {currentCount}, threshold: {_adaptiveTriggerThreshold}");
             await ScrapeProxiesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            _logger.WriteLine($"[{_sourceName}] Error handling pool low event: {ex.Message}");
+            _logger.WriteLine($"Error handling pool low event: {ex.Message}");
         }
     }
 
@@ -240,7 +240,7 @@ public sealed class FreeProxyListScraper : ProxyScraper<ProxyInfo>
                     cells[7].TextContent.Trim()));
             }
         }
-        catch (Exception ex) { _logger.WriteLine($"[FreeProxyListScraper] Parse error: {ex.Message}"); }
+        catch (Exception ex) { _logger.WriteLine($"Parse error: {ex.Message}"); }
         return proxies;
     }
 
@@ -359,7 +359,7 @@ public sealed class GeoNodeScraper : ProxyScraper<string>
             }
             catch (JsonException ex)
             {
-                _logger.WriteLine($"[GeoNodeScraper] JSON parse error: {ex.Message}");
+                _logger.WriteLine($"JSON parse error: {ex.Message}");
             }
 
             return proxies;
@@ -411,9 +411,9 @@ public sealed class ProxyScraperLauncher : IDisposable
         var logger = new ConsoleLogger("ProxyScraperLauncher");
         logger.SetOutputMode(outputMode);
 
-        logger.WriteLine($"[ProxyScraperLauncher] Refresh interval: {refreshIntervalMinutes} минут");
-        logger.WriteLine($"[ProxyScraperLauncher] Pool max size: {poolMaxSize}");
-        logger.WriteLine($"[ProxyScraperLauncher] Proxy list URL: {freeProxyListUrl}");
+        logger.WriteLine($"Refresh interval: {refreshIntervalMinutes} минут");
+        logger.WriteLine($"Pool max size: {poolMaxSize}");
+        logger.WriteLine($"Proxy list URL: {freeProxyListUrl}");
 
         var pool = new ProxyPool(
             maxSize: poolMaxSize,
@@ -459,7 +459,7 @@ public sealed class ProxyScraperLauncher : IDisposable
             geoScraper.Start();
         }
 
-        logger.WriteLine($"[ProxyScraperLauncher] General Pool: {pool.GetCount()} прокси");
+        logger.WriteLine($"General Pool: {pool.GetCount()} прокси");
 
         return new ProxyScraperLauncher(pool, logger, freeScraper, scrapeScraper, geoScraper);
     }

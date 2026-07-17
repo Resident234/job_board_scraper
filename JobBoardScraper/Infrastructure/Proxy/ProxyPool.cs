@@ -118,7 +118,7 @@ public sealed class ProxyPool
         {
             if (_proxies.Count < _lowWaterMark)
             {
-                _logger?.WriteLine($"[POOL] ⚠ Low pool level: {_proxies.Count}/{_maxSize} (threshold: {_lowWaterMark})");
+                _logger?.WriteLine($"⚠ Low pool level: {_proxies.Count}/{_maxSize} (threshold: {_lowWaterMark})");
                 OnPoolLow?.Invoke(_proxies.Count);
             }
         }
@@ -140,7 +140,7 @@ public sealed class ProxyPool
         lock (_lock)
         {
             _lowWaterMark = newThreshold;
-            _logger?.WriteLine($"[POOL] Low water mark updated to: {_lowWaterMark}");
+            _logger?.WriteLine($"Low water mark updated to: {_lowWaterMark}");
         }
     }
 }

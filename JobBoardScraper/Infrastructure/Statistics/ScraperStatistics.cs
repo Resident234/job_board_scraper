@@ -104,7 +104,7 @@ public class ScraperStatistics
         var sb = new StringBuilder();
         var successRatio = InitialRecordCount > 0 ? (double)TotalSuccess / InitialRecordCount * 100 : 0;
 
-        sb.AppendLine($"[{ScraperName}] Итоговая статистика:");
+        sb.AppendLine("Итоговая статистика:");
         sb.AppendLine($"  Выбрано записей из БД: {InitialRecordCount}");
         sb.AppendLine($"  Обработано успешно: {TotalSuccess} ({successRatio:F2}%)");
 
@@ -132,12 +132,12 @@ public class ScraperStatistics
 
         if (!_finalStatusCodeCounts.IsEmpty)
         {
-            sb.AppendLine($"[{ScraperName}] Статистика по окончательным кодам ответа: {GetFinalStatusCodeStatsString()}");
+            sb.AppendLine($"Статистика по окончательным кодам ответа: {GetFinalStatusCodeStatsString()}");
         }
 
         if (!_allStatusCodeCounts.IsEmpty)
         {
-            sb.AppendLine($"[{ScraperName}] Статистика по всем кодам ответа: {GetAllStatusCodeStatsString()}");
+            sb.AppendLine($"Статистика по всем кодам ответа: {GetAllStatusCodeStatsString()}");
         }
 
         return sb.ToString();

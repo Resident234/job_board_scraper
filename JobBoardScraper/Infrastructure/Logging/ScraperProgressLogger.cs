@@ -10,7 +10,6 @@ public sealed class ScraperProgressLogger
 {
     private readonly ProgressTracker _progress;
     private readonly ConsoleLogger _logger;
-    private readonly string _scraperName;
     private int _activeRequests;
 
     public int Processed => _progress.Processed;
@@ -22,7 +21,6 @@ public sealed class ScraperProgressLogger
     public ScraperProgressLogger(int total, string scraperName, ConsoleLogger? logger = null, string? taskName = null)
     {
         _progress = new ProgressTracker(total, taskName ?? scraperName);
-        _scraperName = scraperName;
         _logger = logger ?? new ConsoleLogger(scraperName);
         _activeRequests = 0;
     }
@@ -37,14 +35,14 @@ public sealed class ScraperProgressLogger
 
     public void LogHttpProgress(string url, double elapsedSeconds, int statusCode)
     {
-        var message = $"[{_scraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
+        var message = $"HTTP {url}: {elapsedSeconds:F3} сек. " +
                      $"Код: {statusCode}. Прогресс: {_progress}. Параллельных: {_activeRequests}.";
         WriteMessage(message);
     }
 
     public void LogHttpProgress(ScraperStatistics statistics, string url, double elapsedSeconds, int statusCode)
     {
-        var message = $"[{statistics.ScraperName}] HTTP {url}: {elapsedSeconds:F3} сек. " +
+        var message = $"HTTP {url}: {elapsedSeconds:F3} сек. " +
                      $"Код: {statusCode}. Прогресс: {_progress}. Параллельных: {statistics.ActiveRequests}.";
         WriteMessage(message);
     }
@@ -52,12 +50,12 @@ public sealed class ScraperProgressLogger
     public void LogItemProgress(string itemDescription, int? itemsFound = null)
     {
         var foundPart = itemsFound.HasValue ? $" найдено {itemsFound.Value}." : "";
-        WriteMessage($"[{_scraperName}] {itemDescription}:{foundPart} Прогресс: {_progress}.");
+        WriteMessage($"{itemDescription}:{foundPart} Прогресс: {_progress}.");
     }
 
     public void LogPageProgress(int pageNumber, int itemsFound)
     {
-        WriteMessage($"[{_scraperName}] Страница {pageNumber}: найдено {itemsFound}. Прогресс: {_progress}.");
+        WriteMessage($"Страница {pageNumber}: найдено {itemsFound}. Прогресс: {_progress}.");
     }
 
     public void LogFilter(
@@ -72,7 +70,7 @@ public sealed class ScraperProgressLogger
         var resultDesc = string.IsNullOrWhiteSpace(resultDescription) ? "" : $": {resultDescription}";
         var orderDesc = string.IsNullOrWhiteSpace(order) ? "" : $" (order={order})";
         var foundPart = itemsFound.HasValue ? $" найдено {itemsFound.Value} профилей." : "";
-        WriteMessage($"[{_scraperName}] {filterDescription}{filterParameterDesc}{resultDesc}{orderDesc}:{foundPart} Прогресс: {_progress}.");
+        WriteMessage($"{filterDescription}{filterParameterDesc}{resultDesc}{orderDesc}:{foundPart} Прогресс: {_progress}.");
     }
 
     public void LogCompletion(int totalItemsCollected, int totalOnSite, ScraperStatistics statistics)
@@ -80,22 +78,22 @@ public sealed class ScraperProgressLogger
         if (totalOnSite > 0)
         {
             var percent = (double)totalItemsCollected / totalOnSite * 100;
-            WriteMessage($"[{_scraperName}] Собрано {totalItemsCollected:N0} из {totalOnSite:N0} компаний ({percent:P1}). {statistics}");
+            WriteMessage($"Собрано {totalItemsCollected:N0} из {totalOnSite:N0} компаний ({percent:P1}). {statistics}");
         }
         else
         {
-            WriteMessage($"[{_scraperName}] {statistics}");
+            WriteMessage($"{statistics}");
         }
     }
 
     public void LogError(string errorMessage)
     {
-        WriteMessage($"[{_scraperName}] Ошибка: {errorMessage}. Прогресс: {_progress}.");
+        WriteMessage($"Ошибка: {errorMessage}. Прогресс: {_progress}.");
     }
 
     public void LogInfo(string infoMessage)
     {
-        WriteMessage($"[{_scraperName}] {infoMessage} Прогресс: {_progress}.");
+        WriteMessage($"{infoMessage} Прогресс: {_progress}.");
     }
 
     public override string ToString() => _progress.ToString();

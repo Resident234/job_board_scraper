@@ -31,7 +31,6 @@ public sealed class ProgressTracker
     
     public override string ToString()
     {
-        var prefix = string.IsNullOrEmpty(_taskName) ? "" : $"[{_taskName}] ";
-        return $"{prefix}{_processed}/{_total} ({Percent:F1}%)";
+        return $"{_processed}/{_total} ({Percent:F1}%)";
     }
 }

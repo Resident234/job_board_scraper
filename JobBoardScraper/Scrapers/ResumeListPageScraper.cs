@@ -49,10 +49,10 @@ public sealed class ResumeListPageScraper : IDisposable
          _logger = new ConsoleLogger("ResumeListPageScraper");
          _logger.SetOutputMode(outputMode);
          ScraperLogger.LogInitialization(_logger, "ResumeListPageScraper", outputMode);
-         _logger.WriteLine($"[ResumeListPageScraper] Перебор навыков: {(AppConfig.ResumeListSkillsEnumerationEnabled ? "ВКЛЮЧЕН" : "ОТКЛЮЧЕН")}");
+         _logger.WriteLine($"Перебор навыков: {(AppConfig.ResumeListSkillsEnumerationEnabled ? "ВКЛЮЧЕН" : "ОТКЛЮЧЕН")}");
          if (AppConfig.ResumeListSkillsEnumerationEnabled)
          {
-             _logger.WriteLine($"[ResumeListPageScraper] Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
+             _logger.WriteLine($"Диапазон навыков: {AppConfig.ResumeListSkillsStartId} - {AppConfig.ResumeListSkillsEndId}");
          }
     }
 

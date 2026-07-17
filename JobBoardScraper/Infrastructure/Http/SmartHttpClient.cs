@@ -293,7 +293,7 @@ public sealed class SmartHttpClient
                     attempt,
                     attempt + 1,
                     _maxRetries,
-                    $"[{_scraperName}] {requestUri}",
+                    requestUri,
                     ToDelayMs(delay),
                     reason);
 
@@ -315,7 +315,7 @@ public sealed class SmartHttpClient
                     attempt,
                     attempt + 1,
                     _maxRetries,
-                    $"[{_scraperName}] {requestUri}",
+                    requestUri,
                     ToDelayMs(delay),
                     $"{ex.GetType().Name}: {ex.Message}");
                 await Task.Delay(delay, cancellationToken);
