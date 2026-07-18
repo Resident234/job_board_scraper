@@ -37,7 +37,7 @@ public sealed class LinearThrottle
         return FailedAttempts;
     }
 
-    public int CurrentDelayMs => CalculateDelay(FailedAttempts, _baseDelayMs, _stepDelayMs, _maxDelayMs);
+    public int CurrentDelayMs => CalculateDelay(FailedAttempts + 1, _baseDelayMs, _stepDelayMs, _maxDelayMs);
 
     public Task DelayAsync(CancellationToken ct)
     {

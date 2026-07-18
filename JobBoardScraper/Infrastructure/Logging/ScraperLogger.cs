@@ -436,7 +436,7 @@ public static class ScraperLogger
     {
         return delayMs < 1000
             ? $"{delayMs}мс"
-            : $"{delayMs / 1000.0:F1}с";
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F1}с", delayMs / 1000.0);
     }
 
     /// <summary>
