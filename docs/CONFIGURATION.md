@@ -244,7 +244,7 @@ The system reads configuration on startup via `AppConfig.cs`. Missing keys will 
 
 ## Дополнительная информация
 
-- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md) - UserResumeDetailScraper documentation
-- [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md) - Free proxy pool
-- [USERRESUME_WITH_PROXY.md](docs/USERRESUME_WITH_PROXY.md) - Proxy usage with resume scraper
-- [App.config](JobBoardScraper/App.config) - Configuration file
+- [USER_RESUME_DETAIL_SCRAPER.md](USER_RESUME_DETAIL_SCRAPER.md) - UserResumeDetailScraper documentation
+- [DYNAMIC_PROXY.md](DYNAMIC_PROXY.md) - Free proxy pool
+- [USERRESUME_WITH_PROXY.md](USERRESUME_WITH_PROXY.md) - Proxy usage with resume scraper
+- [App.config](../JobBoardScraper/App.config) - Configuration file

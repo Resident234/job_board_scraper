@@ -2,7 +2,7 @@
 
 ## Описание
 
-`UserResumeDetailScraper` — это компонент системы JobBoardScraper, который извлекает детальную информацию из резюме пользователей на платформе Habr Career. Скрапер обходит страницы профилей пользователей и собирает:
+`UserResumeDetailScraper` — это компонент системы JobBoardScraper, который извлекает детальную информацию из резюме пользователей на платформе career.habr.com. Скрапер обходит страницы профилей пользователей и собирает:
 
 - **О себе (about)** — текстовое описание пользователя
 - **Навыки (skills)** — список технологий и навыков
@@ -388,4 +388,3 @@ LIMIT 20;
 - [USER_PROFILE_SCRAPER.md](USER_PROFILE_SCRAPER.md) — Скрапер профилей пользователей
 - [UNIVERSITY_EDUCATION_SCRAPER.md](UNIVERSITY_EDUCATION_SCRAPER.md) — Парсинг высшего образования
 - [TRAFFIC_OPTIMIZATION.md](TRAFFIC_OPTIMIZATION.md) — Оптимизация трафика
-- [IMPLEMENTATION_CHECKLIST.md](../IMPLEMENTATION_CHECKLIST.md) — Чеклист реализации

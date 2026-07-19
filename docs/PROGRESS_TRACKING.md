@@ -14,7 +14,7 @@
 
 ## 🛠️ Ключевые компоненты
 
-### 1. [ProgressTracker](file:///h:/s/Work_job_board_scraper/job_board_scraper/JobBoardScraper/Infrastructure/Utils/ProgressTracker.cs)
+### 1. [ProgressTracker](../JobBoardScraper/Infrastructure/Utils/ProgressTracker.cs)
 
 Служебный класс, инкапсулирующий состояние прогресса:
 - **`Processed`** (обработано задач) — инкрементируется атомарно.
@@ -37,7 +37,7 @@ public void Reset(int newTotal)
 }
 ```
 
-### 2. [ScraperProgressLogger](file:///h:/s/Work_job_board_scraper/job_board_scraper/JobBoardScraper/Infrastructure/Logging/ScraperProgressLogger.cs)
+### 2. [ScraperProgressLogger](../JobBoardScraper/Infrastructure/Logging/ScraperProgressLogger.cs)
 
 Высокоуровневый фасад, объединяющий `ProgressTracker` и `ConsoleLogger`. Упрощает логирование типовых событий с автоматическим выводом текущего прогресса:
 - `LogHttpProgress` — логирует завершение HTTP-запроса, время выполнения, статус-код, состояние прогресса и количество параллельно выполняемых запросов.

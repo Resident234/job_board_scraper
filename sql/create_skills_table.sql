@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS habr_skills (
 
 -- Комментарии к столбцам
 COMMENT ON COLUMN habr_skills.title IS 'Название навыка (без ограничения длины)';
-COMMENT ON COLUMN habr_skills.skill_id IS 'ID навыка из URL Habr Career (например, 352 из /resumes?skills[]=352)';
+COMMENT ON COLUMN habr_skills.skill_id IS 'ID навыка из URL career.habr.com (например, 352 из /resumes?skills[]=352)';
 COMMENT ON COLUMN habr_skills.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN habr_skills.updated_at IS 'Дата и время последнего обновления записи';
 

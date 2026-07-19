@@ -1,5 +1,5 @@
 -- Создание таблицы для хранения справочника университетов
--- Эта таблица хранит информацию об университетах с Habr Career
+-- Эта таблица хранит информацию об университетах с career.habr.com
 
 CREATE TABLE IF NOT EXISTS habr_universities (
     id SERIAL PRIMARY KEY,
@@ -17,11 +17,11 @@ CREATE INDEX IF NOT EXISTS idx_habr_universities_city ON habr_universities(city)
 CREATE INDEX IF NOT EXISTS idx_habr_universities_name ON habr_universities(name);
 
 -- Комментарии к таблице и колонкам
-COMMENT ON TABLE habr_universities IS 'Справочник университетов с Habr Career';
+COMMENT ON TABLE habr_universities IS 'Справочник университетов с career.habr.com';
 COMMENT ON COLUMN habr_universities.id IS 'Внутренний ID записи';
-COMMENT ON COLUMN habr_universities.habr_id IS 'ID университета на Habr Career (например, 6081)';
+COMMENT ON COLUMN habr_universities.habr_id IS 'ID университета на career.habr.com (например, 6081)';
 COMMENT ON COLUMN habr_universities.name IS 'Название университета (например, ВАГС)';
 COMMENT ON COLUMN habr_universities.city IS 'Город расположения университета (например, Волгоград)';
-COMMENT ON COLUMN habr_universities.graduate_count IS 'Количество выпускников на Habr Career';
+COMMENT ON COLUMN habr_universities.graduate_count IS 'Количество выпускников на career.habr.com';
 COMMENT ON COLUMN habr_universities.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN habr_universities.updated_at IS 'Дата и время последнего обновления';

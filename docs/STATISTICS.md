@@ -6,8 +6,8 @@ This document describes the statistics system used in the Job Board Scraper proj
 
 - [Overview](#overview)
 - [Database Statistics](#database-statistics)
-- [Scraper Statistics](#scraper-statistics)
-- [Traffic Statistics](#traffic-statistics)
+- [Scraper Statistics](#scraperstatistics-class)
+- [Traffic Statistics](#trafficstatistics-class)
 - [Key Components](#key-components)
 - [Usage Examples](#usage-examples)
 

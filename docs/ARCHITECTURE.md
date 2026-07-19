@@ -115,18 +115,190 @@ graph LR
 └─────────────────┘  └──────────────────────┘
 ```
 
-### 4. University Education Data Flow
+### 4. Data Flows
+
+#### 4.1 UserResumeDetail Data Flow
 
 ```mermaid
 flowchart TD
-    A[UserResumeDetailScraper] --> B[ProfileDataExtractor.ExtractEducationData]
-    B --> C{Education section exists?}
-    C -->|Yes| D[Parse universities]
-    C -->|No| E[Continue without errors]
-    D --> F[Parse courses for each university]
-    F --> G[DatabaseClient.EnqueueUniversity]
-    G --> H[DatabaseClient.EnqueueUserUniversity]
-    H --> I[Batch Insert/Update via Writer Task]
+    A[UserResumeDetailScraper] --> B[Fetch userLink from DB]
+    B --> C{HTTP status}
+    C -->|404| D[Skip without DB write]
+    C -->|non-2xx| E[Fail]
+    C -->|2xx| F[UserDataExtractor checks]
+    F --> G{Deleted?}
+    G -->|Yes| H[EnqueueResume isDeleted]
+    G -->|No| I{Private?}
+    I -->|Yes| J[EnqueueResume isPublic=false]
+    I -->|No| K{Daily limit?}
+    K -->|Yes| L[Proxy rotate / skip]
+    K -->|No| M[Extract about, skills, experience, education, communities]
+    M --> N[EnqueueResume UpdateIfExists]
+    N --> O[Writer Task → habr_resumes + related tables]
+```
+
+#### 4.2 University Education Data Flow
+
+Часть пайплайна `UserResumeDetailScraper` (не отдельный скрапер):
+
+```mermaid
+flowchart TD
+    A[UserResumeDetailScraper] --> B[UserDataExtractor.ExtractEducation]
+    B --> C{Universities found?}
+    C -->|Yes| D[Parse courses for each university]
+    C -->|No| E[EnqueueResume without universities]
+    D --> F[EnqueueResume with userUniversities]
+    F --> G[Writer: ResumesUniversitiesInsert]
+    G --> H[habr_universities]
+    G --> I[habr_resumes_universities]
+```
+
+#### 4.3 UserProfile Data Flow
+
+```mermaid
+flowchart TD
+    A[UserProfileScraper] --> B[Fetch userLink/friends]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Skip]
+    C -->|Yes| E[UserDataExtractor.IsPublicProfile]
+    E --> F{Public?}
+    F -->|No| G[EnqueueResume isPublic=false]
+    F -->|Yes| H[Extract level, salary, experience, lastVisit]
+    H --> I[EnqueueResume UpdateIfExists]
+    I --> J[habr_resumes / habr_levels]
+```
+
+#### 4.4 UserFriends Data Flow
+
+```mermaid
+flowchart TD
+    A[UserFriendsScraper] --> B[Fetch userLink/friends?page=N]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Stop paging for user]
+    C -->|Yes| E[UserDataExtractor.ExtractFriends]
+    E --> F{friendsOnPage == 0?}
+    F -->|Yes| D
+    F -->|No| G[EnqueueResume UpdateIfExists]
+    G --> H[Next page]
+    H --> B
+```
+
+#### 4.5 ResumeListPage Data Flow
+
+```mermaid
+flowchart TD
+    A[ResumeListPageScraper] --> B[Fetch /resumes with filters]
+    B --> C{HTTP OK?}
+    C -->|No| D[Continue next URL]
+    C -->|Yes| E[UserDataExtractor.ParseProfilesFromPage]
+    E --> F[EnqueueResume for each profile]
+    F --> G{Skills mode?}
+    G -->|Yes| H[EnqueueSkill]
+    G -->|No| I[Next page / filter]
+    H --> I
+```
+
+#### 4.6 BruteForceUsername Data Flow
+
+```mermaid
+flowchart TD
+    A[BruteForceUsernameScraper] --> B[Build username URL]
+    B --> C{404?}
+    C -->|Yes| D[Skip]
+    C -->|No| E[HtmlParser.ExtractTitle]
+    E --> F[EnqueueResume SkipIfExists]
+    F --> G[habr_resumes]
+```
+
+#### 4.7 Experts Data Flow
+
+```mermaid
+flowchart TD
+    A[ExpertsScraper] --> B[Fetch /experts?page=N]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[End crawl]
+    C -->|Yes| E[UserDataExtractor.ParseExpertsFromPage]
+    E --> F{expertsOnPage == 0?}
+    F -->|Yes| D
+    F -->|No| G[EnqueueResume]
+    G --> H[EnqueueCompany if present]
+    H --> I[Next page]
+    I --> B
+```
+
+#### 4.8 CompanyList Data Flow
+
+```mermaid
+flowchart TD
+    A[CompanyListScraper] --> B[Fetch /companies with filters]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Stop filter pagination]
+    C -->|Yes| E[CompanyDataExtractor.ExtractCompanies]
+    E --> F[EnqueueCompany code/url/id]
+    F --> G{HasNextPage?}
+    G -->|Yes| H[Next page]
+    G -->|No| D
+    H --> B
+```
+
+#### 4.9 Category Data Flow
+
+```mermaid
+flowchart TD
+    A[CategoryScraper] --> B[Fetch /companies]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Abort run]
+    C -->|Yes| E[CompanyDataExtractor.ExtractCategories]
+    E --> F[EnqueueCategoryRootId]
+    F --> G[habr_category_root_ids]
+```
+
+#### 4.10 CompanyDetail Data Flow
+
+```mermaid
+flowchart TD
+    A[CompanyDetailScraper] --> B[Fetch company URL from DB]
+    B --> C{HTTP 2xx and company_id?}
+    C -->|No| D[Skip]
+    C -->|Yes| E[CompanyDataExtractor: title, about, skills, employees...]
+    E --> F[EnqueueCompany companyRecord]
+    E --> G[EnqueueCompany related]
+    E --> H[EnqueueResume employees SkipIfExists]
+    E --> I[EnqueueResume members UpdateIfExists]
+    F --> J[habr_companies / skills / resumes]
+```
+
+#### 4.11 CompanyFollowers Data Flow
+
+```mermaid
+flowchart TD
+    A[CompanyFollowersScraper] --> B[Fetch /companies/code/followers?page=N]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Stop company]
+    C -->|Yes| E[CompanyDataExtractor.ExtractFollowersUsers]
+    E --> F{users empty?}
+    F -->|Yes| D
+    F -->|No| G[EnqueueResume UpdateIfExists]
+    G --> H{HasNextFollowersPage?}
+    H -->|Yes| I[Next page]
+    H -->|No| D
+    I --> B
+```
+
+#### 4.12 CompanyRating Data Flow
+
+```mermaid
+flowchart TD
+    A[CompanyRatingScraper] --> B[Fetch /companies/ratings sz/y/page]
+    B --> C{HTTP 2xx?}
+    C -->|No| D[Break pagination]
+    C -->|Yes| E[CompanyDataExtractor.ParseCompaniesFromPage]
+    E --> F{companiesCount == 0?}
+    F -->|Yes| D
+    F -->|No| G[EnqueueCompany with rating/awards/reviews]
+    G --> H[habr_companies / habr_company_reviews]
+    H --> I[Next page]
+    I --> B
 ```
 
 ### 5. Proxy Whitelist Management
@@ -204,9 +376,8 @@ JobBoardScraper/
       WhitelistProxyEntry.cs
       ...
   Parsing/
-    ProfileDataExtractor.cs  # Извлечение данных из профилей
+    UserDataExtractor.cs     # Извлечение данных пользователей и резюме
     CompanyDataExtractor.cs  # Извлечение данных компаний
-    UserDataExtractor.cs     # Извлечение данных пользователей
     HtmlParser.cs            # Базовые HTML-утилиты
   Scrapers/
     BruteForceUsernameScraper.cs
@@ -293,7 +464,7 @@ JobBoardScraper/
 ## Future Architecture Evolution
 
 ### Planned Enhancements
-- **API integration**: Use Habr Career API (`https://career.habr.com/info/api#q1.7`) instead of HTML parsing
+- **API integration**: Use career.habr.com API (`https://career.habr.com/info/api#q1.7`) instead of HTML parsing
 - **Enhanced monitoring** with Prometheus/Grafana
 - **Improved proxy management** with machine learning
 - **Better data processing** pipeline with streaming

@@ -230,6 +230,6 @@ HTML последней обработанной страницы сохраня
 
 ## См. также
 
-- [JobBoardScraper README](../JobBoardScraper/README.md) - основная документация
-- [SQL README](../sql/README.md) - работа с базой данных
+- [README](../README.md) - основная документация
+- [DB_SCHEMA.md](DB_SCHEMA.md) - схема базы данных
 - [TRAFFIC_OPTIMIZATION](TRAFFIC_OPTIMIZATION.md) - оптимизация трафика
