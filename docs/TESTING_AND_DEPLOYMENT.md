@@ -21,10 +21,26 @@ psql -U postgres -d habr_career -f sql/alter_resumes_add_additional_fields.sql
 dotnet build
 
 # Run the scraper
-dotnet run
+dotnet run --project JobBoardScraper
 ```
 
 ## 🧪 Testing Procedures
+
+### Automated Testing (xUnit)
+
+Проект содержит набор автоматизированных тестов в проекте `JobBoardScraper.Tests`.
+
+```bash
+# Run all tests
+dotnet test JobBoardScraper.Tests/JobBoardScraper.Tests.csproj
+```
+
+**Основные области тестирования:**
+- `DatabaseClientTests` — проверка корректности работы с БД
+- `SmartHttpClientTests` — проверка логики HTTP-запросов и ретраев
+- `ProxyTests` — тестирование ротации и управления прокси
+- `HtmlParserTests` и `UserDataExtractorTests` — валидация парсинга данных
+- `AdaptiveConcurrencyControllerTests` — проверка адаптивного управления параллелизмом
 
 ### Functional Testing
 
@@ -66,54 +82,35 @@ WHERE public = true;
 - ✅ Check for parsing errors
 - ✅ Validate output formatting
 
-### SQL Query Testing
-
-```sql
--- Test citizenship search
-SELECT * FROM habr_resumes
-WHERE citizenship = 'Россия'
-LIMIT 10;
-
--- Test age-based search
-SELECT * FROM habr_resumes
-WHERE age LIKE '%37%'
-LIMIT 10;
-
--- Test remote work filter
-SELECT * FROM habr_resumes
-WHERE remote_work LIKE '%удаленной%'
-LIMIT 10;
-```
-
 ## ⚙️ Performance Testing
 
 - **Execution time** measurement
 - **Memory usage** monitoring
 - **Database load** analysis
-- **Proxy performance** (if applicable)
+- **Proxy performance** (latency, success rate)
 
 ## 📋 Deployment Checklist
 
 ### Pre-deployment
 
 - [ ] Database backup completed
-- [ ] Configuration validated
+- [ ] Configuration (`App.config`) validated
 - [ ] Dependencies verified
-- [ ] Proxy configuration tested
+- [ ] Proxy list updated and tested
 
 ### Deployment
 
 - [ ] Apply database migrations
 - [ ] Build project successfully
 - [ ] Configure logging
-- [ ] Set up monitoring
+- [ la ] Set up monitoring
 
 ### Post-deployment
 
-- [ ] Verify data extraction
-- [ ] Check error logs
-- [ ] Monitor performance
-- [ ] Validate data quality
+- [ ] Verify data extraction from real pages
+- [ ] Check error logs for unexpected exceptions
+- [ ] Monitor proxy health and rotation
+- [ ] Validate data quality in DB
 
 ## 🔧 Backward Compatibility
 
@@ -122,7 +119,7 @@ LIMIT 10;
 - ✅ Existing code continues to work
 - ✅ Method overloads for compatibility
 - ✅ NULL values supported in new fields
-- ✅ No breaking changes introduced
+- ✅ No breaking changes introduced in the DB schema
 
 ## 📊 Quality Assurance
 
@@ -130,52 +127,20 @@ LIMIT 10;
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Data Extraction | ✅ Complete | All fields tested |
+| Data Extraction | ✅ Complete | Automated tests for extractors |
 | Database Storage | ✅ Complete | Schema validated |
-| Error Handling | ✅ Complete | Edge cases covered |
+| Error Handling | ✅ Complete | Retry strategy tested |
+| Proxy Rotation | ✅ Complete | Unit tests for ProxyCoordinator |
 | Performance | ⏳ Pending | Needs benchmarking |
-| Security | ✅ Complete | No vulnerabilities |
-
-### Known Issues
-
-- No known issues at this time
-- All tests passing
-- Ready for production deployment
 
 ## 🚀 Next Steps
 
 ### Immediate Actions
 
 1. **Complete database migration**
-2. **Run full test suite**
-3. **Deploy to staging environment**
-4. **Monitor initial performance**
-
-### Optional Enhancements
-
-- Add unit tests for data extraction methods
-- Implement data validation
-- Add DateTime parsing for registration dates
-- Normalize age to numeric format
-- Add country statistics
-- Implement UI filters (if applicable)
-
-## 📝 Release Notes
-
-### Current Status
-
-- **Implementation**: ✅ Complete
-- **Compilation**: ✅ Successful
-- **Documentation**: ✅ Ready
-- **Deployment**: ⏳ Pending
-- **Testing**: ⏳ Pending
-
-### Production Readiness
-
-- ✅ All changes backward compatible
-- ✅ Code ready for production
-- ✅ Testing required on real data
-- ✅ Documentation complete
+2. **Run full test suite (`dotnet test`)**
+3. **Deploy to production environment**
+4. **Monitor initial performance and proxy stability**
 
 ## 🛠️ Troubleshooting
 
@@ -183,10 +148,10 @@ LIMIT 10;
 
 | Issue | Solution |
 |-------|----------|
-| Database migration fails | Check PostgreSQL permissions |
-| Scraper crashes | Verify proxy configuration |
-| Data not saved | Check database connection |
-| Performance issues | Adjust rate limiting |
+| Database migration fails | Check PostgreSQL permissions and DB name |
+| Scraper crashes | Verify `App.config` and proxy list |
+| Data not saved | Check database connection and table schema |
+| Performance issues | Adjust `AdaptiveConcurrencyController` settings |
 
 ### Debugging Commands
 
@@ -196,9 +161,6 @@ psql -U postgres -d habr_career -c "SELECT 1;"
 
 # View recent logs
 tail -f logs/JobBoardScraper_*.log
-
-# Check running processes
-ps aux | grep JobBoardScraper
 
 # Test proxy connectivity
 curl -x http://proxy1.example.com:8080 https://www.google.com
@@ -211,10 +173,4 @@ curl -x http://proxy1.example.com:8080 https://www.google.com
 - **[Configuration Guide](CONFIGURATION.md)** - Setup instructions
 - **[Architecture](ARCHITECTURE.md)** - System design
 - **[Quick Start](QUICKSTART.md)** - Getting started
-
-### External References
-
-- **[PostgreSQL Documentation](https://www.postgresql.org/docs/)** - Database reference
-- **[.NET Testing Guide](https://docs.microsoft.com/en-us/dotnet/core/testing/)** - Testing best practices
-
-This comprehensive testing and deployment guide provides step-by-step procedures for validating the JobBoardScraper system, ensuring data quality, and deploying to production environments.
+- **[HTTP Retry Strategy](HTTP_ERROR_RETRY_STRATEGY.md)** - Detailed retry logic

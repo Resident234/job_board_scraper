@@ -2,135 +2,193 @@
 
 ## 📋 Configuration Overview
 
-JobBoardScraper provides flexible configuration options through multiple layers, allowing you to customize every aspect of the scraping process.
+JobBoardScraper uses a single XML configuration file (`App.config`) with typed access via `AppConfig.cs`. Все настройки читаются из секции `<appSettings>`.
 
-## 🔧 Configuration Layers
-
-### 1. App.config (Primary Configuration)
+## 🔧 Configuration File
 
 Location: `JobBoardScraper/App.config`
 
-```xml
-<configuration>
-    <appSettings>
-        <!-- Database Configuration -->
-        <add key="Database:ConnectionString" value="Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;"/>
-
-        <!-- Scraper Settings -->
-        <add key="Experts:Enabled" value="true"/>
-        <add key="Experts:Interval" value="4.00:00:00"/>
-        <add key="Experts:OutputMode" value="Both"/>
-
-        <add key="Companies:Enabled" value="false"/>
-        <add key="Companies:Interval" value="1.00:00:00"/>
-
-        <add key="Category:Enabled" value="false"/>
-        <add key="Category:Interval" value="7.00:00:00"/>
-
-        <!-- Proxy Configuration -->
-        <add key="Proxy:Enabled" value="true"/>
-        <add key="Proxy:List" value="http://proxy1.example.com:8080;http://proxy2.example.com:8080"/>
-        <add key="Proxy:RotationInterval" value="00:05:00"/>
-
-        <!-- Performance Settings -->
-        <add key="Request:Timeout" value="00:01:30"/>
-        <add key="Request:MaxRetries" value="3"/>
-        <add key="Request:DelayBetweenRequests" value="00:00:02"/>
-
-        <!-- Logging Configuration -->
-        <add key="Logging:Level" value="Information"/>
-        <add key="Logging:FilePath" value="logs/JobBoardScraper_{Date}.log"/>
-        <add key="Logging:MaxFileSize" value="10485760"/> <!-- 10MB -->
-    </appSettings>
-</configuration>
-```
-
-### 2. Environment Variables
-
-You can override any configuration setting using environment variables:
-
-```bash
-# Set database connection string
-export DATABASE__CONNECTIONSTRING="Server=prod-db;Database=jobs;User Id=admin;Password=secret;"
-
-# Enable specific scrapers
-export EXPERTS__ENABLED=true
-export COMPANIES__ENABLED=false
-
-# Configure proxy
-export PROXY__ENABLED=true
-export PROXY__LIST="http://proxy1:8080;http://proxy2:8080"
-```
-
-### 3. Command Line Arguments
-
-Basic settings can be overridden via command line:
-
-```bash
-dotnet run --project JobBoardScraper -- --experts-enabled true --companies-enabled false
-```
-
-## 🎛️ Scraper Configuration
-
-### Experts Scraper
+### Database Configuration
 
 ```xml
-<!-- Basic configuration -->
-<add key="Experts:Enabled" value="true"/>
-<add key="Experts:Interval" value="4.00:00:00"/> <!-- Run every 4 days -->
-<add key="Experts:OutputMode" value="Both"/> <!-- Console, File, or Both -->
-
-<!-- Advanced settings -->
-<add key="Experts:MaxPages" value="50"/>
-<add key="Experts:RequestDelay" value="00:00:01"/>
-<add key="Experts:UserAgent" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"/>
+<add key="Database:ConnectionString" value="Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;"/>
 ```
 
-### Company Scraper
+### DatabaseClient Settings
 
 ```xml
-<add key="Companies:Enabled" value="true"/>
-<add key="Companies:Interval" value="1.00:00:00"/> <!-- Run daily -->
-<add key="Companies:MaxConcurrentRequests" value="2"/>
-<add key="Companies:IncludeSkills" value="true"/>
-<add key="Companies:IncludeRatings" value="true"/>
+<add key="DatabaseClient:OutputMode" value="Both" />
+<!-- ConsoleOnly, FileOnly, или Both -->
 ```
 
-### Category Scraper
+### Scraper Management
+
+Каждый скрапер включается/отключается отдельной настройкой:
 
 ```xml
-<add key="Category:Enabled" value="true"/>
-<add key="Category:Interval" value="7.00:00:00"/> <!-- Run weekly -->
-<add key="Category:UpdateExisting" value="true"/>
+<!-- BruteForceUsernameScraper -->
+<add key="BruteForce:Enabled" value="false" />
+<add key="BruteForce:BaseUrl" value="http://career.habr.com/" />
+<add key="BruteForce:MinLength" value="5" />
+<add key="BruteForce:MaxLength" value="5" />
+<add key="BruteForce:MaxConcurrentRequests" value="5" />
+<add key="BruteForce:MaxRetries" value="200" />
+<add key="BruteForce:Chars" value="abcdefghijklmnopqrstuvwxyz0123456789-_" />
+<add key="BruteForce:EnableRetry" value="true" />
+<add key="BruteForce:EnableTrafficMeasuring" value="true" />
+
+<!-- CompanyListScraper -->
+<add key="Companies:Enabled" value="false" />
+<add key="Companies:ListUrl" value="https://career.habr.com/companies" />
+<add key="Companies:ItemSelector" value=".companies-item" />
+<add key="Companies:OutputMode" value="Both" />
+<add key="Companies:UseFilterCombinations" value="false" />
+
+<!-- CompanyFollowersScraper -->
+<add key="CompanyFollowers:Enabled" value="false" />
+<add key="CompanyFollowers:TimeoutSeconds" value="300" />
+<add key="CompanyFollowers:OutputMode" value="Both" />
+
+<!-- ResumeListPageScraper -->
+<add key="ResumeList:Enabled" value="false" />
+<add key="ResumeList:IntervalMinutes" value="300" />
+<add key="ResumeList:PageUrl" value="https://career.habr.com/resumes?order=last_visited" />
+<add key="ResumeList:OutputMode" value="Both" />
+<!-- Фильтрация по навыкам, компаниям, ВУЗам, стажу, статусу поиска -->
+<add key="ResumeList:SkillsEnumerationEnabled" value="true" />
+<add key="ResumeList:WorkStatesEnabled" value="true" />
+<add key="ResumeList:ExperiencesEnabled" value="true" />
+<add key="ResumeList:QidsEnabled" value="true" />
+<add key="ResumeList:OrderEnabled" value="true" />
+<add key="ResumeList:CompanyIdsEnabled" value="true" />
+<add key="ResumeList:UniversityIdsEnabled" value="true" />
+
+<!-- CategoryScraper -->
+<add key="Category:Enabled" value="false" />
+<add key="Category:EnableTrafficMeasuring" value="true" />
+
+<!-- ExpertsScraper -->
+<add key="Experts:Enabled" value="false" />
+<add key="Experts:ListUrl" value="https://career.habr.com/experts?order=lastActive" />
+<add key="Experts:TimeoutSeconds" value="600" />
+<add key="Experts:EnableRetry" value="true" />
+<add key="Experts:OutputMode" value="Both" />
+<add key="Experts:SaveHtml" value="false" />
+
+<!-- CompanyDetailScraper -->
+<add key="CompanyDetail:Enabled" value="false" />
+<add key="CompanyDetail:TimeoutSeconds" value="60" />
+<add key="CompanyDetail:OutputMode" value="Both" />
+
+<!-- UserProfileScraper -->
+<add key="UserProfile:Enabled" value="false" />
+<add key="UserProfile:TimeoutSeconds" value="60" />
+<add key="UserProfile:OutputMode" value="Both" />
+
+<!-- UserFriendsScraper -->
+<add key="UserFriends:Enabled" value="false" />
+<add key="UserFriends:TimeoutSeconds" value="60" />
+<add key="UserFriends:OnlyPublic" value="true" />
+<add key="UserFriends:OutputMode" value="Both" />
+
+<!-- UserResumeDetailScraper (включен по умолчанию) -->
+<add key="UserResumeDetail:Enabled" value="true" />
+<add key="UserResumeDetail:TimeoutSeconds" value="60" />
+<add key="UserResumeDetail:EnableRetry" value="true" />
+<add key="UserResumeDetail:EnableTrafficMeasuring" value="true" />
+<add key="UserResumeDetail:OutputMode" value="Both" />
+
+<!-- CompanyRatingScraper -->
+<add key="CompanyRating:Enabled" value="false" />
+<add key="CompanyRating:TimeoutSeconds" value="60" />
+<add key="CompanyRating:EnableRetry" value="true" />
+<add key="CompanyRating:EnableTrafficMeasuring" value="true" />
+<add key="CompanyRating:OutputMode" value="Both" />
 ```
 
-## 🌐 Proxy Configuration
+### Proxy Configuration
 
-### Basic Proxy Setup
+#### Static Proxy Rotation
 
 ```xml
-<add key="Proxy:Enabled" value="true"/>
-<add key="Proxy:List" value="http://proxy1.example.com:8080;http://proxy2.example.com:8080"/>
-<add key="Proxy:RotationInterval" value="00:05:00"/> <!-- Rotate every 5 minutes -->
+<add key="Proxy:Enabled" value="false" />
+<add key="Proxy:List" value="" />
+<!-- Формат: http://host:port;http://user:pass@host:port;socks5://host:1080 -->
+<add key="Proxy:RotationIntervalSeconds" value="0" />
+<add key="Proxy:AutoRotate" value="false" />
 ```
 
-### Advanced Proxy Options
+#### Free Proxy Pool
 
 ```xml
-<!-- Authentication -->
-<add key="Proxy:List" value="http://user:pass@proxy1.example.com:8080;socks5://user:pass@proxy2.example.com:1080"/>
-
-<!-- Health check settings -->
-<add key="Proxy:HealthCheckInterval" value="00:01:00"/>
-<add key="Proxy:MaxFailuresBeforeRemoval" value="3"/>
-<add key="Proxy:HealthCheckUrl" value="https://www.google.com"/>
-
-<!-- Rotation strategy -->
-<add key="Proxy:RotationStrategy" value="RoundRobin"/> <!-- RoundRobin or Random -->
-<add key="Proxy:MinProxiesForRotation" value="2"/>
+<add key="FreeProxy:Enabled" value="true" />
+<add key="FreeProxy:RefreshIntervalMinutes" value="10" />
+<add key="FreeProxy:PoolMaxSize" value="10000" />
+<add key="FreeProxy:ListUrl" value="https://free-proxy-list.net/ru/" />
+<add key="FreeProxy:ProxyScrapeApiUrl" value="https://api.proxyscrape.com/v4/..." />
+<add key="FreeProxy:ProxyScrapeEnabled" value="true" />
+<add key="FreeProxy:GeoNodeEnabled" value="true" />
+<add key="FreeProxy:GeoNodeApiUrl" value="https://proxylist.geonode.com/api/proxy-list?..." />
+<add key="FreeProxy:WaitTimeoutSeconds" value="30" />
+<add key="FreeProxy:RequestTimeoutSeconds" value="420" />
+<add key="FreeProxy:MaxRetries" value="2" />
+<add key="FreeProxy:MaxSwitches" value="3000" />
 ```
 
-### Proxy Formats Supported
+#### Proxy Whitelist
+
+```xml
+<add key="ProxyWhitelist:Enabled" value="true" />
+<add key="ProxyWhitelist:StorageType" value="file" /><!-- file или database -->
+<add key="ProxyWhitelist:FilePath" value="./data/proxy_whitelist.json" />
+<add key="ProxyWhitelist:CooldownHours" value="24" />
+<add key="ProxyWhitelist:RecheckIntervalMinutes" value="60" />
+<add key="ProxyWhitelist:MaxRetryAttempts" value="5" />
+<add key="ProxyWhitelist:DailyLimitMessage" value="Вы исчерпали суточный лимит на просмотр профилей специалистов" />
+<add key="ProxyWhitelist:AutosaveIntervalMinutes" value="20" />
+```
+
+### Traffic Statistics
+
+```xml
+<add key="Traffic:OutputFile" value="./logs/traffic_stats.txt" />
+<add key="Traffic:SaveIntervalMinutes" value="5" />
+```
+
+### Proxy Statistics
+
+```xml
+<add key="ProxyStats:OutputFile" value="./logs/proxy_stats.txt" />
+<add key="ProxyStats:SaveIntervalMinutes" value="10" />
+```
+
+### Logging
+
+```xml
+<add key="Logging:OutputDirectory" value="./logs" />
+```
+
+### Level Validation
+
+```xml
+<add key="Levels:ValidTitles" value="Стажёр (Intern),Младший (Junior),Средний (Middle),Старший (Senior),Ведущий (Lead),..." />
+```
+
+### Education Parsing
+
+```xml
+<add key="Education:SectionTitleText" value="Высшее образование" />
+<add key="Education:SectionSelector" value=".content-section" />
+<add key="Education:ItemSelector" value=".resume-education-item" />
+<add key="Education:UniversityLinkSelector" value="a[href*='/universities/']" />
+<add key="Education:UniversityIdRegex" value="/universities/(\d+)" />
+
+<add key="AdditionalEducation:SectionTitleText" value="Дополнительное образование" />
+<add key="AdditionalEducation:ContainerSelector" value=".resume-educations" />
+<add key="AdditionalEducation:ItemSelector" value=".resume-educations__item" />
+```
+
+## 🌐 Proxy Formats Supported
 
 - `http://host:port`
 - `https://host:port`
@@ -138,341 +196,55 @@ dotnet run --project JobBoardScraper -- --experts-enabled true --companies-enabl
 - `socks5://host:port`
 - `http://username:password@host:port` (with authentication)
 
-## 📊 Performance Configuration
-
-### Request Settings
-
-```xml
-<!-- Timeout settings -->
-<add key="Request:Timeout" value="00:01:30"/> <!-- 90 seconds -->
-<add key="Request:ConnectTimeout" value="00:00:15"/> <!-- 15 seconds -->
-
-<!-- Retry policy -->
-<add key="Request:MaxRetries" value="3"/>
-<add key="Request:RetryDelay" value="00:00:05"/> <!-- 5 seconds -->
-<add key="Request:RetryBackoffMultiplier" value="2.0"/> <!-- Exponential backoff -->
-
-<!-- Rate limiting -->
-<add key="Request:DelayBetweenRequests" value="00:00:02"/> <!-- 2 seconds -->
-<add key="Request:RandomDelayVariation" value="00:00:01"/> <!-- ±1 second randomness -->
-```
-
-### Concurrency Settings
-
-```xml
-<!-- Global concurrency -->
-<add key="Concurrency:MaxParallelScrapers" value="3"/>
-<add key="Concurrency:MaxRequestsPerDomain" value="2"/>
-
-<!-- Database connection pool -->
-<add key="Database:MaxPoolSize" value="20"/>
-<add key="Database:CommandTimeout" value="30"/>
-```
-
-## 📁 Logging Configuration
-
-### Basic Logging
-
-```xml
-<add key="Logging:Level" value="Information"/> <!-- Debug, Information, Warning, Error, Critical -->
-<add key="Logging:FilePath" value="logs/JobBoardScraper_{Date}.log"/>
-<add key="Logging:MaxFileSize" value="10485760"/> <!-- 10MB -->
-<add key="Logging:MaxRetainedFiles" value="30"/>
-```
-
-### Advanced Logging
-
-```xml
-<!-- Console logging -->
-<add key="Logging:ConsoleEnabled" value="true"/>
-<add key="Logging:ConsoleLevel" value="Information"/>
-
-<!-- File logging -->
-<add key="Logging:FileEnabled" value="true"/>
-<add key="Logging:FileLevel" value="Debug"/>
-
-<!-- Structured logging -->
-<add key="Logging:UseJsonFormat" value="true"/>
-<add key="Logging:IncludeScopes" value="true"/>
-```
-
-## 🔧 Database Configuration
-
-### Connection Strings
-
-```xml
-<!-- Basic connection -->
-<add key="Database:ConnectionString" value="Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;"/>
-
-<!-- With additional parameters -->
-<add key="Database:ConnectionString" value="Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs;Pooling=true;MinPoolSize=5;MaxPoolSize=20;Timeout=30;"/>
-```
-
-### Database Schema Settings
-
-```xml
-<add key="Database:AutoCreateTables" value="false"/>
-<add key="Database:AutoUpdateSchema" value="false"/>
-<add key="Database:EnableMigrations" value="true"/>
-```
-
-## 🛡️ Security Configuration
-
-### API Security
-
-```xml
-<add key="Security:RequireApiKey" value="true"/>
-<add key="Security:ApiKey" value="your-secure-api-key-here"/>
-<add key="Security:AllowedIps" value="127.0.0.1;192.168.1.0/24"/>
-```
-
-### Rate Limiting
-
-```xml
-<add key="Security:EnableRateLimiting" value="true"/>
-<add key="Security:MaxRequestsPerMinute" value="60"/>
-<add key="Security:RateLimitWindow" value="00:01:00"/>
-```
-
-## 📋 Current Scraper Configuration (Текущая конфигурация скраперов)
-
-### ✅ Enabled Scrapers (Включенные скраперы)
-
-#### UserResumeDetailScraper
-- **Status:** ✅ Enabled (Включен)
-- **Setting:** `UserResumeDetail:Enabled = true`
-- **Description:** Extracts detailed information from user resumes (Извлечение детальной информации из резюме пользователей)
-- **Features:**
-  - "About me" text (Текст "О себе")
-  - Skills list (Список навыков)
-  - Work experience with companies (Опыт работы с компаниями)
-  - Positions and skills by roles (Должности и навыки по позициям)
-
-### ❌ Disabled Scrapers (Отключенные скраперы)
-
-| Scraper | Setting | Description |
-|---------|-----------|----------|
-| BruteForceUsernameScraper | `BruteForce:Enabled = false` | Username enumeration (Перебор имен пользователей) |
-| CompanyListScraper | `Companies:Enabled = false` | Company list (Список компаний) |
-| CompanyFollowersScraper | `CompanyFollowers:Enabled = false` | Company followers (Подписчики компаний) |
-| ResumeListPageScraper | `ResumeList:Enabled = false` | Resume list (Список резюме) |
-| CategoryScraper | `Category:Enabled = false` | Categories (Категории) |
-| ExpertsScraper | `Experts:Enabled = false` | Experts (Эксперты) |
-| CompanyDetailScraper | `CompanyDetail:Enabled = false` | Company details (Детали компаний) |
-| UserProfileScraper | `UserProfile:Enabled = false` | User profiles (Профили пользователей) |
-| UserFriendsScraper | `UserFriends:Enabled = false` | User friends (Друзья пользователей) |
-| CompanyRatingScraper | `CompanyRating:Enabled = false` | Company ratings (Рейтинги компаний) |
-
-### UserResumeDetailScraper Settings (Настройки UserResumeDetailScraper)
-
-```xml
-<add key="UserResumeDetail:Enabled" value="true" />
-<add key="UserResumeDetail:TimeoutSeconds" value="60" />
-<add key="UserResumeDetail:EnableRetry" value="true" />
-<add key="UserResumeDetail:EnableTrafficMeasuring" value="true" />
-<add key="UserResumeDetail:OutputMode" value="Both" />
-```
-
-### How to Change Configuration (Как изменить конфигурацию)
-
-#### Enable another scraper:
-1. Open `JobBoardScraper/App.config`
-2. Find the desired scraper (e.g., `CompanyRating:Enabled`)
-3. Change `value="false"` to `value="true"`
-4. Save the file
-
-#### Disable UserResumeDetailScraper:
-```xml
-<add key="UserResumeDetail:Enabled" value="false" />
-```
-
-#### Enable multiple scrapers simultaneously:
-```xml
-<add key="UserResumeDetail:Enabled" value="true" />
-<add key="UserProfile:Enabled" value="true" />
-<add key="CompanyDetail:Enabled" value="true" />
-```
-
-### Running (Запуск)
-
-After changing the configuration, simply run the application:
-
-```bash
-dotnet run --project JobBoardScraper
-```
-
-The application will automatically start only the enabled scrapers.
-
-### Configuration Check (Проверка конфигурации)
-
-On startup, the application will display information about enabled scrapers:
-
-```
-[Program] UserResumeDetailScraper: Enabled
-[Program] CompanyRatingScraper: Disabled
-[Program] ExpertsScraper: Disabled
-...
-```
-
-### Additional Information (Дополнительная информация)
-
-- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md) - UserResumeDetailScraper documentation
-- [App.config](JobBoardScraper/App.config) - Configuration file
-
-## 🚀 Advanced Configuration
-
-### Custom Headers
-
-```xml
-<add key="Request:CustomHeaders" value="Accept-Language=en-US;Accept-Encoding=gzip;X-Requested-With=XMLHttpRequest"/>
-```
-
-### User Agent Rotation
-
-```xml
-<add key="Request:UserAgentRotation" value="true"/>
-<add key="Request:UserAgentList" value="
-    Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36,
-    Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36,
-    Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
-"/>
-```
-
-### Adaptive Scraping
-
-```xml
-<add key="Adaptive:EnableSmartThrottling" value="true"/>
-<add key="Adaptive:SuccessRateTarget" value="0.95"/> <!-- 95% success rate -->
-<add key="Adaptive:MinDelay" value="00:00:01"/> <!-- 1 second -->
-<add key="Adaptive:MaxDelay" value="00:00:10"/> <!-- 10 seconds -->
-```
-
-## 📊 Configuration Examples
-
-### Production Configuration
-
-```xml
-<configuration>
-    <appSettings>
-        <!-- Production database -->
-        <add key="Database:ConnectionString" value="Server=prod-db.example.com:5432;User Id=scraper;Password=secure-password;Database=jobs_prod;SSL Mode=Require;"/>
-
-        <!-- All scrapers enabled -->
-        <add key="Experts:Enabled" value="true"/>
-        <add key="Companies:Enabled" value="true"/>
-        <add key="Category:Enabled" value="true"/>
-
-        <!-- Aggressive proxy rotation -->
-        <add key="Proxy:Enabled" value="true"/>
-        <add key="Proxy:List" value="http://premium-proxy1:8080;http://premium-proxy2:8080;http://premium-proxy3:8080"/>
-        <add key="Proxy:RotationInterval" value="00:01:00"/>
-
-        <!-- Conservative rate limiting -->
-        <add key="Request:DelayBetweenRequests" value="00:00:03"/>
-        <add key="Request:MaxRetries" value="5"/>
-
-        <!-- Comprehensive logging -->
-        <add key="Logging:Level" value="Information"/>
-        <add key="Logging:FilePath" value="logs/production/JobBoardScraper_{Date}.log"/>
-    </appSettings>
-</configuration>
-```
-
-### Development Configuration
-
-```xml
-<configuration>
-    <appSettings>
-        <!-- Local development database -->
-        <add key="Database:ConnectionString" value="Server=localhost:5432;User Id=postgres;Password=admin;Database=jobs_dev;"/>
-
-        <!-- Only experts scraper for testing -->
-        <add key="Experts:Enabled" value="true"/>
-        <add key="Experts:Interval" value="00:10:00"/> <!-- Every 10 minutes for testing -->
-        <add key="Experts:MaxPages" value="5"/> <!-- Limit pages for development -->
-
-        <!-- No proxy for local testing -->
-        <add key="Proxy:Enabled" value="false"/>
-
-        <!-- Fast requests for development -->
-        <add key="Request:DelayBetweenRequests" value="00:00:00"/>
-        <add key="Request:MaxRetries" value="1"/>
-
-        <!-- Detailed logging for debugging -->
-        <add key="Logging:Level" value="Debug"/>
-        <add key="Logging:UseJsonFormat" value="false"/>
-    </appSettings>
-</configuration>
-```
+## 📋 Current Scraper Status
+
+| Scraper | Setting | Default |
+|---------|---------|---------|
+| UserResumeDetailScraper | `UserResumeDetail:Enabled` | `true` |
+| BruteForceUsernameScraper | `BruteForce:Enabled` | `false` |
+| CompanyListScraper | `Companies:Enabled` | `false` |
+| CompanyFollowersScraper | `CompanyFollowers:Enabled` | `false` |
+| ResumeListPageScraper | `ResumeList:Enabled` | `false` |
+| CategoryScraper | `Category:Enabled` | `false` |
+| ExpertsScraper | `Experts:Enabled` | `false` |
+| CompanyDetailScraper | `CompanyDetail:Enabled` | `false` |
+| UserProfileScraper | `UserProfile:Enabled` | `false` |
+| UserFriendsScraper | `UserFriends:Enabled` | `false` |
+| CompanyRatingScraper | `CompanyRating:Enabled` | `false` |
 
 ## 🔍 Configuration Validation
 
-The system automatically validates configuration on startup:
+The system reads configuration on startup via `AppConfig.cs`. Missing keys will return default values (typically `false` for enabled flags, empty for strings). No automatic validation is performed — invalid values may cause runtime errors.
 
-- **Required fields**: Ensures all mandatory settings are present
-- **Format validation**: Validates URLs, time spans, etc.
-- **Range checking**: Ensures values are within acceptable ranges
-- **Dependency checking**: Validates that dependent configurations are consistent
+## Примеры конфигурации
 
-### Common Validation Errors
+### Только UserResumeDetailScraper с прокси
 
-| Error | Solution |
-|-------|----------|
-| `Missing required configuration: Database:ConnectionString` | Add the missing configuration key |
-| `Invalid timespan format: Experts:Interval` | Use format `DD.HH:MM:SS` |
-| `Proxy list cannot be empty when Proxy:Enabled=true` | Provide at least one proxy or disable proxy |
-| `MaxRetries must be between 1 and 10` | Adjust the value to be within range |
+```xml
+<add key="UserResumeDetail:Enabled" value="true" />
+<add key="FreeProxy:Enabled" value="true" />
+<add key="FreeProxy:RefreshIntervalMinutes" value="10" />
+<add key="ProxyWhitelist:Enabled" value="true" />
+```
 
-## 🛠️ Configuration Management
+### Полный сбор данных (все скраперы)
 
-### Best Practices
+```xml
+<add key="ResumeList:Enabled" value="true" />
+<add key="Companies:Enabled" value="true" />
+<add key="CompanyFollowers:Enabled" value="true" />
+<add key="Category:Enabled" value="true" />
+<add key="Experts:Enabled" value="true" />
+<add key="CompanyDetail:Enabled" value="true" />
+<add key="UserProfile:Enabled" value="true" />
+<add key="UserFriends:Enabled" value="true" />
+<add key="UserResumeDetail:Enabled" value="true" />
+<add key="CompanyRating:Enabled" value="true" />
+```
 
-1. **Use environment-specific configurations**
-   - Separate configs for development, testing, production
-   - Use environment variables for sensitive data
+## Дополнительная информация
 
-2. **Version control**
-   - Store configuration templates in version control
-   - Exclude files with secrets using `.gitignore`
-
-3. **Security**
-   - Never commit passwords or API keys
-   - Use secret management systems in production
-   - Rotate credentials regularly
-
-4. **Documentation**
-   - Document non-obvious configuration choices
-   - Maintain a configuration change log
-   - Include examples for complex settings
-
-### Configuration Files
-
-- `App.config` - Main configuration (committed to repo)
-- `App.secrets.config` - Secret configuration (excluded from repo)
-- `App.Development.config` - Development overrides
-- `App.Production.config` - Production overrides
-
-## 📚 Reference
-
-### Configuration Keys Reference
-
-| Category | Key | Type | Default | Description |
-|----------|-----|------|---------|-------------|
-| **Database** | `Database:ConnectionString` | string | - | PostgreSQL connection string |
-| **Experts** | `Experts:Enabled` | bool | false | Enable experts scraper |
-| **Experts** | `Experts:Interval` | TimeSpan | 4.00:00:00 | Scraping interval |
-| **Proxy** | `Proxy:Enabled` | bool | false | Enable proxy rotation |
-| **Proxy** | `Proxy:List` | string | "" | Semicolon-separated proxy list |
-| **Request** | `Request:Timeout` | TimeSpan | 00:01:30 | Request timeout |
-| **Logging** | `Logging:Level` | string | "Information" | Logging level |
-
-### TimeSpan Format
-
-All time-based configurations use the format: `DD.HH:MM:SS`
-
-- `00:00:05` - 5 seconds
-- `00:01:30` - 1 minute 30 seconds
-- `01:00:00` - 1 hour
-- `1.00:00:00` - 1 day
-
-This comprehensive configuration system provides the flexibility needed to adapt JobBoardScraper to various environments and requirements while maintaining robust defaults for quick deployment.
+- [USER_RESUME_DETAIL_SCRAPER.md](docs/USER_RESUME_DETAIL_SCRAPER.md) - UserResumeDetailScraper documentation
+- [DYNAMIC_PROXY.md](docs/DYNAMIC_PROXY.md) - Free proxy pool
+- [USERRESUME_WITH_PROXY.md](docs/USERRESUME_WITH_PROXY.md) - Proxy usage with resume scraper
+- [App.config](JobBoardScraper/App.config) - Configuration file
