@@ -415,9 +415,11 @@ public sealed class ProxyScraperLauncher : IDisposable
         logger.WriteLine($"Pool max size: {poolMaxSize}");
         logger.WriteLine($"Proxy list URL: {freeProxyListUrl}");
 
+        var poolLogger = new ConsoleLogger("ProxyPool");
+        poolLogger.SetOutputMode(outputMode);
         var pool = new ProxyPool(
             maxSize: poolMaxSize,
-            logger: new ConsoleLogger("ProxyPool"),
+            logger: poolLogger,
             lowWaterMark: 200);
 
         FreeProxyListScraper? freeScraper = null;

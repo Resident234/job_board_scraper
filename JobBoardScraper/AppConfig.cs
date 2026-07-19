@@ -40,6 +40,15 @@ public static class AppConfig
             ? value
             : true;
 
+    public static OutputMode BruteForceOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["BruteForce:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
+        }
+    }
+
     // Настройки для DatabaseClient
     public static OutputMode DatabaseClientOutputMode
     {
@@ -47,6 +56,24 @@ public static class AppConfig
         {
             var modeStr = ConfigurationManager.AppSettings["DatabaseClient:OutputMode"];
             return Enum.TryParse<OutputMode>(modeStr, out var mode) ? mode : OutputMode.Both;
+        }
+    }
+
+    public static OutputMode ProgramOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["Program:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
+        }
+    }
+
+    public static OutputMode AdaptiveConcurrencyOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["AdaptiveConcurrency:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -80,7 +107,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["Companies:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -142,7 +169,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["CompanyFollowers:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -186,7 +213,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["Experts:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -244,7 +271,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["ResumeList:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -360,6 +387,15 @@ public static class AppConfig
             ? value
             : true;
 
+    public static OutputMode CategoryOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["Category:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
+        }
+    }
+
     public static string CategorySelectElementSelector =>
         ConfigurationManager.AppSettings["Category:SelectElementSelector"] ?? "select#category_root_id";
 
@@ -394,7 +430,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["CompanyDetail:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -533,7 +569,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["UserProfile:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -667,7 +703,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["UserFriends:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -712,7 +748,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["UserResumeDetail:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -791,7 +827,7 @@ public static class AppConfig
         get
         {
             var value = ConfigurationManager.AppSettings["CompanyRating:OutputMode"];
-            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.ConsoleOnly;
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
         }
     }
 
@@ -855,6 +891,15 @@ public static class AppConfig
     // Настройки для FreeProxyListScraper
     public static bool EnableFreeProxyRotation =>
         bool.TryParse(ConfigurationManager.AppSettings["FreeProxy:Enabled"], out var value) && value;
+
+    public static OutputMode FreeProxyOutputMode
+    {
+        get
+        {
+            var value = ConfigurationManager.AppSettings["FreeProxy:OutputMode"];
+            return Enum.TryParse<OutputMode>(value, out var mode) ? mode : OutputMode.Both;
+        }
+    }
 
     public static int ProxyRefreshIntervalMinutes =>
         int.TryParse(ConfigurationManager.AppSettings["FreeProxy:RefreshIntervalMinutes"], out var value) 

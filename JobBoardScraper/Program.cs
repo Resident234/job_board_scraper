@@ -36,7 +36,7 @@ class Program
 
         using var httpClient = HttpClientFactory.CreateDefaultClient(timeoutSeconds: 10);
         var programLogger = new ConsoleLogger("Program");
-        programLogger.SetOutputMode(OutputMode.ConsoleOnly);
+        programLogger.SetOutputMode(AppConfig.ProgramOutputMode);
 
         // Инициализация статистики трафика
         using var trafficStats = new TrafficStatistics(
@@ -60,7 +60,8 @@ class Program
             evaluationPeriod: TimeSpan.FromSeconds(2),
             emaAlpha: 0.2,
             increaseStep: 1,
-            decreaseFactor: 0.75
+            decreaseFactor: 0.75,
+            outputMode: AppConfig.AdaptiveConcurrencyOutputMode
         );
 
         var controllerLoop = controller.RunAsync(cts.Token);
@@ -143,7 +144,7 @@ class Program
                     db.EnqueueCategoryRootId(categoryId, categoryName);
                 },
                 interval: TimeSpan.FromDays(7),
-                outputMode: AppConfig.CompaniesOutputMode);
+                outputMode: AppConfig.CategoryOutputMode);
 
             _ = categoryScraper.StartAsync(cts.Token);
         }
@@ -325,7 +326,7 @@ class Program
                 freeProxyListEnabled: AppConfig.FreeProxyListEnabled,
                 proxyScrapeEnabled: AppConfig.ProxyScrapeEnabled,
                 geoNodeEnabled: AppConfig.GeoNodeEnabled,
-                outputMode: AppConfig.UserResumeDetailOutputMode);
+                outputMode: AppConfig.FreeProxyOutputMode);
         }
         else if (AppConfig.UserResumeDetailEnabled)
         {
@@ -436,7 +437,8 @@ class Program
                     bruteForceHttpClient,
                     db,
                     getLastResumeLink: linkLength => db.ResumesGetLastLink(conn, linkLength),
-                    controller: controller);
+                    controller: controller,
+                    outputMode: AppConfig.BruteForceOutputMode);
                 await bruteForceScraper.RunAsync(cts.Token);
             }, cts.Token);
         }

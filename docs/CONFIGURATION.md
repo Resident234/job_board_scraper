@@ -36,6 +36,7 @@ Location: `JobBoardScraper/App.config`
 <add key="BruteForce:Chars" value="abcdefghijklmnopqrstuvwxyz0123456789-_" />
 <add key="BruteForce:EnableRetry" value="true" />
 <add key="BruteForce:EnableTrafficMeasuring" value="true" />
+<add key="BruteForce:OutputMode" value="Both" />
 
 <!-- CompanyListScraper -->
 <add key="Companies:Enabled" value="false" />
@@ -66,6 +67,7 @@ Location: `JobBoardScraper/App.config`
 <!-- CategoryScraper -->
 <add key="Category:Enabled" value="false" />
 <add key="Category:EnableTrafficMeasuring" value="true" />
+<add key="Category:OutputMode" value="Both" />
 
 <!-- ExpertsScraper -->
 <add key="Experts:Enabled" value="false" />
@@ -104,6 +106,11 @@ Location: `JobBoardScraper/App.config`
 <add key="CompanyRating:EnableRetry" value="true" />
 <add key="CompanyRating:EnableTrafficMeasuring" value="true" />
 <add key="CompanyRating:OutputMode" value="Both" />
+
+<!-- Program / AdaptiveConcurrency / FreeProxy logging -->
+<add key="Program:OutputMode" value="Both" />
+<add key="AdaptiveConcurrency:OutputMode" value="Both" />
+<add key="FreeProxy:OutputMode" value="Both" />
 ```
 
 ### Proxy Configuration

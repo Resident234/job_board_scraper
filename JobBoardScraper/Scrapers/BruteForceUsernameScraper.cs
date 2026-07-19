@@ -28,7 +28,8 @@ public sealed class BruteForceUsernameScraper
         SmartHttpClient httpClient,
         DatabaseClient db,
         Func<int, string?> getLastResumeLink,
-        AdaptiveConcurrencyController controller)
+        AdaptiveConcurrencyController controller,
+        OutputMode outputMode = OutputMode.Both)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -37,8 +38,8 @@ public sealed class BruteForceUsernameScraper
         _statistics = new ScraperStatistics("BruteForceUsernameScraper");
         
         _logger = new ConsoleLogger("BruteForceUsernameScraper");
-        _logger.SetOutputMode(OutputMode.ConsoleOnly);
-        ScraperLogger.LogInitialization(_logger, "BruteForceUsernameScraper", OutputMode.ConsoleOnly);
+        _logger.SetOutputMode(outputMode);
+        ScraperLogger.LogInitialization(_logger, "BruteForceUsernameScraper", outputMode);
     }
 
     public async Task RunAsync(CancellationToken ct)
