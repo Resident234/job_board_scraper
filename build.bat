@@ -1,8 +1,9 @@
 @echo off
-REM Скрипт сборки JobBoardScraper для Windows
+chcp 65001 >nul
+REM Скрипт сборки JobBoardScraper для Windows с корректной кодировкой
 
 echo ========================================
-echo JobBoardScraper Build Script
+echo JobBoardScraper Build Script (UTF-8)
 echo ========================================
 echo.
 
@@ -29,7 +30,7 @@ REM Выбор типа сборки
 echo Выберите тип сборки:
 echo 1. Release (самодостаточная, все зависимости включены)
 echo 2. Release (требует установленный .NET, меньший размер)
-echo 3. Release (однофайловая, все в одном .exe)
+echo 3. Release (однофайловой, все в одном .exe)
 echo 4. Debug (для разработки)
 echo.
 set /p choice="Введите номер (1-4): "
@@ -78,7 +79,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [INFO] Копирование конфигурационных файлов...
-copy JobBoardScraper\App.config publish\ >nul 2>nul
+copy /b /y JobBoardScraper\App.config publish\ >nul 2>nul
 
 echo.
 echo [SUCCESS] Сборка завершена успешно!
