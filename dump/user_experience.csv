@@ -10143,7 +10143,13 @@ Web дизайнер
 Ноябрь 2018 — Ноябрь 2020  (2 года и 1 месяц)
 "● Создание дизайн концепций будущего интерфейса: проработка брифа с заказчиком, изучение ЦА, подготовка мудборда (подготовка референсов, изображений, графических элементов, шрифтов)
 ● Анализ конкурентов (как прямых, так и косвенных)
-● Проработка User Story (на основе анализа ЦА создавала пользовательские истории, для лучшего понимания продукта. Пример аналитики: https://goo.su/3QQI)● Разработка интерактивных прототипов в Figma (пример прототипа: https://goo.su/3QQi)● Отрисовка макетов по прототипу в Figma/Adobe Photoshop (страницы разные от форм до интерфейса личного кабинета пользователя)● Создание в Figma UI Kit, компонентов ● Взаимодействовала с верстальщиками и разработчиками (после верстки проверяла работу верстальщика, следила за качеством). Если были недочеты, в панели разработчика исправляла код HTML/CSS и передавала исправление верстальщику.● Создание анимация и прототипов в InVision / After Effects● В Adobe Illustrator создавала иконки. В Photoshop обрабатывала фотографии для размещения на сайт, создавала баннеры"
+● Проработка User Story (на основе анализа ЦА создавала пользовательские истории, для лучшего понимания продукта. Пример аналитики: [https://goo.su/3QQI](https://goo.su/3QQI))
+● Разработка интерактивных прототипов в Figma (пример прототипа: [https://goo.su/3QQi](https://goo.su/3QQi))
+● Отрисовка макетов по прототипу в Figma/Adobe Photoshop (страницы разные от форм до интерфейса личного кабинета пользователя)
+● Создание в Figma UI Kit, компонентов
+● Взаимодействовала с верстальщиками и разработчиками (после верстки проверяла работу верстальщика, следила за качеством). Если были недочеты, в панели разработчика исправляла код HTML/CSS и передавала исправление верстальщику.
+● Создание анимаций и прототипов в InVision / After Effects
+● В Adobe Illustrator создавала иконки. В Photoshop обрабатывала фотографии для размещения на сайт, создавала баннеры
 ===========
 "8279, 10649, "
 QA Engineer
@@ -68856,7 +68862,17 @@ Technology stack:
 "1275, 86189, "
 Системный инженер (Старший) • Senior Software Engineer
 Июль 2014 — Сентябрь 2017  (3 года и 3 месяца)
-"● Developed an online payment system from scratch (https://www.e-pul.az/epay/az/home).● Designed and implemented the frontend using Java and the Spring Framework, with communication between the frontend and backend via SOAP protocol.● Built the backend using C# (WCF) to interface with an Oracle database, ensuring full unit test coverage of 70%+.● Developed stored procedures with PL/SQL to handle data manipulation and processing.● Created a Web API to proxy XML results into JSON for mobile client consumption.● Developed hybrid mobile applications using Xamarin.Forms and a native Android application in Java.Technology stack:● Programming Languages/Frameworks: C#, WCF, Java, Spring Framework● Database: Oracle, PL/SQL● Client-side: Bootstrap, jQuery● VCS: SVN, Git" [[M]]
+● Developed an online payment system from scratch (https://www.e-pul.az/epay/az/home).
+● Designed and implemented the frontend using Java and the Spring Framework, with communication between the frontend and backend via SOAP protocol.
+● Built the backend using C# (WCF) to interface with an Oracle database, ensuring full unit test coverage of 70%+.
+● Developed stored procedures with PL/SQL to handle data manipulation and processing.
+● Created a Web API to proxy XML results into JSON for mobile client consumption.
+● Developed hybrid mobile applications using Xamarin.Forms and a native Android application in Java.
+● Technology stack:
+● Programming Languages/Frameworks: C#, WCF, Java, Spring Framework
+● Database: Oracle, PL/SQL
+● Client-side: Bootstrap, jQuery
+● VCS: SVN, Git
 -----------
 "1276, 86189, "
 Фулстек разработчик (Ведущий) • Head of Development Division
@@ -112662,7 +112678,17 @@ Technology stack:
 "15619, 147032, "
 Системный инженер (Старший) • Senior Software Engineer
 Июль 2014 — Сентябрь 2017  (3 года и 3 месяца)
-"● Developed an online payment system from scratch (https://www.e-pul.az/epay/az/home).● Designed and implemented the frontend using Java and the Spring Framework, with communication between the frontend and backend via SOAP protocol.● Built the backend using C# (WCF) to interface with an Oracle database, ensuring full unit test coverage of 70%+.● Developed stored procedures with PL/SQL to handle data manipulation and processing.● Created a Web API to proxy XML results into JSON for mobile client consumption.● Developed hybrid mobile applications using Xamarin.Forms and a native Android application in Java.Technology stack:● Programming Languages/Frameworks: C#, WCF, Java, Spring Framework● Database: Oracle, PL/SQL● Client-side: Bootstrap, jQuery● VCS: SVN, Git" [[M]]
+● Developed an online payment system from scratch (https://www.e-pul.az/epay/az/home).
+● Designed and implemented the frontend using Java and the Spring Framework, with communication between the frontend and backend via SOAP protocol.
+● Built the backend using C# (WCF) to interface with an Oracle database, ensuring full unit test coverage of 70%+.
+● Developed stored procedures with PL/SQL to handle data manipulation and processing.
+● Created a Web API to proxy XML results into JSON for mobile client consumption.
+● Developed hybrid mobile applications using Xamarin.Forms and a native Android application in Java.
+● Technology stack:
+● Programming Languages/Frameworks: C#, WCF, Java, Spring Framework
+● Database: Oracle, PL/SQL
+● Client-side: Bootstrap, jQuery
+● VCS: SVN, Git
 -----------
 "15620, 147032, "
 Фулстек разработчик (Ведущий) • Head of Development Division
@@ -116519,7 +116545,13 @@ Web дизайнер
 Ноябрь 2018 — Ноябрь 2020  (2 года и 1 месяц)
 "● Создание дизайн концепций будущего интерфейса: проработка брифа с заказчиком, изучение ЦА, подготовка мудборда (подготовка референсов, изображений, графических элементов, шрифтов)
 ● Анализ конкурентов (как прямых, так и косвенных)
-● Проработка User Story (на основе анализа ЦА создавала пользовательские истории, для лучшего понимания продукта. Пример аналитики: https://goo.su/3QQI)● Разработка интерактивных прототипов в Figma (пример прототипа: https://goo.su/3QQi)● Отрисовка макетов по прототипу в Figma/Adobe Photoshop (страницы разные от форм до интерфейса личного кабинета пользователя)● Создание в Figma UI Kit, компонентов ● Взаимодействовала с верстальщиками и разработчиками (после верстки проверяла работу верстальщика, следила за качеством). Если были недочеты, в панели разработчика исправляла код HTML/CSS и передавала исправление верстальщику.● Создание анимация и прототипов в InVision / After Effects● В Adobe Illustrator создавала иконки. В Photoshop обрабатывала фотографии для размещения на сайт, создавала баннеры"
+● Проработка User Story (на основе анализа ЦА создавала пользовательские истории, для лучшего понимания продукта. Пример аналитики: https://goo.su/3QQI)
+● Разработка интерактивных прототипов в Figma (пример прототипа: https://goo.su/3QQi)
+● Отрисовка макетов по прототипу в Figma/Adobe Photoshop (страницы разные от форм до интерфейса личного кабинета пользователя)
+● Создание в Figma UI Kit, компонентов
+● Взаимодействовала с верстальщиками и разработчиками (после верстки проверяла работу верстальщика, следила за качеством). Если были недочеты, в панели разработчика исправляла код HTML/CSS и передавала исправление верстальщику.
+● Создание анимация и прототипов в InVision / After Effects
+● В Adobe Illustrator создавала иконки. В Photoshop обрабатывала фотографии для размещения на сайт, создавала баннеры
 ===========
 "11354, 153317, "
 Бэкенд разработчик (Средний) • Старший разработчик java
@@ -284875,7 +284907,10 @@ Middle .NET backend developer
 "11960, 357420, "
 Инженер-программист
 Январь 1996 — Декабрь 1998  (3 года)
-"● Взял на себя остановленный на полпути проект NormMaster для DIN (www.din.de) и довел его до успешного завершения, детально прорабатывая требования с заказчиком. NormMaster и по сей день рекламируется как лидирующий продукт в своей области, правда уже в виде веб-версии: www.tinyurl.com/normmaster.➢ C++, Oracle, PL/SQL, кросс-платформенная библиотека NeuronData – аналог Qt-toolkit● Также разрабатывал небольшие расширения для веб-сервера Hewlett-Packard➢ C++, TCP/IP, Tcl/Tk, JavaScript"
+● Взял на себя остановленный на полпути проект NormMaster для DIN (www.din.de) и довел его до успешного завершения, детально прорабатывая требования с заказчиком. NormMaster и по сей день рекламируется как лидирующий продукт в своей области, правда уже в виде веб-версии: www.tinyurl.com/normmaster.
+● C++, Oracle, PL/SQL, кросс-платформенная библиотека NeuronData – аналог Qt-toolkit
+● Также разрабатывал небольшие расширения для веб-сервера Hewlett-Packard
+● C++, TCP/IP, Tcl/Tk, JavaScript
 -----------
 "11961, 357420, "
 "Инженер II категории, разработчик"
