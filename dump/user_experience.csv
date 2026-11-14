@@ -84719,8 +84719,8 @@ End-to-end analytics system and implementation of unit economics. For large reta
 "Проектирование микросервисов для нужд МегаФон:
 - проработка архитектуры МКС, согласование с ИБ
 - написание постановки (Usecase, UML - sequence, deployment, диаграммы компонентов и окружения; Swagger) [[D]]
-- эмуляция запросов в Postman, при необходимости прокидывание запросов на продовые кластеры при помощи Rancher
-- регистрация в Keycloak, подготовка конфигурации для самостоятельной публикации методов на API Gateway
+- эмуляция запросов в Postman, при необходимости прокидывание запросов на продовые кластеры при помощи Rancher [[D]]
+- регистрация в Keycloak, подготовка конфигурации для самостоятельной публикации методов на API Gateway [[D]]
 - подготовка ПМИ [[D]]
 - создание паспортов систем, ввод сервисов в эксплуатацию [[D]]
 - просмотр логов в Grafana"
@@ -85182,8 +85182,8 @@ SEO-оптимизация, например:
 
 Ключевые результаты:Формулировка OKR в горизонте планирование год/квартал.Разработка стратегии изменений продукта (run, change, disrupt).Расчет финансовой модели и прогнозное влияния на выручку.Стратегия работы с продуктом направлена в первую очередь на переход в e-comm продажи и наращивание доли полностью самоходных клиентов: [[S]]
 
-- Перезапуск cjm регистрации и онбординга новых пользователей в сервис. CR в успешную регистрацию с 38% до 78%
-- Обновление UI|UX и механик продуктовой витрины на сайте. Рост доли самостоятельных покупок без падения среднего чека.
+- Перезапуск cjm регистрации и онбординга новых пользователей в сервис. CR в успешную регистрацию с 38% до 78% [[D]]
+- Обновление UI|UX и механик продуктовой витрины на сайте. Рост доли самостоятельных покупок без падения среднего чека. [[D]]
 - Запуск рекомендаций сопутствующих товаров в корзине. Апсейл на 1.2% к среднему чеку;
 - Изменения в UX сценариях для дистрибуции контекстного кросс-офера. Кросс-сел + к среднему чеку без канибализации основных опций;
 - Предиктивная ML модель скидок, её размера, частоты для churn-клиентов;
@@ -86359,7 +86359,7 @@ Lead Software Architect
 - SPM и написание собственных библиотек [[D]]
 - SCRUM
 - GitHub. Работаем по GitFlow [[D]]
-- CoreLocation
+- CoreLocation [[D]]
 - MapKit, GoogleMaps, MapBox
 - Google Firebase
 - UIKit, SwiftUI
@@ -86378,10 +86378,10 @@ Lead Software Architect
 - MVVM, MVC, VIPER
 - Макеты дизайна в Sketch [[D]]
 - A/B тестирование, Remote Configurations [[D]]
-- Google Firebase
-- SCRUM
+- Google Firebase [[D]]
+- SCRUM [[D]]
 - GitLab
-- Jenkins"
+- Jenkins" [[D]]
 -----------
 "8581, 124694, 34467"
 Разработчик мобильных приложений • iOS-разработчик
@@ -86389,7 +86389,7 @@ Lead Software Architect
 "Поступил в компанию как Trainee iOS Developer после выигранного конкурса на эту позицию и продвинулся до позиции Junior iOS Developer. Активно изучал Swift и Objective-C на продвинутом уровне. Разрабатывал собственные приложения. Технический стэк:
 - VIPER, MVC, Clean Architecture
 - SwiftUI, UIKit
-- CoreData
+- CoreData [[D]]
 - GitHub. GitFlow
 - Figma" [[D]]
 -----------
@@ -89730,7 +89730,7 @@ Head of PMO (Ведущий) • Senior Project Manager | Head Of PMO
 - Управление и оптимизация документооборота, внедрение эффективных процессов и стандартов. [[D]]
 - Участие в подборе и адаптации новых сотрудников, обучение и повышение квалификации персонала. [[D]]
 Результаты:
-- Увеличил долю аутстаффа с 17% до 31%, соблюдение SLA с 72% до 90%.
+- Увеличил долю аутстаффа с 17% до 31%, соблюдение SLA с 72% до 90%. [[D]]
 - Снизил время простоя сотрудников с 30% до 10% через оптимизацию менеджмента.
 - Оптимизировал документооборот, сократив временные затраты с 3 дней до 5 минут (в зависимости от типа документации/отчётности). [[D]]
 - Привлёк 2 новых проекта от существующих клиентов благодаря своевременной реализации проектов." [[M]]
@@ -89895,7 +89895,7 @@ Messenger для внутренней связи в компании-Испол�
 - Designed, optimized, and maintained PostgreSQL and MongoDB database schemas for high-performance data storage and query execution; [[D]]
 - Developed secure authentication and authorization mechanisms based on JWT and Spring Security; [[D]]
 - Exposed REST API endpoints for user operations, order management, and payment processing enabling seamless integration with internal and external client systems; [[D]]
-- Collaborated closely with business analysts to validate calculations, refine reporting outputs, and enhance system usability;
+- Collaborated closely with business analysts to validate calculations, refine reporting outputs, and enhance system usability; [[D]]
 - Ensured CI/CD automation using GitHub Actions and tested services using JUnit, Mockito and Testcontainers; [[D]]
 - Performed detailed code reviews to maintain code quality and share best practices; [[D]]
 - Documented API specifications and system architecture."
