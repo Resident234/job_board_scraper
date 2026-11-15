@@ -17603,7 +17603,7 @@ Binance (выгрузка
 Создание векторной графики для стока. Сделала более 1500 работ в портфель.Портфолио векторной графики https://www.shutterstock.com/g/AnnaFedko— Иллюстрации;
 — Иконки;
 — Баннеры; [[D]]
-— Леттеринг;
+— Леттеринг; [[D]]
 — Фоны; [[D]]
 — Логотипы; [[M]]
 ===========
@@ -18967,7 +18967,7 @@ Created teams in:
 - KFC
 - X5 [[D]]
 - Avito [[D]]
-- Yandex
+- Yandex [[D]]
 - VK
 - Gettaxi
 - Atom / Kamaz
@@ -20425,7 +20425,7 @@ Full-stack разработчик
 - Mobile-разработчики (iOS devs (Swift, Objective-C), Android devs (Kotlin), Flutter devs (Dart); [[D]]
 - DevOps-инженеры (Ci/CD, Docker, Kubernetes);
 - Automation and manual QA инженер; [[D]]
-- UI/UX дизайнеры;
+- UI/UX дизайнеры; [[D]]
 - Project and product менеджерыМои источники поиска:
 - Job-сайты: hh, superjob, geekjob;
 - Социальные сети : Linkedin, Хабр.карьера, Instagram, VK, Facebook, Telegram;
@@ -21703,14 +21703,14 @@ Stack:
 - Интегрирование GA. Имплементация GDPR Compliant Cookie Banner [[D]]
 - Общение с командой на английском языке. [[D]]
 Stack:
-- React
+- React [[D]]
 - Typescript
 - ReduxTasks dependency graph (Внутренний продукт)Dashboard для анализа и прогнозирования сроков выполнения проектов [[D]]
 - Сборка и контейнеризация приложения, настройка nginx config [[D]]
 - Настройка CI/CDStack: [[D]]
 - React [[D]]
 - Typescript [[D]]
-- Parcel
+- Parcel [[D]]
 - Graphology [[D]]
 - Reactflow
 - SCSS" [[D]]
@@ -21721,7 +21721,7 @@ Stack:
 https://sandbase.ru/Интеграция аналитики - yandex metrika. Интеграция геолокации - yandex maps. Реализация новых фич. Разработка ui компонентов. Поддержка/багфикс приложения.
 Stack:
 - TypeScript [[D]]
-- React
+- React [[D]]
 - NextJS [[D]]
 - Styled Components [[D]]
 - GraphQL (Apollo) [[D]]
@@ -23696,9 +23696,9 @@ https://totalz.ru/"
 • https://spaceresearch.ssau.ru/ru/samsat-ion• https://ssau.ru/news/21725-sputnik-samarskogo-universiteta-im-koroleva-natselen-na-tomografiyu-verkhnego-sloya-atmosfery-zemliРазрабатывал программные модули для бортового компьютера на базе микроконтроллеров NXP LPC4357 (ядра Cortex-M4F и Cortex-M0+) и ATXMega128.Например, реализовал работу обоих ядер, написал модуль межъядерного взаимодействия и обмена информации через очереди сообщений в общей памяти контроллера (interprocessor interrupt + ring-buffer queue), а также реализовал модуль перепрограммирования контроллера, реализующий два способа.Первый, с помощью другого контроллера ATXMega128 через протокол ISP, работающий поверх интерфейса UART.Второй - самостоятельное перепрограммирования флэш памяти микроконтроллером LPC4357 через протокол IAP, где полное обновление прошивки достигается через поочередное перепрограммирование ядер.Разработал совместимые для контроллеров LPC и Xmega программные модули для устройств: [[D]]
 - MEMs магнитометр MMC5983;
 - гироскоп ADXRS290;
-- I2C-to
+- I2C-to [[D]]
 -SPI мост SC18IS602B;
-- расширитель GPIO PCA9554;
+- расширитель GPIO PCA9554; [[D]]
 - АЦП ADS8320;
 - модуль сохранения данных на SD карту; [[D]]
 - модуль сохранения данных на Q [[D]]
@@ -28578,7 +28578,7 @@ Hard skills: [[S]]
 - Postman, Insomnia [[S]]
 - PostgreSQL, Dbeaver [[S]]
 - Android Studio [[S]]
-- Linux
+- Linux [[D]]
 - Git [[D]]
 - Confluence [[S]]
 
@@ -28630,9 +28630,9 @@ Soft skills: [[S]]
 - Выявление и документирование дефектов и ошибок в Jira [[D]]
 - Составление отчетов о результатах тестирования и передача информации разработчикам для исправления ошибок [[D]]
 - Доработка/исправление автотестов в Lego на языке Gerkin.Hard skills: [[D]]
-- Fiddler
+- Fiddler [[D]]
 - Postman, Insomnia
-- PostgreSQL, Dbeaver
+- PostgreSQL, Dbeaver [[D]]
 - Android Studio [[D]]
 - Linux
 - Git [[D]]
@@ -28667,7 +28667,7 @@ Hard skills:
 - PostgreSQL/Dbeaver
 
 - Android Studio [[D]]
-- Linux
+- Linux [[D]]
 - Git
 
 - WSL/WSA
