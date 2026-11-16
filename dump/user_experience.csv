@@ -52799,7 +52799,7 @@ Shell-скрипты, сетевые протоколы, системы мони
 — Создание продуктового процессора для автоматизации операций с депозитами юридических лиц для банка ВТБ, обеспечивающего полный цикл обслуживания – от открытия и пополнения до начисления процентов и закрытияРоль: [[D]]
 — ИТ лидер команды: руководство командой интеграции (1 из 5 в проекте, 12 специалистов: 3 аналитика, 6 разработчиков, 3 тестировщика) [[D]]
 Технологический стек:
-— Backend: Kotlin
+— Backend: Kotlin [[D]]
 — БД: PostgreSQL (с репликацией для отказоустойчивости)
 — Интеграции: REST API, Kafka (для асинхронных событий)
 Результаты:
@@ -57237,7 +57237,7 @@ Kimi -- полнофункциональное мобильное приложе
 - Тестирование новых фич [[D]]
 - Подготовка тестовых данных [[D]]
 - Проведение регрессионного тестирования [[D]]
-- Разбор логов
+- Разбор логов [[D]]
 - Проведение инсталяционного тестирования [[D]]
 - Написание тестовой документации [[D]]
 - Коммуникации с командой"
@@ -60105,7 +60105,7 @@ I advise companies on organising and building information technology systems and
 - Audit and control of project processes at all stages of the product lifecycle [[D]]
 - Development and successful implementation of new products/services in the B2B/B2C segmentin the specified areas [[D]]
 - Preparation of presentations for senior management [[D]]
-- Preparation and calculation of estimates, budgeting, reporting
+- Preparation and calculation of estimates, budgeting, reporting [[D]]
 - Negotiating, concluding contracts, business deals with large key clients [[D]]
 - Creating and describing technical specifications and documents [[D]]
 - Efficient, practical and reasonable use of all available company resources to increaseturnover/sales volume
@@ -60971,7 +60971,7 @@ Frontend-разработчик
 - Переход на решения Российских вендоров: Компьютеры iRu, Сетевое коммутационное оборудование Eltex, Российское ПО: Р7
 -Офис, Astra Linux и пр.;
 - Работа с системой инцидентов Service Desk; [[D]]
-- Заключение договоров на поставку ИТ-услуг;
+- Заключение договоров на поставку ИТ-услуг; [[D]]
 - Закупки 223
 -ФЗ (создание ТЗ\ технической и закупочной документации)
   - Умение беседовать на технические темы как с ""айти"", так и с бизнесом; [[D]]
