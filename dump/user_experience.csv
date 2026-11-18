@@ -58265,7 +58265,7 @@ SOAR: [[S]]
 - ФНС(исправление ошибок в реализованных услугах, доработка печатных форм) [[D]]
 Что использовал:
 - Redmine [[D]]
-- XML
+- XML [[D]]
 - Visio [[D]]
 - Jira [[D]]
 - Confluence [[D]]
@@ -61840,7 +61840,7 @@ Junior Frontend-разработчик
 Март 2021 — Февраль 2023  (2 года)
 "Внедрил использование FastAPI для нагруженных сервисов. Писал бэкенд приложений, на python Django DRF и немного FastAPI, были и проекты на php Laravel.
 Использовал следующие технологии:
-- FastAPI
+- FastAPI [[D]]
 - Celery [[D]]
 - SQLAlchemy
 - Django (DRF) [[D]]
@@ -61849,7 +61849,7 @@ Junior Frontend-разработчик
 - Redis [[D]]
 - Docker (docker compose) [[D]]
 - Git [[D]]
-- Laravel
+- Laravel [[D]]
 В разработке активно использовал следующие подходы и методики: [[D]]
 - ООП
 - MVC [[D]]
