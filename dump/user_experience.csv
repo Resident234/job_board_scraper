@@ -74570,7 +74570,7 @@ PowerBISlackBot (Интеграция PowerBI в Slack):
 Обсуждение проекта с заказчиками, менеджерами, бекенд-разработчиками, бизнес-аналитиками, дизайнерами;
 Участие в собеседованиях по набору в группу разработки;
 Участвие в школе разработчиков от компании:
-- Был ментором и наставников для стажеров, вёл лекции и рассказывал материал;
+- Был ментором и наставников для стажеров, вёл лекции и рассказывал материал; [[D]]
 - Давал задания и оценивал их выполнение в виде ревью кода; [[D]]
 - После школы был личным наставником стажера: помогал ему в адаптации и направлял по проектам и задачам." [[D]]
 ===========
@@ -75280,7 +75280,7 @@ Junior Software Testing Engineer (Стажер)
 Бэкенд разработчик (Стажёр) • Python-разработчик
 Ноябрь 2022 — Февраль 2023  (4 месяца)
 - Приняла участие в доработке телеграм бота: @procharity_bot [[D]]
-- Улучшила авторизацию и добавила аудит пользователей
+- Улучшила авторизацию и добавила аудит пользователей [[D]]
 GitHub: https://github.com/ProCharity/ProCharity_bo [[D]]
 ===========
 "5860, 94090, 60502"
@@ -75436,7 +75436,7 @@ GitHub: https://github.com/ProCharity/ProCharity_bo [[D]]
 "workwatch.pro
 
 Главный конструктор- Руководство мульти-функциональной командой разработчиков умных часов, 15-20 человек в России. [[D]]
-- Создание сложного программно-аппаратного комплекса от идеи до серийного производства.
+- Создание сложного программно-аппаратного комплекса от идеи до серийного производства. [[D]]
 Умные часы для отслеживания работы строительных рабочих. [[D]]
 - Организация серийного производства в Китае, руководство командой китайских специалистов. [[D]]
 - Составление календарных планов работ. [[D]]
@@ -76096,7 +76096,7 @@ Middle Frontend developer
 - SAST, SCA в pipeline (SonarQube, Trivy)
 - сканера уязвимостей (OpenVAS) [[D]]
 - SIEM (Wazuh) [[D]]
-- мониторинга серверов (Prometheus + Grafana)
+- мониторинга серверов (Prometheus + Grafana) [[D]]
 - хранилища секретов (Vault, Bitwarden)
 - anti [[D]]
 -DDos, WAF (Cloudflare)" [[T]]
@@ -76486,7 +76486,7 @@ Junior Frontend Engineer
 - Настроил seo сайта [[D]]
 - Изучил pixijs
 - Научился верстать под любые устройства с помощью browserstack. [[D]]
-- Написал админку для нужд бизнеса на svelte
+- Написал админку для нужд бизнеса на svelte [[D]]
 Ушел из проекта по причине хаотичной разработки и менеджмента [[D]]
 -----------
 "5463, 99579, "
@@ -80998,9 +80998,9 @@ ML разработчик (Старший) •
 Февраль 2024 — По настоящее время  (1 год и 11 месяцев)
 "Leading the entire backend platform for a cutting-edge lending/borrowing cryptocurrency platform.
 - Architected and maintained the complete backend infrastructure for a financial technology platform [[D]]
-- Led comprehensive codebase refactoring, introducing modern architectural patterns and best practices
+- Led comprehensive codebase refactoring, introducing modern architectural patterns and best practices [[D]]
 -Significantly improved system stability and extensibility through systematic optimization
-- Identified and resolved critical bottlenecks, enhancing overall platform performance
+- Identified and resolved critical bottlenecks, enhancing overall platform performance [[D]]
 - Drove technology selection process, evaluating and integrating new solutions [[D]]
 - Managed and mentored backend development team, fostering technical excellence [[D]]
 - Designed scalable solutions handling financial transactions with Bitcoin integration" [[D]]
@@ -81010,7 +81010,7 @@ ML разработчик (Старший) •
 Январь 2022 — Май 2025  (3 года и 5 месяцев)
 "Led technical direction and development processes for multiple product teams at one of Russia's largest retail technology companies.
 - Spearheaded development process improvements across multiple product teams [[D]]
-- Introduced strategic refactoring initiatives and prototyped solutions for legacy codebases
+- Introduced strategic refactoring initiatives and prototyped solutions for legacy codebases [[D]]
 - Identified and resolved complex performance issues, memory leaks, and bugs using advanced profiling tools (Clinic.js)
 - Evaluated, tested, and selected appropriate libraries, solutions, and instruments for various projects [[D]]
 -Provided technical advisory and mentorship to engineering teams on architectural decisions
@@ -81758,7 +81758,7 @@ DevOps-инженер (Старший) • DevOPS
 - Мониторинг: Опыт работы с Prometheus+Grafana+NodeExporter, ELK, Zabbix+Grafana. [[D]]
 - Языки программирования: Bash, Python. [[D]]
 - Виртуализация: Опыт работы с гипервизорами ESXi, KVM. [[D]]
-- Облачные сервисы: SberCloud, TimeWeb Cloud.
+- Облачные сервисы: SberCloud, TimeWeb Cloud. [[D]]
 - Baremetal: Большой опыт работы.
 - Контейнеризация: Глубокие знания Docker, Docker [[D]]
 -Compose, опыт сборки контейнеров.
@@ -82721,7 +82721,7 @@ SEO specialist (junior)
 MusorOFF
 - Интегрировал Яндекс.Карты и ленивое обновление экранов [[D]]
 - Выделил общие модули для приложений курьера и клиента
-- Настроил обработку push-уведомлений
+- Настроил обработку push-уведомлений [[D]]
 Vmeste.ru [[D]]
 - Сделал полный редизайн с кастомными контролами [[D]]
 - Добавил реакции, истории и приветственные стикеры в чатах [[D]]
@@ -82744,7 +82744,7 @@ Vmeste.ru [[D]]
 "Десктоп разработчик (Средний) • Desktop C# Разработчик (WPF, AvaloniaUI)"
 Март 2018 — Декабрь 2021  (3 года и 10 месяцев)
 АКИМ — имитационное моделирование физической безопасности
-- Спроектировал плагинную архитектуру
+- Спроектировал плагинную архитектуру [[D]]
 - Создал векторный движок рендеринга планов объектов
 - Разработал эвристический поиск пути агентов- Сделал C#-обёртку вокруг Delphi-библиотеки (AnyDynamic)
 
