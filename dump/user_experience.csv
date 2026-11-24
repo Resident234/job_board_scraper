@@ -3777,7 +3777,11 @@ SRE Инженер
 Фронтенд разработчик (Старший) • Frontend разработчик
 Ноябрь 2021 — Сентябрь 2024  (2 года и 11 месяцев)
 "Основной стек: [[S]]
-React (были как функциональные, так и классовые компоненты)ReduxMobxTypeScriptSCSSJestWebpack [[S]]
+React (были как функциональные, так и классовые компоненты)ReduxMobx
+TypeScript
+SCSS
+Jest
+Webpack [[S]]
 Обязанности: [[S]]
 Оценка БТ и написание ТЗПроведение код-ревью [[DOC]]
 Написание нового функционала
@@ -38930,7 +38934,10 @@ Head of Technical Support
 Постановка задач в отдел разработки, приёмка
 Доставка обновлений [[S]]
 Стек технологий, с чем работал: [[S]]
-Linux (CentOS, Fedora, Ubuntu)Docker / docker-composeNginx / ApacheHTML / CSSPHP / PHP-FPMMySQL / PostgreSQLBash / PythonGit / GitLabAWS (EC2, RDS, ES, IAM, VPC, CF, R53)GCP (VM, SQL, DNS, CDN, LB)RESTful APICI/CD methodologies [[S]]
+Linux (CentOS, Fedora, Ubuntu)Docker / docker-composeNginx / ApacheHTML / CSSPHP / PHP-FPMMySQL / PostgreSQL
+Bash / Python
+Git / GitLab
+AWS (EC2, RDS, ES, IAM, VPC, CF, R53)GCP (VM, SQL, DNS, CDN, LB)RESTful APICI/CD methodologies [[S]]
 Организовал процесс работы команды поддержки/деплоя с клиентами по всему миру, имея в распоряжении 4 человека. [[DM]]
 Автоматизировал установку, обновление и базовую настройку ПО.
 Запустил более 10 внешних и несколько внутренних проектов. [[S]]
@@ -45036,7 +45043,11 @@ Fullstack разработчик в рамках нескольких проек
 Код-ревью
 Рефакторинг существующего кода
 Написание тестов
-Стек:clojuresql(clickhouse)gitlab ci/cdjenkinsdockerbashyaml [[SL]]
+Стек:clojure
+sql(clickhouse)gitlab ci/cdjenkins
+docker
+bash
+yaml [[SL]]
 Работа с командой по agile:Ежедневные дейли [[AGL]] [[MTH]]
 JiraConfluence
 Демо продуктов
@@ -45444,8 +45455,18 @@ UI/UX дизайнер (Средний) • UX проектировщик / пр
 Приложение для QA-инженеров и тестировщиков, позволяющее создавать, хранить и запускать тест-кейсы. [[P]] Функции: создание тест-кейсов, занесение информации, загрузка файлов, сверка ожидаемого результата и фактического результата, создание дерева с тестовыми прогонами, а также подробная информация о тестировщиках.
 Приложение с интерактивной схемой промышленного здания. [[P]] Направлено для студентов/практикантов/новичков промышленного здания для того, чтобы не теряться при перемещении в здании. Визуализирует схему 3х этажного предприятия, маршрутизирует пользователя приложения, позволяя ему попасть из точки А в точку В. [[S]] [[MIS]]
 Технический стек:
-Frontend: HTML5CSS3AngularTypeScriptHTML5CSS3JavaScriptjQuery.
-Backend: Java 17ThymeleafSpring Boot 3.0.0JUnitApache Kafka.CI/CD: JenkinsDockerKubernetes.
+Frontend: HTML5
+CSS3
+Angular
+TypeScript
+HTML5
+CSS3
+JavaScript
+jQuery.
+Backend: Java 17ThymeleafSpring Boot 3.0.0JUnit
+Apache Kafka.CI/CD: Jenkins
+Docker
+Kubernetes.
 Инструменты: Git.
 Все вышеописанные приложения сделаны собственноручно мной." [[S]]
 ===========
@@ -49566,27 +49587,6 @@ Github - https://github.com/Konstantin-sama" [[S]] [[LINK]]
 Январь 2006 — Январь 2007  (1 год и 1 месяц)
 "Доработка хранимых процедур для SAP, разработка веб-страниц для форм заказа запчастей с заводского склада (ABAP R/3, BHTML). Подготовка технического проекта, руководства пользователя. [[DOC]]"
 ===========
-"9076, 26376, 26556"
-Инженер по обеспечению качества • QA инженер
-Октябрь 2022 — Февраль 2023  (5 месяцев)
-"За время учебы на Хекслет выполнил 2 проекта: [[S]] [[PC]]
-Задачи: [[S]]
-Анализ и декомпозиция приложения
-Составление и систематизация требований к проекту
-Составление тест-кейсов
-Проведение тестирования и заполнение баг-репортов
-Проведение регрессионного тестирования [[S]]
-Тестирование интернет магазина. [[S]]
-Итог: [[S]]
-В ходе работы по проекту удалось познакомиться на практике с работой в Git, Shell, Xmind.
-За время учебы использовал Qase и Notion.
-Все поставленные задачи по проекту были решены, недочеты исправлены. [[S]] [[ACH]]
-Тестирование web-приложения CodeBattle. [[S]]
-Итог: [[S]]
-Работа в Open Source проекте.
-Заполнение Issues на GitHub.
-Все поставленные задачи по проекту были решены, недочеты исправлены." [[S]]
------------
 "8638, 26554, "
 "Проектный специалист по государственным услугам, бизнес-процессам и ИТ"
 Июль 2017 — По настоящее время  (8 лет и 6 месяцев)
@@ -49963,12 +49963,6 @@ Android Developer (некоммерческий проект)
 Март 2020 — По настоящее время  (5 лет и 10 месяцев)
 "Разработка рекламных баннеров, работа с социальными сетями и аудиторией, документация и отчеты, статистика, Facebook busines, Яндекс Директ, коммуникация с блогерами. Разработка персональных листовок и буклетов. Веб дизайн. [[D]]"
 ===========
-"9035, 27081, "
-""
-Декабрь 2022 — По настоящее время  (3 года и 1 месяц)
-"Занимаюсь разработкой интернет-магазина по продаже ""Крафтового сыра"" в Хабаровске.
-https://craft-lab-khv.web.app/стек: React, Redux/toolkit, Firebase. [[NOLABEL]]"
------------
 "9036, 27081, "
 ведущий специалист ИТ
 Декабрь 2016 — По настоящее время  (9 лет и 1 месяц)
@@ -50479,7 +50473,10 @@ Core разработчик
 "742, 28308, "
 Фронтенд разработчик • Frontend Developer
 Апрель 2022 — Сентябрь 2022  (6 месяцев)
-"ReactTypescriptRedux ToolkitLocalStorage
+"React
+Typescript
+Redux Toolkit
+LocalStorage
 Работа с динамическими формами Antd
 Загрузка данных на сервер
 Получение данных с сервера Отправка файлов (аудио, видео, изображения) и получение ссылки на файл
@@ -50636,7 +50633,11 @@ WordPress и других
 2) архитектура проекта, техническое руководство3) рекрутинг, проведение технических интервью4) планирование ресурсов, внутренних проектов5) производительность, метрики (Blackfire, Grafana, ..)
 6) Взаимодействие с другими командами (ERP, Mobile, Devops, stackholders от бизнеса) [[RM]]
 7) миграция поиска в магазинах (включая фасетный поиск по продуктам и атрибутам) с коробочного решения Factfinder на Elasticsearch [[DP]]
-Stack:PHP, SymfonyMySQLMongoDBRabbitMQRedis, MemcachedElasticsearchBlackfire, xDebug" [[T]] [[SL]]
+Stack:PHP, SymfonyMySQL
+MongoDB
+RabbitMQ
+Redis, Memcached
+ElasticsearchBlackfire, xDebug" [[T]] [[SL]]
 ===========
 "9003, 28381, 27"
 Бэкенд разработчик (Старший) • Ведущий разработчик
@@ -52428,7 +52429,8 @@ UI/UX дизайнер (Средний) •
 Занимался анализом данных в PostgreSQL базе данных, извлекая и обрабатывая необходимую информацию.
 Веб-программирование системы отчетов по метрикам моделей:Разрабатывал веб-приложение для предоставления отчетов по метрикам моделей машинного обучения. [[P]]Использовал стек технологий, включая SQL, Python, JS, и HTML, для создания пользовательского интерфейса и взаимодействия с базой данных.
 Обеспечивал удобную визуализацию данных и интуитивно понятный интерфейс для заказчика.
-Технический стек:Язык программирования: Python, JavaScriptSQL и PostgreSQL для работы с базой данных
+Технический стек:Язык программирования: Python, JavaScript
+SQL и PostgreSQL для работы с базой данных
 Веб-технологии: HTML, CSSИнструменты анализа данных и машинного обучения"
 -----------
 "849, 31250, "
@@ -58856,7 +58858,8 @@ Java, Spring Boot, Spring State Machine, Hibernate, Liquibase, Apache Kafka, Spr
 ✅Проактивное выявление узких мест, технических долгов и инициация их устранения. [[S]]
 ✅Участие в скрам-процессах (планирование, ретроспективы) и совершенствование рабочих методик команды. [[S]]
 Основные технологии проекта: [[S]]
-JavaKotlin, Spring Boot, Spring Web, Spring Prometeus, Grafana, Redis, JUnit, Spring Boot Test, Mockito, WareMock, Testcontainers, Docker, Maven, Jenkins, Ansible. [[S]]
+Java
+Kotlin, Spring Boot, Spring Web, Spring Prometeus, Grafana, Redis, JUnit, Spring Boot Test, Mockito, WareMock, Testcontainers, Docker, Maven, Jenkins, Ansible. [[S]]
 Ключевые результаты: [[S]]
 Платформа поддерживалась в рабочем состоянии." [[S]]
 -----------
@@ -72614,7 +72617,9 @@ KeepRise — cистема автоматизации ценообразован
 Настройка CI/CD и инфраструктуры: [[S]]
 Разработка процессов CI/CD с использованием GitLab, управление Kubernetes, автоматизация с Terraform. [[S]]
 Также использовались такие технологии как [[S]]
-PostgreSQLMongoDBApache Kafka" [[S]]
+PostgreSQL
+MongoDB
+Apache Kafka" [[S]]
 -----------
 "1984, 89666, 55092"
 Бэкенд разработчик • Backend разработчик
@@ -75195,7 +75200,10 @@ Tech Lead
 "- Поддержка легаси кода
 - Разработка нового функционала с использованием SwiftUI, Combine [[D]]
 - Написание тестов XCTest [[D]]
-SwiftSwiftUIUIKitCombineMulti module architectureUnidirectional data flow"
+Swift
+SwiftUI
+UIKit
+CombineMulti module architectureUnidirectional data flow"
 -----------
 "10290, 104141, "
 Разработчик мобильных приложений • IOS разработчик
@@ -78863,7 +78871,8 @@ Vue 2;
 Express;
 Socket.io;
 Vuetify;
-VueBootStrap;
+Vue
+BootStrap;
 Дальше переехал на новый стек:
 Vue 3;
 TypeScript;
@@ -79193,7 +79202,14 @@ JIRAPostgreSQLDevtoolsPostmanDbeaverKibana" [[S]]
 Достижения: [[S]]
 Снижение количества критических ошибок в релизах на 25%. [[S]] [[M]]
 Инструменты: [[S]]
-JIRATestRailSQLPostmanSwaggerDevToolsCharles proxyAndroid studio" [[S]] [[ACH]]
+JIRA
+TestRail
+SQL
+Postman
+Swagger
+DevTools
+Charles proxy
+Android studio" [[S]] [[ACH]]
 ===========
 "5405, 121938, 47"
 Head of DevRel в открытых технологиях ВКонтакте / Руководитель направления по взаимодействию с внешними разработчиками [[RM]]
@@ -97283,7 +97299,8 @@ Bitrix разработчик
 Документирование процессов при помощи User Flow диаграмм [[DOC]]
 Разработка страницы настроек приложения и сохранения значений настроек в Битрикс24Использование Rest API Битрикс24Создание активити и использование бизнес-процессов
 Генерация XML для 1С и для ЭДО СБИСРабота с сущностями CRM: товарами, сделками, счетами
-Анализ ТЗФункциональные Selenium тесты, написанные на PythonRedis для хранения временных значений [[DOC]]
+Анализ ТЗФункциональные Selenium тесты, написанные на Python
+Redis для хранения временных значений [[DOC]]
 Логирование в файлы и Slack канал с помощью Monolog
 Генерация документации при помощи PhpDocumentor"
 -----------
@@ -103479,7 +103496,8 @@ React, Redux Toolkit, Formik, Axios, CSS-modules, Antd, Верстка комп�
 5. Выведение сотрудников на проект как самостоятельных едениц [[D]]
 6. Selenium IDE (Создание автоматических веб-тестов) [[D]]
 7. Vanessa Automation (Автоматизация процесса тестирования по текущему проекту (НДС,Расчеты,Бизнес-процессы))
-СТЭК:1C-CRM, 1C-ERPVanessa AutomationpgSQLC# [[D]]"
+СТЭК:1C-CRM, 1C-ERPVanessa AutomationpgSQL
+C# [[D]]"
 -----------
 "35112, 131864, "
 Инженер по ручному тестированию (Средний) • Тестировщик
@@ -105165,7 +105183,11 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31947, 134390, 1"
 Инженер по автоматизации тестирования (Ведущий) • Ведущий инженер по автоматизации тестирования
 Июнь 2024 — По настоящее время  (1 год и 10 месяцев)
-Технологии:Kotlin + JUnit5 + REST Assured + SelenideCypressDockerGitlab CIAllure TestOps [[SL]]
+Технологии:Kotlin + JUnit5 + REST Assured + Selenide
+Cypress
+Docker
+Gitlab CI
+Allure TestOps [[SL]]
 Обязанности:
 - Разработка тестового фреймворка [[D]] [[S]]
 - Автоматизация тестирования [[D]] [[S]]
@@ -105178,7 +105200,10 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31948, 134390, 102"
 Инженер по автоматизации тестирования (Ведущий) • QA Automation Engineer
 Июль 2021 — Июнь 2024  (3 года)
-Технологии:Java 11 + Cucumber + Selenide + REST Assured + WiremockKotlin + KotestDockerJenkins [[SL]]
+Технологии:Java 11 + Cucumber + Selenide + REST Assured + Wiremock
+Kotlin + Kotest
+Docker
+Jenkins [[SL]]
 Обязанности:
 - Разработка тестового фреймворка [[D]] [[S]]
 - Автоматизация тестирования [[D]] [[S]]
@@ -105191,7 +105216,10 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31949, 134390, 28735"
 Инженер по автоматизации тестирования • QA Automation Engineer
 Октябрь 2020 — Июнь 2021  (9 месяцев)
-Технологии:Kotlin + JUnit5 + SelenideDockerJenkinsOpenCVОбязанности:Разработка тестового фреймворка [[SL]]
+Технологии:Kotlin + JUnit5 + Selenide
+Docker
+Jenkins
+OpenCVОбязанности:Разработка тестового фреймворка [[SL]]
 Настройка окружения
 Автоматизация тестирования
 Результаты:Создал UI фреймоворк с низким порогом вхождения
@@ -105204,7 +105232,9 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31950, 134390, 34"
 Инженер по автоматизации тестирования • QA Automation Engineer
 Март 2020 — Сентябрь 2020  (7 месяцев)
-Технологии:Java8 + JUnit5 + Google GuiceOracleSQLJenkins [[SL]]
+Технологии:Java8 + JUnit5 + Google GuiceOracle
+SQL
+Jenkins [[SL]]
 Обязанности:Разработка тестового фреймворка
 Настройка окружения
 Автоматизация тестирования
@@ -105216,7 +105246,9 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31951, 134390, "
 Инженер по автоматизации тестирования • QA Automation Engineer
 Май 2019 — Февраль 2020  (10 месяцев)
-Технологии:Java8 + TestNG + Spring + SeleniumKubernetesJenkins [[SL]]
+Технологии:Java8 + TestNG + Spring + Selenium
+Kubernetes
+Jenkins [[SL]]
 Обязанности:Автоматизация тестирования
 Функциональное тестирование UI / RESTРезультаты:Расширил функциональность тестового REST фреймворка
 Создал тестовый UI фреймворк (на базе Selenium)
@@ -105227,7 +105259,9 @@ Performance-специалист, контент-маркетолог, CRM-ма�
 "31952, 134390, 28167"
 Бэкенд разработчик • Java разработчик
 Декабрь 2018 — Апрель 2019  (5 месяцев)
-"Технологии:Java 8 + SpringPostgreSQL, OracleSQL, MSSQLNodeJSОбязанности:Доработка платформы [[SL]]
+"Технологии:Java 8 + SpringPostgreSQL, Oracle
+SQL, MSSQL
+NodeJSОбязанности:Доработка платформы [[SL]]
 Исправление багов
 Результаты:Доработал систему миграции / обновления
 Создал чат бота, который собирает компоненты нужных версий
@@ -122120,7 +122154,10 @@ Scala developer
 "10851, 157077, "
 Фронтенд разработчик • Frontend Developer
 Апрель 2022 — Сентябрь 2022  (6 месяцев)
-"ReactTypescriptRedux ToolkitLocalStorage
+"React
+Typescript
+Redux Toolkit
+LocalStorage
 Работа с динамическими формами Antd
 Загрузка данных на сервер
 Получение данных с сервера Отправка файлов (аудио, видео, изображения) и получение ссылки на файл
@@ -122769,7 +122806,9 @@ Junior .Net Developer
 Апрель 2018 — По настоящее время  (8 лет)
 "Web testing - Manual testing / Postman / JmeterMobile testing - Xcode / Android Studio / Charles
 Разработка тест-планов, тест-кейсов, чек-листов
-Release management (Сборка билдов)Smoke testingGit / MercurialTeamCityJenkinsRedisMySql (select / update / join / union)
+Release management (Сборка билдов)Smoke testingGit / MercurialTeamCityJenkins
+Redis
+MySql (select / update / join / union)
 Тестирование Безопасности (SQL Injection / XSS)
 Аналитика проекта (маркирование проекта, выявления болей проекта) [[NOLABEL]]"
 ===========
@@ -122995,7 +123034,10 @@ Laravel: создание API, админок, Telegram-ботов, интегр
 "- Поддержка легаси кода
 - Разработка нового функционала с использованием SwiftUI, Combine [[D]]
 - Написание тестов XCTest [[D]]
-SwiftSwiftUIUIKitCombineMulti module architectureUnidirectional data flow"
+Swift
+SwiftUI
+UIKit
+CombineMulti module architectureUnidirectional data flow"
 -----------
 "19287, 160968, "
 Разработчик мобильных приложений • IOS разработчик
@@ -127569,7 +127611,8 @@ Nest.jsPostgreSQLTypeORMJestDockerCI/CD через Github ActionsNginx"
 Фронтенд
 React.jsMobXGraphQL
 Бекенд
-Node.jsApollo GraphQLPostgreSQLTypeORM"
+Node.jsApollo GraphQL
+PostgreSQLTypeORM"
 -----------
 "19948, 175210, 25316"
 Фронтенд разработчик • Frontend разработчик
@@ -137838,7 +137881,9 @@ Junior QA Engineer (Manual)
 Высоконагруженная система с более чем 5 млн пользователей, охватывающая медицинские процессы по всей стране. [[P]] [[S]] [[M]]
 Технические навыки: [[S]]
 Тестирование и автоматизация:Java (JUnit, RestAssured, Selenide), PythonApache JMeterPostman (с JavaScript), Swagger, REST, FHIR, gRPCCharles, DevToolsPostgreSQL (DBeaver), SQL, ClickhouseAndroid Studio, Xcode [[S]]
-Инфраструктура и DevOps инструменты:Jenkins, GitLab CI/CD, GitKubernetes (Lens, kubectl)Grafana, OpenSearch, KibanaApache KafkaLinux [[S]]
+Инфраструктура и DevOps инструменты:Jenkins, GitLab CI/CD, Git
+Kubernetes (Lens, kubectl)Grafana, OpenSearch, KibanaApache Kafka
+Linux [[S]]
 Управление процессами и документация:Jira, Confluence, Zephyr, Qase.io, Figma [[S]]
 Обязанности: [[S]]
 Руководство командой QA: распределение задач, контроль сроков, планирование отпусков, оценка трудозатрат.
@@ -144578,7 +144623,23 @@ https://888.ru/ [[S]]
 ===
 В работе над проектами использовались следующие технологии:
 Backend:
-PHPDrupalWordPressYii2NodeJSDeno JSFrontend:JavascriptReact JSAlpine JSJQueryBootstrapUIkit3Tailwind CSSVite JSСопутствующие:DockerDDEVSystemdNginxMySQLИнструменты командной работы:Git + Gitlab
+PHP
+Drupal
+WordPress
+Yii2
+NodeJS
+Deno JSFrontend:Javascript
+React JS
+Alpine JS
+JQuery
+Bootstrap
+UIkit3
+Tailwind CSS
+Vite JSСопутствующие:Docker
+DDEV
+Systemd
+Nginx
+MySQLИнструменты командной работы:Git + Gitlab
 Тикет-система внутренняя"
 -----------
 "16989, 204910, 61"
@@ -145218,7 +145279,13 @@ PyTest [[S]]
 "Гиберно - онлайн платформа для самозанятых, предоставляющая услуги по автоматизации выплат, созданию вакансий и проверке документов. Компания стремилась сократить зависимость от аутсорсинга и создать собственную команду разработчиков. [[S]]
 Проект: Когда я присоединился к команде, платформа уже функционировала, но требовались новые интеграции и разработки. В команде были только я и продукт менеджер, бухгалтерия работала на 1С. [[S]] [[PH]]
 Стек технологий: [[S]]
-DjangoDRFPostgreSQLCeleryAiohttpAiogramAsyncioSQLAlchemyFastAPIDockerGit [[S]]
+DjangoDRFPostgreSQLCeleryAiohttp
+Aiogram
+Asyncio
+SQLAlchemy
+FastAPI
+Docker
+Git [[S]]
 Основные задачи и достижения: [[S]]
 Исправление багов: Решение проблем, связанных с интеграциями с Тинькофф и ФНС. [[S]]
 Оптимизация проекта: Перепроектирование функционала мобильного приложения в веб-приложение на Django для управления откликами, сменами, вакансиями, организациями, пользователями и их счетами. [[S]]
@@ -145232,7 +145299,13 @@ DjangoDRFPostgreSQLCeleryAiohttpAiogramAsyncioSQLAlchemyFastAPIDockerGit [[S]]
 Бэкенд разработчик (Средний) • Backend разработчик
 Октябрь 2022 — Январь 2023  (4 месяца)
 "Стек технологий: [[S]]
-DjangoDjangoRestFrameworkPostgreSQLTelebotSeleniumBeautifulSoup (BS)NginxGunicornRedisCeleryRabbitMQ [[S]]
+DjangoDjangoRestFramework
+PostgreSQL
+Telebot
+Selenium
+BeautifulSoup (BS)Nginx
+Gunicorn
+RedisCeleryRabbitMQ [[S]]
 Проект: [[S]] [[PH]]
 Linksiz - сайт, занимающийся продажей рекламных баннеров с внутренней комиссией. В проекте участвовали только я и продукт-менеджер, который генерировал идеи, а я их реализовывал. [[S]]
 Основные задачи и достижения: [[S]]
@@ -148225,7 +148298,8 @@ Frontend Разработчик
 Март 2022 — По настоящее время  (3 года и 11 месяцев)
 "Работал над приложением ""Portal DA"" - это маркетплейс бизнес-активов и залогового имущества. [[PL]]
 Стек
-SwiftSwiftUI, UiKit, VIPER, MVC, MVVM, Swift Package Manager, Autolayout, GitFlow, UrlSessions, Alamofire, Unit-тесты, UserDefaults."
+Swift
+SwiftUI, UiKit, VIPER, MVC, MVVM, Swift Package Manager, Autolayout, GitFlow, UrlSessions, Alamofire, Unit-тесты, UserDefaults."
 -----------
 "10781, 218304, 168394"
 "Менеджер проектов, программист"
@@ -148428,7 +148502,13 @@ Chainanalysis, Infura, Crystal, Sumsub, Unlimit, Cryptology, OKX, Binance etc ..
 Сентябрь 2021 — Апрель 2023  (1 год и 8 месяцев)
 "Разработка и поддержка высоконагруженной системы для анализа tracking url, количество переходов, конверсии etc
 Геораспределенная система, ~300k RPSИспользуемый стек [[M]]
-GolangPython, Django, DRFKubernetes, HPAPostgreSQLRedisAerospikeNats, JetstreamRabbitMQClickhouse"
+Golang
+Python, Django, DRFKubernetes, HPAPostgreSQL
+Redis
+Aerospike
+Nats, Jetstream
+RabbitMQ
+Clickhouse"
 -----------
 "29533, 218853, "
 Бэкенд разработчик (Ведущий) • Team Lead
@@ -174844,7 +174924,8 @@ Java Backend developer
 Февраль 2022 — По настоящее время  (4 года и 2 месяца)
 "Генерировал идеи для развития продукта- Составлял ТЗ- Оценивал возможности применения продукта на рынке- Разрабатываю backend часть продукта основного продукта (аналог маркетплейса) [[DOC]]
 - Выполняю разработку backend части для заказчиков из вне.К сожалению примеры кода с работы не могу предоставить, коммерческая тайна. [[D]]
-Stack:MySQLJava 17MavenSpring" [[SL]]
+Stack:MySQL
+Java 17MavenSpring" [[SL]]
 ===========
 "27731, 224705, 634668"
 Менеджер продукта (Ведущий) • Product / project manager
@@ -185960,7 +186041,10 @@ Head of Technical Support
 Постановка задач в отдел разработки, приёмка
 Доставка обновлений [[S]]
 Стек технологий, с чем работал: [[S]]
-Linux (CentOS, Fedora, Ubuntu)Docker / docker-composeNginx / ApacheHTML / CSSPHP / PHP-FPMMySQL / PostgreSQLBash / PythonGit / GitLabAWS (EC2, RDS, ES, IAM, VPC, CF, R53)GCP (VM, SQL, DNS, CDN, LB)RESTful APICI/CD methodologies [[S]]
+Linux (CentOS, Fedora, Ubuntu)Docker / docker-composeNginx / ApacheHTML / CSSPHP / PHP-FPMMySQL / PostgreSQL
+Bash / Python
+Git / GitLab
+AWS (EC2, RDS, ES, IAM, VPC, CF, R53)GCP (VM, SQL, DNS, CDN, LB)RESTful APICI/CD methodologies [[S]]
 Организовал процесс работы команды поддержки/деплоя с клиентами по всему миру, имея в распоряжении 4 человека.
 Автоматизировал установку, обновление и базовую настройку ПО.
 Запустил более 10 внешних и несколько внутренних проектов. [[S]]
@@ -197645,7 +197729,10 @@ Apache Hadoop, Hive, HDFSApache KafkaApache NiFi, Spark [[S]]"
 Консультация на этапе разработки [[D]] [[S]]
 Актуализация документации, написание инструкций [[DOC]] [[S]]
 Стек используемых технологий в проекте [[S]]
-AngularLaravel, PythonPostgreSQL, RedisRabbitMQ [[S]]"
+Angular
+Laravel, Python
+PostgreSQL, Redis
+RabbitMQ [[S]]"
 ===========
 "22880, 227802, "
 Cтажёр ui ux designer
@@ -217483,7 +217570,11 @@ FRONTEND-РАЗРАБОТКА [[S]]
 Фронтенд разработчик (Старший) • Frontend разработчик
 Ноябрь 2021 — Сентябрь 2024  (2 года и 11 месяцев)
 "Основной стек: [[S]]
-React (были как функциональные, так и классовые компоненты)ReduxMobxTypeScriptSCSSJestWebpack [[S]]
+React (были как функциональные, так и классовые компоненты)ReduxMobx
+TypeScript
+SCSS
+Jest
+Webpack [[S]]
 Обязанности: [[S]]
 Оценка БТ и написание ТЗПроведение код-ревью [[DOC]]
 Написание нового функционала
@@ -218421,7 +218512,10 @@ ML разработчик (Стажёр) • Младший инженер
 Ведение документации в confluence. [[DOC]]
 В том числе занимаюсь неразработческими активностями - посещение ежедневных дейликов, еженедельной ретроспективы и планирования. Задачи оцениваем в storyPoint. [[AGL]]
 Стек:Bakcend: [[SL]]
-Часть микросервисов написана на ProjectReactor. Другая часть на обычном императивном JavaPostgreSQLApache KafkaREST + SOAPCI/CD через Gitlab + OpenShift + Docker
+Часть микросервисов написана на ProjectReactor. Другая часть на обычном императивном Java
+PostgreSQL
+Apache Kafka
+REST + SOAPCI/CD через Gitlab + OpenShift + Docker
 Система мониторинга: Grafana + Jaeger + Prometheus
 Frontend: React + TypeScript + MUI"
 -----------
@@ -219232,7 +219326,8 @@ Team Lead (Ведущий) • Teach lead / Тех лид
 Настройка dev, prod стендов, окружения и разворачивания фронтенд и бекенд приложений. ( Nginx/ Docker/ Wildfly ). [[T]]
 Приоритизация беклога. Работа команды по Agile/Scrum. Сопровождение команды в их реализации. Работа с личной мотивацией сотрудников. [[S]] [[T]] [[MTH]]
 Стек технологий: [[S]]
-Spring Cloud, Java, PostgreSQL, MongoDBNode.js, Typescript, ReactKafka, Redis, DockerUbuntu, Github Actions" [[S]]
+Spring Cloud, Java, PostgreSQL, MongoDB
+Node.js, Typescript, ReactKafka, Redis, DockerUbuntu, Github Actions" [[S]]
 -----------
 "19400, 232077, 1"
 Фулстек разработчик (Ведущий) • Senior Full Stack разработчик
@@ -219250,7 +219345,9 @@ Spring Cloud, Java, PostgreSQL, MongoDBNode.js, Typescript, ReactKafka, Redis, D
 Внедрила систему логирования и мониторинга (ELK Stack, Prometheus), что позволило быстро выявлять и устранять ошибки в продакшене. [[RES]]
 Разработанные RESTfull сервисы на Spring Java. [[S]] [[T]]
 Стек технологий: [[S]]
-Java, PostgreSQL, MySQLSpring Boot, Spring Security, Spring DataJavascript, Typescript, Node.jsReact, Redux, MaterialUINginx, Wildfly" [[S]] [[ACH]]
+Java, PostgreSQL, MySQL
+Spring Boot, Spring Security, Spring DataJavascript, Typescript, Node.js
+React, Redux, MaterialUINginx, Wildfly" [[S]] [[ACH]]
 -----------
 "19401, 232077, 634583"
 "Веб-разработчик (Средний) • Старший веб разработчик. ( Typescript, Java )"
@@ -219275,7 +219372,10 @@ Java, PostgreSQL, MySQLSpring Boot, Spring Security, Spring DataJavascript, Type
 Выстроенные бизнес процессы разработки внутри команды.
 Документация для продукта. [[S]] [[T]]
 Стек технологий: [[S]]
-React, Next, Webpack, Node.jsJavascript, TypescriptJava, Spring, Maven, GradlePostgreSQLDocker, KubernetesKafka" [[S]] [[ACH]]
+React, Next, Webpack, Node.js
+Javascript, Typescript
+Java, Spring, Maven, GradlePostgreSQL
+Docker, KubernetesKafka" [[S]] [[ACH]]
 -----------
 "19402, 232077, 34702"
 "Фронтенд разработчик (Младший) • Frontend developer. ( React, Typescript )"
@@ -219290,7 +219390,9 @@ React, Next, Webpack, Node.jsJavascript, TypescriptJava, Spring, Maven, GradlePo
 Результаты: [[S]]
 Rtim. Веб приложение для автоматизации и менеджмента строительных проектов. [[P]] Главная задача: построение проекта на карте и последующая автогенерация строительных объектов и подсчет экономики. ЦТТ. Сервис клиентской части для управления внутренними проектами и процессами, контроля выполнения задач через канбан доски. [[P]]Веб приложение для измерение погрешностей и анализа метала в реальном времени для Северстали. [[P]]MapSurvey. Разработка сайта для сбора статистики при помощи различных опросов. Данные опросов так же собираются с выделенных областей карты пользователя. [[S]] [[MIS]]
 Стек технологий: [[S]]
-Javascript, TypesscriptNode.jsReact, Next, VuePostgreSQL, MongodbRedux, MobX, EffectorDocker" [[S]]
+Javascript, TypesscriptNode.js
+React, Next, Vue
+PostgreSQL, MongodbRedux, MobX, EffectorDocker" [[S]]
 ===========
 "28902, 232081, 35354"
 Менеджер проекта (Ведущий) • Менеджер группы продуктов
@@ -231262,7 +231364,14 @@ JIRAPostgreSQLDevtoolsPostmanDbeaverKibana" [[S]]
 Достижения: [[S]]
 Снижение количества критических ошибок в релизах на 25%. [[S]] [[M]]
 Инструменты: [[S]]
-JIRATestRailSQLPostmanSwaggerDevToolsCharles proxyAndroid studio" [[S]] [[ACH]]
+JIRA
+TestRail
+SQL
+Postman
+Swagger
+DevTools
+Charles proxy
+Android studio" [[S]] [[ACH]]
 ===========
 "17368, 257667, 24613"
 Фронтенд разработчик (Средний) • фронтенд-разработчик
@@ -233569,7 +233678,9 @@ ERP системы
 Веб-сайта
 Лендингов
 Стек технологий:
-LaravelReactJS / ReduxMySQLRedisSocket.ioWebpack" [[DELETE]]
+Laravel
+ReactJS / ReduxMySQL
+RedisSocket.ioWebpack" [[DELETE]]
 -----------
 "22105, 263853, 58938"
 Бэкенд разработчик • PHP Developer
@@ -245354,7 +245465,8 @@ HoffDKCXerox [[S]]
 Обучал новичков и адаптацию в проект, являюсь ментором и техлидом. [[MENT]]
 Улучшил процессы в проекте и благодаря результату уменьшились количество багов. Всегда стараюсь на ранних этапах проекта выстроить процессы, чем и обеспечивать качество. [[S]] [[RES]]
 В работе использую инструменты: [[S]]
-gitpostmanDevTooolsjmeter - для базового тестирования нагрузки страниц совместо с битриксjava в сборке gradle / junit5 для автоматизации UI.json, xml [[S]]
+git
+postmanDevTooolsjmeter - для базового тестирования нагрузки страниц совместо с битриксjava в сборке gradle / junit5 для автоматизации UI.json, xml [[S]]
 Увлечения: [[S]]
 В свободное время прохожу курс по автоматизации на Java/Junit5/Gradle." [[S]] [[EDU]]
 ===========
@@ -248866,7 +248978,9 @@ Git • Linux • Высоконагруженные системы • MongoDB 
 Вел переход от каскадной модели выполнения задач к
 Scrum. [[AGL]]
 Руководил группой разработчиков: расстановка приоритетов, проведение Daily meetings, принятие конечного решения; [[D]]
-Навыки в работе:asp netCI/CDSQLDockerDocker composemongoDBScrumJWTSOLIDGitLab [[AGL]]
+Навыки в работе:asp netCI/CDSQL
+Docker
+Docker composemongoDBScrumJWTSOLIDGitLab [[AGL]]
 Архитектурные решения
 Scrum / Kanban / Agile" [[AGL]] [[MTH]]
 -----------
@@ -248878,7 +248992,9 @@ Scrum / Kanban / Agile" [[AGL]] [[MTH]]
 *Построение backend api для отдачи данных из внешних запросов;* Администрирование и настрокай работоспособности: серверов linux, docker, docker compose, nginx, gitlab CI/CD; [[D]]
 * Общение с внутреними заказчиками по ТЗ и их хотелкам; [[D]] [[RM]]
 * Руководство командой разработки: описание задач, распределение задач по приоритетам и по разработчикам. [[D]]
-Навыки в работе:asp netCI/CDSQLDockerDocker composeJWTSOLIDGitLab
+Навыки в работе:asp netCI/CDSQL
+Docker
+Docker composeJWTSOLIDGitLab
 Архитектурные решения
 Scrum / Kanban / Agile [[D]]" [[AGL]] [[MTH]]
 -----------
@@ -254770,7 +254886,8 @@ Prisma WEB — веб версия популярного мобильного �
 Июль 2020 — Сентябрь 2021  (1 год и 3 месяца)
 "Тимлид и ведущий разработчик EDM для военных проектов. [[RM]]
 Разработчик EDM MVP для дочки Газпрома по ремонту и обслуживанию скважин
-К сожалению, в подробностях рассказать не могу :(Стек:Vue.js + Vues ORMGraphQL (Apollo)WebpackScssAdobe XD" [[T]]
+К сожалению, в подробностях рассказать не могу :(Стек:Vue.js + Vues ORMGraphQL (Apollo)Webpack
+ScssAdobe XD" [[T]]
 ===========
 "27521, 274841, 151941"
 Специалист по управлению рекламой
@@ -258133,7 +258250,9 @@ SpreadSheet - электронная таблица (упрощённый ана
 "14253, 275539, "
 Стажер Frontend-разработчик
 Февраль 2023 — Июнь 2023  (5 месяцев)
-"На стажировке я научился и/или закрепил следующие технологии:ReactRedux ToolkitTypeScript (и закрепил JavaScript)SCSSАдаптивная вёрстка [[SKG]]
+"На стажировке я научился и/или закрепил следующие технологии:React
+Redux Toolkit
+TypeScript (и закрепил JavaScript)SCSSАдаптивная вёрстка [[SKG]]
 Next
 На стажировке я выполнял различные учебные задачи. Сперва были простые, на проверку HTML+CSS и адаптивной верстки, далее дали задачи сложнее, в которых применял React, TypeScript и Redux.
 После стажировки я начал разработку пет-проекта: ссылка на проект. В нём я с нуля разработал приложение по учету задач. Сперва продумал архитектуру, далее создал примерный дизайн и начал разрабатывать. В приложении реализованы все функции планировщика задач: добавление, удаление и изменение задачи, а также фильтрация и удаление задач. Реализовал адаптивы под все устройства и типизировал весь проект. Сейчас проект на стадии ""выпуска"", им можно пользоваться. Но я также придумываю и добавляю новые функции и чиню возможные баги." [[DP]]
@@ -261678,7 +261797,8 @@ code review, design review;
 участие в разработке регламентов для команды. [[S]] [[DOC]]
 
 Технологический стек: [[S]]
-TypescriptReactEffectorRedux + Redux Toolkit/SagaFSD-архитектура
+Typescript
+ReactEffectorRedux + Redux Toolkit/SagaFSD-архитектура
 GraphQL" [[S]]
 ===========
 "28457, 276449, 184"
@@ -269033,7 +269153,10 @@ https://github.com/MourineRyabova/portfolio"
 5. Разрабатывал сервис дисциплинарных взысканий. [[D]]
 6. Разрабатывал сервис персональных пользовательских согласий. [[D]]
 7. Codereview, груминг, обучение, планирование, собеседования. [[D]] [[MENT]]
-Стек:Java 17Java 21Spring BootSpring FrameworkPostgresHibernate JpaKafkaJenkinsDockerOpenshiftGigachatGigavisionGitLinuxSQLTestContainers" [[SL]]
+Стек:Java 17Java 21Spring BootSpring FrameworkPostgresHibernate JpaKafkaJenkins
+DockerOpenshiftGigachatGigavisionGit
+Linux
+SQLTestContainers" [[SL]]
 -----------
 "27393, 278667, 106"
 Бэкенд разработчик (Младший) • Java разработчик
@@ -276165,7 +276288,8 @@ On-Call поддержка работоспособности сервиса н�
 "21758, 287757, "
 Фулстек разработчик (Старший) • Разработчик
 Май 2017 — Июль 2017  (3 месяца)
-"Разработка браузерной игры. Новый код с логикой из legacy-проекта. Смена run-die парадигмы на сервер-клиент. Серверная часть на базе ReactPHP. [[D]]
+"Разработка браузерной игры. Новый код с логикой из legacy-проекта. Смена run-die парадигмы на сервер-клиент. Серверная часть на базе React
+PHP. [[D]]
 PHP, PostgreSQL, JS.
 Slim php, ReactPHP, Doctrine 2, Vue js, Typescript."
 -----------
@@ -279467,7 +279591,8 @@ DevOps-инженер • DevOps engineer
 Август 2021 — По настоящее время  (4 года и 7 месяцев)
 "Курс на платформе Stepik ""Основы компьютерных и веб технологий с Python от Диджитализируй"". [[EDU]]
 Проекты: [[PH]]
-https://github.com/vikmos/spa_table Стек: Python 3.9PostgreSQLFastAPIHTMLCSSJQueryhttps://github.com/vikmos/parser-tgbotСтек: Python 3.9Beautifulsoup4pyTelegramBotAPI"
+https://github.com/vikmos/spa_table Стек: Python 3.9PostgreSQL
+FastAPIHTMLCSSJQueryhttps://github.com/vikmos/parser-tgbotСтек: Python 3.9Beautifulsoup4pyTelegramBotAPI"
 -----------
 "28671, 345716, 35507"
 Аналитик по обеспечению качества (Средний) • Тестировщик ПО
@@ -280226,7 +280351,8 @@ UX/UI-дизайнер
 Сбор и согласование требований заказчика.
 Постановка задач для разработки программного обеспечения.
 Разработка архитектурных схем, схем автоматизируемых процессов.
-Стэк технологий:Java ScriptPytonPostgress SQLSQLiteMangoDBЕнисей DB"
+Стэк технологий:Java ScriptPytonPostgress SQL
+SQLiteMangoDBЕнисей DB"
 -----------
 "36241, 345965, "
 Системный аналитик (Средний) • Старший системный аналитик
@@ -296917,7 +297043,8 @@ https://github.com/SPI315/vine_quality_service [[S]]
 Веб-разработчик (Vue 3)
 Сентябрь 2022 — Февраль 2023  (6 месяцев)
 "Стек: [[S]]
-Vue3 (Composition API)Nuxt / SPATypeScriptPiniaTailwindPrimeVUEGraphQL + ApolloClientGitlab [[S]]
+Vue3 (Composition API)Nuxt / SPATypeScriptPiniaTailwindPrimeVUE
+GraphQL + ApolloClientGitlab [[S]]
 Разработка системы учета рабочих часов: [[S]]
 разработка UI/UX компонентов;
 фикс багов; [[S]]
@@ -296938,7 +297065,8 @@ Vue3 (Composition API)Nuxt / SPATypeScriptPiniaTailwindPrimeVUEGraphQL + ApolloC
 Веб-разработчик (Vue 2)
 Март 2019 — Август 2022  (3 года и 6 месяцев)
 "Стек: [[S]]
-Vue2 (Options API)Nuxt / SPAJavaScriptVuexSCSS / CSSVuetifyGraphQL + ApolloClientGitlab [[S]]
+Vue2 (Options API)Nuxt / SPAJavaScript
+VuexSCSS / CSSVuetifyGraphQL + ApolloClientGitlab [[S]]
 Обязанности: [[S]]
 проектирование пользовательских интерфейсов;
 разработка этапов выполнения проекта;
@@ -311642,7 +311770,9 @@ DBA. Базы данных PostgreSQL, Apache Hadoop/Hbase, MongoDB, Redisизу
 Текущее решение Apache Hbase. Внедрено 15 лет назад, сотни миллионов писем, возможности неограниченного роста благодаря структуре ключ-значение. Это одна из самых сложных архитектурных задач, которую я решал. Перенести реляционную модель в систему ключ-значение, чтобы была возможность неограниченного роста и мгновенной работы, было не просто.
 Комментарий - сейчас бы использовал распределенную NewSQL базу данных. С учетом того, какими знаниями о базах данных обладаю.
 Базы данных
-PostgreSQLMongoDBApache Hadoop/HbaseRedisMemcached
+PostgreSQL
+MongoDBApache Hadoop/HbaseRedis
+Memcached
 Первоначальный язык - PHP, потом переход на Ruby on Rails и Python
 Высылка уведомлений пользователям на почту - платный smtp сервер PowerMTAКеширующие сервисы - squid, varnish
 Контейнеризация - docker, docker swarm
@@ -321787,7 +321917,8 @@ System/Business analyst
 - Создание, структурирование, поддержание документации проекта (Jetbrains knowledge base) [[S]] [[PW]] [[DOC]]
 - Построение архитектуры продукта, хранения данных и микросервисов [[S]] [[PW]]
 - Тестирование API (Swagger, Postman) [[S]] [[T]] [[PW]]
-Работа с такими технологиями как:REST APIXMLMySQLPostgreSQLСlickhouseRedisRabbit MQElastic search" [[S]]
+Работа с такими технологиями как:REST APIXMLMySQL
+PostgreSQLСlickhouseRedisRabbit MQElastic search" [[S]]
 -----------
 "15862, 395187, "
 Менеджер продукта • Product manager
